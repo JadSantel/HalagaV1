@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import Image from "next/image";
+import { useReducer, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
   answerText, behaviorOptions, changeAnswer, copyDraft, deriveCondition,
   emptyDraft, enhancedKeys, includedOptions, questions, safeTestingGuidance,
@@ -10,6 +11,9 @@ import {
   emptyListingDetails, fulfillmentOptions, ownershipDeclaration, practiceBarangays,
   sampleListingDetails, toPublicLaptopPreview, validateListingDetails, type LocalLaptopDraft,
 } from "../domain/laptop-listing";
+import {
+  sampleLaptopPhotos, selectedSamplePhotos, updateSamplePhotoSelection, type SamplePhoto,
+} from "../domain/sample-laptop-photos";
 
 const controlClass = "mt-2 min-h-12 w-full rounded-md border border-[#75837c] bg-white px-3 py-2 text-base text-[#17231f]";
 const primaryClass = "min-h-12 rounded-md bg-[#176b59] px-5 py-3 font-semibold text-white hover:bg-[#105746] disabled:bg-[#53615c]";
@@ -28,12 +32,15 @@ export default function LaptopDraftForm() {
   const [review, setReview] = useState(false);
   const [sampleIndex, setSampleIndex] = useState(0);
   const [status, setStatus] = useState("");
+  const [photoIds, changePhotos] = useReducer(updateSamplePhotoSelection, []);
+  const [photoChoice, setPhotoChoice] = useState(sampleLaptopPhotos[0].id);
   const errorSummary = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const result = deriveCondition(draft);
   const stopped = result.safety === "blocked" || result.safety === "hold";
   const diagnosticsVisible = result.safety === "clear";
-  const publicDraft = toPublicLaptopPreview(draft);
+  const photos = selectedSamplePhotos(photoIds);
+  const publicDraft = toPublicLaptopPreview(draft, photos);
   const publicResult = deriveCondition(publicDraft);
 
   function update(next: Draft | LocalLaptopDraft) {
@@ -43,9 +50,11 @@ export default function LaptopDraftForm() {
   }
 
   function replace(next: LocalLaptopDraft, message: string) {
-    const hasWork = Boolean(draft.title || draft.brand || draft.model || draft.description || draft.answers.safety || draft.included.length || draft.approximateAge || draft.barangay || draft.fulfillment || draft.ownershipDeclared || draft.privatePriceExpectation);
+    const hasWork = Boolean(draft.title || draft.brand || draft.model || draft.description || draft.answers.safety || draft.included.length || draft.approximateAge || draft.barangay || draft.fulfillment || draft.ownershipDeclared || draft.privatePriceExpectation || photoIds.length);
     if (hasWork && !window.confirm("Replace the current practice answers? They will be lost.")) return;
     setDraft({ ...next, ...copyDraft(next) });
+    changePhotos({ type: "clear" });
+    setPhotoChoice(sampleLaptopPhotos[0].id);
     setErrors({});
     setReview(false);
     setStatus(message);
@@ -133,6 +142,27 @@ export default function LaptopDraftForm() {
     return questions[key as QuestionKey]?.short ?? (key === "behavior" ? "known issues" : key === "included" ? "included items" : key);
   }
 
+  function photoPreviews(items: readonly SamplePhoto[], removable = false) {
+    if (!items.length) return <p className="mt-4 text-sm text-[#53615c]">No sample images selected.</p>;
+    return <ul className="mt-5 grid gap-5 sm:grid-cols-2" aria-label="Selected sample images">
+      {items.map((photo) => <li key={photo.id} className="min-w-0">
+        <figure>
+          <Image src={photo.src} alt={photo.alt} width={640} height={420} unoptimized className="h-auto w-full rounded-md border border-[#75837c]" />
+          <figcaption className="mt-2 text-sm"><span className="font-semibold">Sample image · {photo.label}</span><br />Fictional illustration; not an actual item photo.</figcaption>
+        </figure>
+        {removable && <button type="button" aria-label={`Remove sample image: ${photo.label}`} className={`${secondaryClass} mt-3`} onClick={() => {
+          changePhotos({ type: "remove", id: photo.id });
+          setStatus(`${photo.label} sample image removed.`);
+          requestAnimationFrame(() => document.getElementById("practicePhoto")?.focus());
+        }}>Remove</button>}
+      </li>)}
+    </ul>;
+  }
+
+  function photoCount(count: number) {
+    return `Sample images: ${count} selected / 2 minimum for practice`;
+  }
+
   return <>
     <a href="#main" className="sr-only z-10 bg-white p-3 focus:not-sr-only focus:absolute">Skip to form</a>
     <header className="border-b border-[#d9dfda] bg-white">
@@ -162,6 +192,12 @@ export default function LaptopDraftForm() {
             <p className="mt-2 text-sm text-[#53615c]">These item facts would be visible to everyone on a published listing. This preview is local practice.</p>
             <h3 className="mt-5 break-words text-2xl font-bold">{publicDraft.title}</h3>
             <p className="font-medium text-[#176b59]">Single item · Laptops</p>
+            <section aria-labelledby="review-photos-title" className="mt-5">
+              <h3 id="review-photos-title" className="text-lg font-semibold">{photoCount(publicDraft.samplePhotos.length)}</h3>
+              <p className="mt-2 text-sm text-[#53615c]">Sample illustrations only. A real listing requires at least two clear photos of the actual laptop.</p>
+              {photoPreviews(publicDraft.samplePhotos)}
+              <button type="button" className="mt-3 min-h-11 py-2 text-sm font-medium text-[#176b59] underline underline-offset-4" onClick={() => edit("practicePhoto")}>Change sample images</button>
+            </section>
             <dl className="mt-5 space-y-4">
               <div><dt className="font-semibold">Brand and model</dt><dd className="break-words">{publicDraft.brand} · {publicDraft.model}</dd></div>
               <div><dt className="font-semibold">Approximate age</dt><dd className="break-words">{publicDraft.approximateAge}</dd></div>
@@ -212,8 +248,8 @@ export default function LaptopDraftForm() {
               <button type="button" className="mt-3 min-h-11 py-2 text-sm font-medium text-[#176b59] underline underline-offset-4" onClick={() => edit("privatePriceExpectation")}>Change private seller details</button>
             </section>
             <div className="mt-7 rounded-md bg-[#fff3d6] p-4 text-[#855600]">
-              <p className="font-semibold">Photos missing: 0 of 2 required</p>
-              <p className="mt-2">A real listing needs at least two clear photos of the actual laptop. Stock images, catalog images, and screenshots alone do not qualify. Photo upload is not available in this practice form.</p>
+              <p className="font-semibold">Real item photos missing: 0 of 2 required</p>
+              <p className="mt-2">Selected samples do not satisfy the real photo requirement. Stock images, catalog images, and screenshots alone do not qualify. No images have been uploaded.</p>
               <p className="mt-2">Publishing is disabled for this local prototype.</p>
             </div>
             <div className="mt-6 flex flex-wrap gap-3">
@@ -357,9 +393,29 @@ export default function LaptopDraftForm() {
               </div>
             </section>
             <section aria-labelledby="photos-title" className="mt-9 border-t border-[#d9dfda] pt-7">
-              <h2 id="photos-title" className="text-xl font-semibold">Photos missing: 0 of 2 required</h2>
-              <p className="mt-2 text-sm text-[#53615c]">A real listing needs at least two clear photos of the actual laptop, including known visible defects. Stock images, catalog images, and screenshots alone do not qualify.</p>
-              <p className="mt-2 text-sm text-[#53615c]">You can review this practice draft without photos. Photo upload is unavailable, and publishing stays disabled.</p>
+              <h2 id="photos-title" className="text-xl font-semibold">Sample photo practice</h2>
+              <p id="practicePhoto-help" className="mt-2 text-sm text-[#53615c]">Choose from these made-up laptop illustrations. They stay in browser memory. These are sample images, not qualifying photos of an actual item.</p>
+              <div className="mt-5 flex flex-wrap items-end gap-3">
+                <div className="w-full min-w-0 flex-1">
+                  <label htmlFor="practicePhoto" className="font-semibold">Select a sample image</label>
+                  <select id="practicePhoto" value={photoChoice} onChange={(event) => setPhotoChoice(event.target.value)} aria-describedby="practicePhoto-help" className={controlClass}>
+                    {sampleLaptopPhotos.map((photo) => <option key={photo.id} value={photo.id}>{photo.label}{photoIds.includes(photo.id) ? " (already selected)" : ""}</option>)}
+                  </select>
+                </div>
+                <button type="button" className={secondaryClass} disabled={photoIds.includes(photoChoice)} onClick={() => {
+                  changePhotos({ type: "select", id: photoChoice });
+                  setStatus("Sample image added. Nothing has been uploaded.");
+                }}>Add selected sample image</button>
+              </div>
+              <p role="status" aria-atomic="true" className="mt-5 font-semibold">{photoCount(photos.length)}</p>
+              <p className="mt-1 text-sm text-[#53615c]">{photos.length < 2 ? `Choose ${2 - photos.length} more for the practice target.` : "Practice target reached. Real item photos are still missing."}</p>
+              {photoPreviews(photos, true)}
+              <button type="button" disabled={!photoIds.length} className={`${secondaryClass} mt-5`} onClick={() => {
+                changePhotos({ type: "clear" });
+                setStatus("All sample images cleared.");
+              }}>Clear sample images</button>
+              <p className="mt-5 text-sm text-[#53615c]">Real item photos missing: 0 of 2 required. A real listing needs clear photos of the actual laptop, including visible defects. Stock images, catalog images, and screenshots alone do not qualify.</p>
+              <p className="mt-2 text-sm text-[#53615c]">You can review with any number of samples. Images are never uploaded, and publishing stays disabled.</p>
             </section>
             <div className="mt-8 flex flex-wrap gap-3 border-t border-[#d9dfda] pt-6">
               <button type="submit" disabled={stopped} className={primaryClass}>Review sample draft</button>
@@ -379,7 +435,7 @@ export default function LaptopDraftForm() {
           </div>
           <div className="border-t border-[#d9dfda] pt-5">
             <h2 className="font-semibold">Local practice only</h2>
-            <p className="mt-2 text-[#53615c]">No photos, real users, or publication. Refreshing loses this practice draft.</p>
+            <p className="mt-2 text-[#53615c]">Sample illustrations only. No real users or publication. Refreshing loses the draft and selected images.</p>
           </div>
         </aside>
       </div>

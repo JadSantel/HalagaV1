@@ -8,7 +8,7 @@ const sample = () => ({ ...copyDraft(samples[0].draft), ...sampleListingDetails 
 test("public preview excludes seller-only fields and unexpected private data", () => {
   const draft = { ...sample(), privatePriceExpectation: "987654.32", contactEmail: "sample-only@example.invalid", exactAddress: "Fictional secret address", auditNote: "Private sample audit" };
   const preview = toPublicLaptopPreview(draft);
-  assert.deepEqual(Object.keys(preview).sort(), ["diagnosticVersion", "title", "brand", "model", "description", "approximateAge", "city", "barangay", "fulfillment", "answers", "notes", "behavior", "behaviorNotes", "included", "includedNotes"].sort());
+  assert.deepEqual(Object.keys(preview).sort(), ["diagnosticVersion", "title", "brand", "model", "description", "approximateAge", "city", "barangay", "fulfillment", "answers", "notes", "behavior", "behaviorNotes", "included", "includedNotes", "samplePhotos"].sort());
   for (const field of ["privatePriceExpectation", "ownershipDeclared", "contactEmail", "exactAddress", "auditNote"]) assert.equal(Object.hasOwn(preview, field), false);
   for (const value of [draft.privatePriceExpectation, draft.contactEmail, draft.exactAddress, draft.auditNote]) assert.equal(JSON.stringify(preview).includes(value), false);
   assert.equal(preview.barangay, "Practice barangay A (fictional)");

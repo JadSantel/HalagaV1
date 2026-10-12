@@ -12,6 +12,13 @@ private seller review. The public preview renders an explicit public projection
 from `src/domain/laptop-listing.ts`, excluding the expectation and seller checklist.
 Both panels are local practice views, not authenticated access controls.
 
+The sample photo practice section offers three code-authored, fictional laptop
+illustrations. Selected image IDs live in React browser memory; the inline SVG
+data URLs require no upload, image optimizer, remote asset request, or object URL.
+There is no file picker, so real participant images cannot enter this practice
+flow. The fixtures are not stock/catalog evidence or qualifying actual-item
+photos. The practice count and the missing real-photo requirement stay separate.
+
 Everything remains a local, synthetic-data exercise. Drafts are held only in
 React browser memory. There are no form submission endpoints, database calls,
 uploads, authentication, analytics, local-storage saves, emails, or publication
@@ -43,9 +50,26 @@ For the new listing details:
    again; the public preview must stay the same. Leave it blank to omit it.
 4. Leave age blank to see **Unknown**. Uncheck ownership or clear barangay or
    availability and attempt review to see linked errors.
-5. Check **Photos missing: 0 of 2 required** and **Publish listing (disabled)**.
+5. Check **Real item photos missing: 0 of 2 required** and **Publish listing (disabled)**.
    Review is allowed without photos for this exercise; no publication action exists.
 6. Clear the form or refresh the tab: all listing details and the declaration reset.
+
+To try the sample photo step:
+
+1. Load **Safe**, scroll to **Sample photo practice**, choose **Front view**, and
+   click **Add selected sample image**. The preview and count show one selection.
+2. Choose **Closed lid with cosmetic scratch** and add it. The count reaches
+   two, but real photos remain missing and publishing remains disabled.
+3. Click **Review sample draft**. Both labeled sample images appear inside
+   **Public listing preview**. Click **Change sample images** to return with focus
+   on the selector; selections survive ordinary review/edit navigation.
+4. Remove one sample: its preview disappears and the count returns to one.
+   You can select it again; the same image cannot be added twice.
+5. Click **Clear sample images** to empty the selection while retaining the form.
+   **Clear form**, confirmed **Load example**, and refresh also clear the images.
+   Canceling draft replacement preserves the current images.
+6. Review with zero or one sample to see an incomplete practice count. Review is
+   allowed at any count, since no real listing can be published in this prototype.
 
 | Made-up example | Expected result | Why |
 | --- | --- | --- |
@@ -82,12 +106,13 @@ Try these additional checks:
 ## Checks
 
 Inspected package scripts: `dev`, `build`, `start`, `lint`, and
-`test:diagnostics`, and `test:listing`. The checks use Node 24's built-in test runner
+`test:diagnostics`, `test:listing`, and `test:photos`. The checks use Node 24's built-in test runner
 and TypeScript support; no dependency or separate test framework was added.
 
 ```powershell
 npm.cmd run test:diagnostics
 npm.cmd run test:listing
+npm.cmd run test:photos
 npm.cmd run lint
 npm.cmd run build
 ```
@@ -97,13 +122,23 @@ applicability, optional tests, missing parts, lock disclosures, contradictory
 observations, correction validation, and clearing answers after a safety stop.
 Listing checks cover public-field exclusion, unsupported geography/methods,
 required declaration, optional age/expectation, and independent preview copies.
+Photo checks cover selection, deduplication, rejection of arbitrary sources,
+removal, re-selection, clearing, fixture labeling, and the public image projection.
 Node may print `MODULE_TYPELESS_PACKAGE_JSON` while detecting the TypeScript
 module format; that warning is not a failed test. The whole application's
 module configuration has not been changed solely to silence it.
 
-Browser rendering, native select behavior, screen-reader announcements,
-keyboard navigation, contrast, and zoom/reflow require manual verification.
-Passing logic checks or a build does not establish WCAG compliance.
+Local Chromium verification covered selecting 0/1/2 images, deduplication,
+image decoding, review/edit preservation, removal/re-selection, clearing images
+without losing the draft, confirmed/canceled draft replacement, photo-only draft
+confirmation, full-form clearing, refresh, phone-width reflow, and keyboard
+removal with focus returning to the selector. It also checked that public review
+excluded the private price and that there were no uploads, external image or
+optimizer requests, or page errors. The temporary browser check used an existing
+local Playwright/Chromium installation, without adding an application dependency.
+
+Full screen-reader, contrast, zoom, and broader keyboard/accessibility testing
+remain manual. These checks do not establish WCAG compliance.
 
 ## Scope and mapping notes
 
@@ -135,7 +170,8 @@ Passing logic checks or a build does not establish WCAG compliance.
 - Ownership acceptance is a browser-memory practice flag. There is no seller
   identity, saved declaration/version/timestamp, or independent ownership check.
   A real publication command must record the required declaration audit data.
-- Photos remain absent (0 of 2 required) in both form and review. No upload or
-  publication handler exists. Actual-item photos, authenticated server validation,
+- Qualifying real photos remain absent (0 of 2 required) regardless of the sample
+  image count. No upload or publication handler exists. Actual-item photos,
+  authenticated server validation,
   persistence, and publication remain future slices. No hosting, storage, worker,
   or paid service decision is made here.

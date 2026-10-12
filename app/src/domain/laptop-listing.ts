@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Draft } from "./laptop-diagnostics";
+import type { SamplePhoto } from "./sample-laptop-photos";
 
 // Synthetic choices only; this is not the maintained CDO geography required for launch.
 export const practiceBarangays = {
@@ -45,7 +46,7 @@ export function validateListingDetails(draft: ListingDetails): Record<string, st
 
 // Explicit public allowlist. A future published page must use this same projection
 // after server authorization/validation; rendering two panels is not access control.
-export function toPublicLaptopPreview(draft: LocalLaptopDraft) {
+export function toPublicLaptopPreview(draft: LocalLaptopDraft, samplePhotos: readonly SamplePhoto[] = []) {
   return {
     diagnosticVersion: draft.diagnosticVersion,
     title: draft.title, brand: draft.brand, model: draft.model, description: draft.description,
@@ -56,5 +57,6 @@ export function toPublicLaptopPreview(draft: LocalLaptopDraft) {
     answers: { ...draft.answers }, notes: { ...draft.notes },
     behavior: [...draft.behavior], behaviorNotes: draft.behaviorNotes,
     included: [...draft.included], includedNotes: draft.includedNotes,
+    samplePhotos: samplePhotos.map((photo) => ({ id: photo.id, label: photo.label, alt: photo.alt, src: photo.src })),
   };
 }
