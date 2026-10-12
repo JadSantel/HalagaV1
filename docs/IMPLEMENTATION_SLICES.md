@@ -9,8 +9,8 @@ This tracker maps the approved MVP to implementation work. Product behavior come
 | Slice | Status | Evidence and boundary |
 | --- | --- | --- |
 | Laptop diagnostic rules | Prototype complete | `app/src/domain/laptop-diagnostics.ts` derives the four accepted condition states, validates answers, handles safety stops, and provides synthetic examples. No server enforcement or persistence. |
-| Laptop draft and privacy preview | Prototype complete | `app/src/domain/laptop-listing.ts` validates a local draft and creates an explicit public-field allowlist. `app/src/app/laptop-draft-form.tsx` renders the practice flow. Data stays in browser memory; barangays and listing are fictional; no photos or publication. |
-| Web stack bootstrap | Foundation only | Next.js/TypeScript app, Tailwind, Prisma schema/config, and selected auth/database packages exist. No configured database, migrations, auth flows, or marketplace backend. |
+| Laptop draft and privacy preview | Prototype complete | `app/src/domain/laptop-listing.ts` validates a local draft and creates an explicit public-field allowlist. `app/src/app/laptop-draft-form.tsx` renders the practice flow and three fictional sample-image fixtures. Data stays in browser memory; barangays and listing are fictional; sample images do not count as actual-item evidence; no publication. |
+| Web stack bootstrap | Foundation only | Next.js/TypeScript app, Tailwind, selected packages, and the first account/listing migration exist. PostgreSQL storage constraints and synthetic rollback tests are implemented. Auth and marketplace user flows remain absent. |
 
 No production marketplace flow is implemented yet.
 
@@ -18,7 +18,7 @@ No production marketplace flow is implemented yet.
 
 | Order | Slice | Scope / completion boundary | Status |
 | --- | --- | --- | --- |
-| 1 | Application and data foundation | Configure validated runtime, PostgreSQL connection, Prisma migrations, shared server validation, module boundaries, and privacy-safe logging. Keep local/private development on synthetic data. | Not started |
+| 1 | Application and data foundation | Configure validated runtime, PostgreSQL connection, Prisma migrations, shared server validation, module boundaries, and privacy-safe logging. Keep local/private development on synthetic data. | In progress: first migration applied locally with aligned auth tables, revision FKs, publication history and SQL constraints; foundation input parsers and synthetic PostgreSQL verification pass. Application data access/commands, module boundaries and logging still need work; see `docs/architecture/PHYSICAL_SCHEMA_REVIEW.md` |
 | 2 | Adult account and access | Registration, 18+ attestation and private DOB, Better Auth sessions, email verification, account eligibility/restrictions, and server-enforced action gates. | Not started |
 | 3 | Listing creation and publication | Convert laptop prototype into a server-validated flow; real supported CDO barangays; ownership declaration history; listing/revision lifecycle; required photos, safe image handling, publication risk checks and held-review path; private price expectation. | Prototype exists; backend not started |
 | 4 | Public marketplace discovery | Public active-listing browse/search/detail with explicit public projections, filters and sort rules, shareable noindex pages, blocking-aware signed-in views, and no demand/private-data leakage. | Not started |

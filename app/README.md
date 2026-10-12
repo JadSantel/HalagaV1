@@ -25,6 +25,42 @@ uploads, authentication, analytics, local-storage saves, emails, or publication
 actions. Refreshing or closing the tab loses the draft. Metadata is static;
 `noindex` is not an access control or permission to deploy this prototype.
 
+## Local database foundation
+
+`app/.env` is ignored by Git and holds your local `DATABASE_URL`. Use
+`.env.example` as a format example; its username and password are placeholders.
+Prisma CLI reads this setting through the shared Zod configuration and reports
+invalid field names without printing the URL or its credentials.
+
+From the `app` folder, run `npm.cmd run db:check` to test a PostgreSQL
+connection on your own computer. It runs `SELECT 1`, which checks the connection
+without reading or changing Halaga data. The check rejects non-local database
+hosts. Run `npm.cmd run db:generate` to generate the Prisma client after schema
+changes.
+
+The first account/listing migration includes Better Auth core tables, revision
+foreign keys, publication history, quantity/media checks, immutable history
+triggers, and publication-availability constraints. See
+[`PHYSICAL_SCHEMA_REVIEW.md`](../docs/architecture/PHYSICAL_SCHEMA_REVIEW.md)
+for enforcement details and remaining application gates. ADR-084 settles UUIDs,
+centavo precision, and diagnostic storage. The laptop form remains in browser memory.
+
+From `app`, use `npm.cmd run db:migrate:local` for the reviewed migration
+workflow. It accepts only a loopback database's public schema and refuses
+populated schemas without Prisma migration history. Run `npm.cmd run db:generate`
+after migration/schema changes. `npm.cmd run test:foundation` replays the
+migration with synthetic records in an isolated schema inside a transaction,
+then rolls back the verification schema and fixtures. PostgreSQL must be running.
+The native `btree_gist` extension is required for availability exclusions;
+future hosting must support it.
+
+`npm.cmd run db:foundation:check` verifies the installed migration checksum,
+15 constraints and seven publication/history triggers without reading participant records.
+
+No authentication routes, publication commands, audit/outbox, or completion
+workflow are implemented. The schema-only Better Auth configuration in
+`scripts/auth-schema.config.ts` must never be used by application routes.
+
 ## Try it locally
 
 From PowerShell at the repository root:

@@ -68,6 +68,10 @@ A structured pickup or meetup time and private location agreed by the reserved b
 
 For pilot measurement, an offer with a positive PHP amount submitted on an active listing by a distinct, eligible, non-suspended buyer. It must remain active until seller response or listing/reservation resolution, or receive a seller response. Test, spam, fraudulent, self-dealing, duplicate or manipulative, and immediately withdrawn offers are excluded. Revisions within one buyer's negotiation do not create additional competing offers.
 
+## Monetary Amount
+
+A PHP amount recorded by Halaga with exact centavo precision (two decimal places). This precision does not define a product maximum.
+
 ## Integrated Battery
 
 A battery installed as part of an otherwise supported device. Integrated batteries are permitted only when no hazardous condition is known, and the seller must disclose known battery condition.

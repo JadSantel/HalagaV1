@@ -415,6 +415,7 @@ This is an architecture working draft, not an implementation-ready specification
 - PostgreSQL-backed outbox and durable jobs, bounded retries, expiring leases, idempotency, failed-job handling, and controlled retries are accepted. A separate Node.js worker remains the proposed runtime, not a final deployment decision (ADR-073).
 - Better Auth and Brevo Free are selected for authentication and transactional email (ADRs 074–075).
 - MVP search uses PostgreSQL, not a separate search service (ADR-076).
+- Prisma ORM 7 and versioned migrations follow ADR-083. ADR-084 settles the first foundation's UUIDs, exact centavo money and versioned per-question JSON diagnostic storage. The first account/listing migration enforces revision FKs, storage checks and publication history constraints; the physical review records SQL-only triggers and the native `btree_gist` availability exclusion. Marketplace commands and their authorization/audit/outbox gates remain unimplemented.
 - Public-pilot recovery targets are RPO ≤24 hours and RTO ≤24 hours; these must be demonstrated in a restore test, not assumed from a provider's marketing (ADR-082).
 - Uncompleted private negotiation content has six-month retention (ADR-077); retention exceptions are narrowly scoped and periodically reviewed (ADR-079).
 - Moderation and verification decisions have one bounded internal appeal (ADR-078); pilot operations require a trained alternate and a coverage gate (ADR-080).

@@ -246,6 +246,8 @@ A listing must capture information sufficient for a buyer to identify and evalua
 
 The seller may enter an optional PHP price expectation. It is private to the seller, shown only as a benchmark during offer comparison, and is not an asking price or platform valuation.
 
+Halaga records monetary amounts exactly to two decimal places, including centavos. This defines supported precision, not a business maximum.
+
 ### 11.1 Photos
 
 - At least two clear photos of the actual item are required.

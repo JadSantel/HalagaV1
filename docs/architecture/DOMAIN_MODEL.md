@@ -10,7 +10,7 @@
 
 Halaga uses PostgreSQL as its authoritative relational system of record for transactional and policy state. The model is logically modular but initially shares one transaction boundary. Search, analytics, email delivery, and other read models consume committed domain events and may be rebuilt. Private object storage contains file bytes only; relational records own identity, authorization, lifecycle, integrity metadata, and retention state.
 
-This model remains vendor-neutral. It does not yet choose a PostgreSQL hosting vendor, deployment platform, object store, or database/application library. ADR-074 selects Better Auth, ADR-073 selects PostgreSQL-backed durable jobs, and ADR-076 selects PostgreSQL for MVP search; these do not select hosting vendors.
+This model remains vendor-neutral for hosting. ADR-083 selects Prisma ORM 7 and migrations; ADR-084 settles the first physical schema choices. The first account/listing migration aligns Better Auth core models and installs the foundation SQL checks, revision FKs, history-update triggers, and publication-availability exclusion constraint. See `PHYSICAL_SCHEMA_REVIEW.md` for verified enforcement and remaining command gates. ADR-074 selects Better Auth, ADR-073 selects PostgreSQL-backed durable jobs, and ADR-076 selects PostgreSQL for MVP search; these do not select hosting vendors.
 
 The initial transactional-email provider is Brevo Free under ADR-075. Other managed-service and hosting vendors remain undecided.
 
@@ -447,10 +447,9 @@ Uncompleted negotiations follow ADR-077: private message and proposal content is
 
 ## 13. Open physical-design decisions
 
-- PostgreSQL version, managed hosting provider, and connection model
-- Better Auth version, adapter/migration approach, session lifetime, cookie settings, and durable multi-instance rate-limiting configuration
-- Identifier strategy
-- Monetary storage representation, constrained to exact PHP values
+- PostgreSQL 18 is selected by ADR-083; managed hosting and connection model remain open. Hosting must support the foundation's native `btree_gist` extension.
+- Better Auth 1.x and the Prisma migration path are selected; the installed core schema is aligned. Session lifetime, cookie settings, and durable multi-instance rate-limiting configuration remain open.
+- Domain identifiers use Prisma-generated UUIDs under ADR-084; Better Auth identifiers remain provider-shaped and separately mapped under ADR-074
 - Timestamp and PHT business-calendar implementation
 - Row-level security use versus application-only authorization with database roles
 - Encryption and key-management responsibilities
