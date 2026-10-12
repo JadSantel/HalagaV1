@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:diagnostics": "node --test tests/laptop-diagnostics.test.mjs"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "1.7.7",
