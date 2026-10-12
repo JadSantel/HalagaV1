@@ -42,3 +42,10 @@
 ## Completion report
 
 - Agents must summarize changed files and resulting behavior, verification commands/results (including failures or skipped checks), and remaining decisions or limitations. They must distinguish completed work from proposals and blocked work.
+
+## Skills
+
+- For a bounded implementation slice, use the Caveman skill to keep the solution focused and avoid unnecessary complexity.
+- Use the Ponytail skill to work through the slice in small steps and verify progress.
+- Apply these skills only when they are available in the current agent environment. If a skill is missing, continue using the instructions in this file.
+- Skills do not override this file or the project documents. Product requirements, accepted architecture decisions, and privacy rules remain authoritative.

@@ -1,26 +1,27 @@
 @import "tailwindcss";
 
+/* Proposed prototype colors from design.md; not an accepted brand system. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f6f5f0;
+  --foreground: #17231f;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.6;
 }
+
+::selection { background: #cce7dc; color: #17231f; }
+:focus-visible { outline: 3px solid #285c83; outline-offset: 4px; }
+input, select, textarea { caret-color: #176b59; }
+button, a, input, select, textarea { scroll-margin-block: 24px; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
