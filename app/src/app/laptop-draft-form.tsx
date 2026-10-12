@@ -6,6 +6,10 @@ import {
   emptyDraft, enhancedKeys, includedOptions, questions, safeTestingGuidance,
   samples, toggleBehavior, validateDraft, type Draft, type QuestionKey,
 } from "../domain/laptop-diagnostics";
+import {
+  emptyListingDetails, fulfillmentOptions, ownershipDeclaration, practiceBarangays,
+  sampleListingDetails, toPublicLaptopPreview, validateListingDetails, type LocalLaptopDraft,
+} from "../domain/laptop-listing";
 
 const controlClass = "mt-2 min-h-12 w-full rounded-md border border-[#75837c] bg-white px-3 py-2 text-base text-[#17231f]";
 const primaryClass = "min-h-12 rounded-md bg-[#176b59] px-5 py-3 font-semibold text-white hover:bg-[#105746] disabled:bg-[#53615c]";
@@ -19,7 +23,7 @@ const groups: { title: string; keys: QuestionKey[] }[] = [
 ];
 
 export default function LaptopDraftForm() {
-  const [draft, setDraft] = useState<Draft>(emptyDraft);
+  const [draft, setDraft] = useState<LocalLaptopDraft>(() => ({ ...emptyDraft(), ...emptyListingDetails }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [review, setReview] = useState(false);
   const [sampleIndex, setSampleIndex] = useState(0);
@@ -29,17 +33,19 @@ export default function LaptopDraftForm() {
   const result = deriveCondition(draft);
   const stopped = result.safety === "blocked" || result.safety === "hold";
   const diagnosticsVisible = result.safety === "clear";
+  const publicDraft = toPublicLaptopPreview(draft);
+  const publicResult = deriveCondition(publicDraft);
 
-  function update(next: Draft) {
-    setDraft(next);
+  function update(next: Draft | LocalLaptopDraft) {
+    setDraft((current) => ({ ...current, ...next }));
     setErrors({});
     setStatus("");
   }
 
-  function replace(next: Draft, message: string) {
-    const hasWork = Boolean(draft.title || draft.brand || draft.model || draft.description || draft.answers.safety || draft.included.length);
+  function replace(next: LocalLaptopDraft, message: string) {
+    const hasWork = Boolean(draft.title || draft.brand || draft.model || draft.description || draft.answers.safety || draft.included.length || draft.approximateAge || draft.barangay || draft.fulfillment || draft.ownershipDeclared || draft.privatePriceExpectation);
     if (hasWork && !window.confirm("Replace the current practice answers? They will be lost.")) return;
-    setDraft(copyDraft(next));
+    setDraft({ ...next, ...copyDraft(next) });
     setErrors({});
     setReview(false);
     setStatus(message);
@@ -57,7 +63,7 @@ export default function LaptopDraftForm() {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (stopped) return;
-    const nextErrors = validateDraft(draft);
+    const nextErrors = { ...validateDraft(draft), ...validateListingDetails(draft) };
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) {
       requestAnimationFrame(() => errorSummary.current?.focus());
@@ -145,18 +151,29 @@ export default function LaptopDraftForm() {
             {samples.map((sample, index) => <option key={sample.name} value={index}>{sample.name}</option>)}
           </select>
         </div>
-        <button type="button" className={secondaryClass} onClick={() => replace(samples[sampleIndex].draft, `${samples[sampleIndex].name} example loaded. You can edit every answer.`)}>Load example</button>
+        <button type="button" className={secondaryClass} onClick={() => replace({ ...samples[sampleIndex].draft, ...sampleListingDetails }, `${samples[sampleIndex].name} example loaded. You can edit every answer.`)}>Load example</button>
       </div>
       <p role="status" aria-atomic="true" className="mt-3 min-h-6 text-sm font-medium text-[#176b59]">{status}</p>
       <div className="mt-6 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_250px]">
         <div className="min-w-0 rounded-xl border border-[#d9dfda] bg-white p-5 sm:p-8">
           {review ? <section aria-label="Sample draft review">
+            <section aria-labelledby="public-preview-title">
+            <h2 id="public-preview-title" className="text-xl font-semibold">Public listing preview</h2>
+            <p className="mt-2 text-sm text-[#53615c]">These item facts would be visible to everyone on a published listing. This preview is local practice.</p>
+            <h3 className="mt-5 break-words text-2xl font-bold">{publicDraft.title}</h3>
             <p className="font-medium text-[#176b59]">Single item · Laptops</p>
-            <h2 className="mt-4 text-lg font-semibold">Condition derived from your answers</h2>
-            <p className="mt-2 text-2xl font-bold">{result.condition}</p>
+            <dl className="mt-5 space-y-4">
+              <div><dt className="font-semibold">Brand and model</dt><dd className="break-words">{publicDraft.brand} · {publicDraft.model}</dd></div>
+              <div><dt className="font-semibold">Approximate age</dt><dd className="break-words">{publicDraft.approximateAge}</dd></div>
+              <div><dt className="font-semibold">Public location</dt><dd>{publicDraft.city} · {publicDraft.barangay}</dd><dd className="text-sm text-[#53615c]">Fictional practice geography. No map or exact address.</dd></div>
+              <div><dt className="font-semibold">Availability</dt><dd>{publicDraft.fulfillment}</dd></div>
+              <div><dt className="font-semibold">Description and known problems</dt><dd className="whitespace-pre-wrap break-words">{publicDraft.description}</dd></div>
+            </dl>
+            <h3 className="mt-6 text-lg font-semibold">Condition derived from your answers</h3>
+            <p className="mt-2 text-2xl font-bold">{publicResult.condition}</p>
             <h3 className="mt-6 font-semibold">Why Halaga derived this</h3>
             <ul className="mt-3 space-y-4">
-              {result.reasons.map((reason, index) => <li key={`${reason.field}-${index}`}>
+              {publicResult.reasons.map((reason, index) => <li key={`${reason.field}-${index}`}>
                 <p className="break-words">{reason.text}</p>
                 <button type="button" className="min-h-11 py-2 text-sm font-medium text-[#176b59] underline underline-offset-4" onClick={() => edit(reason.field)}>Change {labelFor(reason.field)}</button>
               </li>)}
@@ -166,7 +183,7 @@ export default function LaptopDraftForm() {
             <dl className="mt-4 space-y-4">
               {(["safety", "battery", "lock", "coverage", "charger"] as QuestionKey[]).map((key) => <div key={key}>
                 <dt className="font-semibold">{questions[key].short}</dt>
-                <dd className="break-words">{answerText(draft, key)}</dd>
+                <dd className="break-words">{answerText(publicDraft, key)}</dd>
                 <dd><button type="button" className="min-h-11 py-2 text-sm font-medium text-[#176b59] underline underline-offset-4" onClick={() => edit(key)}>Change {questions[key].short.toLowerCase()}</button></dd>
               </div>)}
             </dl>
@@ -174,18 +191,36 @@ export default function LaptopDraftForm() {
               <summary className="min-h-11 cursor-pointer font-semibold">All item details and diagnostic answers</summary>
               <dl className="mt-4 space-y-4">
                 {Object.entries(identityLabels).map(([key, label]) => <div key={key}>
-                  <dt className="font-semibold">{label}</dt><dd className="whitespace-pre-wrap break-words">{draft[key as keyof typeof identityLabels]}</dd>
+                  <dt className="font-semibold">{label}</dt><dd className="whitespace-pre-wrap break-words">{publicDraft[key as keyof typeof identityLabels]}</dd>
                 </div>)}
-                {(Object.keys(questions) as QuestionKey[]).filter((key) => key !== "reason" || draft.answers.reason).map((key) => <div key={key}>
-                  <dt className="font-semibold">{questions[key].short}</dt><dd className="whitespace-pre-wrap break-words">{answerText(draft, key)}</dd>
+                {(Object.keys(questions) as QuestionKey[]).filter((key) => key !== "reason" || publicDraft.answers.reason).map((key) => <div key={key}>
+                  <dt className="font-semibold">{questions[key].short}</dt><dd className="whitespace-pre-wrap break-words">{answerText(publicDraft, key)}</dd>
                   <dd><button type="button" className="min-h-11 py-2 text-sm text-[#176b59] underline underline-offset-4" onClick={() => edit(key)}>Change answer</button></dd>
                 </div>)}
-                <div><dt className="font-semibold">Known issues</dt><dd className="whitespace-pre-wrap break-words">{draft.behavior.map((value) => behaviorOptions[value]).join("; ")}{draft.behaviorNotes && ` — ${draft.behaviorNotes}`}</dd></div>
-                <div><dt className="font-semibold">Included items</dt><dd className="whitespace-pre-wrap break-words">{draft.included.join(", ")}{draft.includedNotes && ` — ${draft.includedNotes}`}</dd></div>
+                <div><dt className="font-semibold">Known issues</dt><dd className="whitespace-pre-wrap break-words">{publicDraft.behavior.map((value) => behaviorOptions[value]).join("; ")}{publicDraft.behaviorNotes && ` — ${publicDraft.behaviorNotes}`}</dd></div>
+                <div><dt className="font-semibold">Included items</dt><dd className="whitespace-pre-wrap break-words">{publicDraft.included.join(", ")}{publicDraft.includedNotes && ` — ${publicDraft.includedNotes}`}</dd></div>
               </dl>
             </details>
-            <p className="mt-7 rounded-md bg-[#fff3d6] p-4 text-[#855600]">Practice review only. Photos and the rest of the listing workflow are still needed before any real listing can be published.</p>
-            <button type="button" className={`${primaryClass} mt-6`} onClick={() => edit()}>Edit answers</button>
+            </section>
+            <section aria-labelledby="private-review-title" className="mt-8 border-t-2 border-[#75837c] pt-6">
+              <h2 id="private-review-title" className="text-xl font-semibold">Private seller review</h2>
+              <p className="mt-2 text-sm text-[#53615c]">This information is excluded from the public preview.</p>
+              <dl className="mt-4 space-y-4">
+                <div><dt className="font-semibold">Your private price expectation</dt><dd className="break-words">{draft.privatePriceExpectation.trim() ? `PHP ${draft.privatePriceExpectation.trim()}` : "Not provided"}</dd><dd className="text-sm text-[#53615c]">A seller-only benchmark for comparing offers, not an asking price or Halaga valuation.</dd></div>
+                <div><dt className="font-semibold">Practice ownership declaration</dt><dd>{draft.ownershipDeclared ? "Accepted for this sample draft" : "Not accepted"}</dd><dd>{ownershipDeclaration}</dd><dd className="text-sm text-[#53615c]">A seller declaration, not independent proof of ownership. No declaration record has been saved.</dd></div>
+              </dl>
+              <button type="button" className="mt-3 min-h-11 py-2 text-sm font-medium text-[#176b59] underline underline-offset-4" onClick={() => edit("privatePriceExpectation")}>Change private seller details</button>
+            </section>
+            <div className="mt-7 rounded-md bg-[#fff3d6] p-4 text-[#855600]">
+              <p className="font-semibold">Photos missing: 0 of 2 required</p>
+              <p className="mt-2">A real listing needs at least two clear photos of the actual laptop. Stock images, catalog images, and screenshots alone do not qualify. Photo upload is not available in this practice form.</p>
+              <p className="mt-2">Publishing is disabled for this local prototype.</p>
+            </div>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button type="button" className={primaryClass} onClick={() => edit()}>Edit answers</button>
+              <button type="button" disabled aria-describedby="publication-help" className={primaryClass}>Publish listing (disabled)</button>
+            </div>
+            <p id="publication-help" className="mt-2 text-sm text-[#53615c]">Local practice only. Nothing is saved or published.</p>
           </section> : <form noValidate onSubmit={submit}>
             {Object.keys(errors).length > 0 && <div ref={errorSummary} tabIndex={-1} role="alert" className="mb-8 rounded-md border border-[#a83232] bg-[#fce8e7] p-4">
               <h2 className="font-semibold">Check these answers</h2>
@@ -205,6 +240,11 @@ export default function LaptopDraftForm() {
                     {fieldError(key)}
                   </div>;
                 })}
+                <div>
+                  <label htmlFor="approximateAge" className="font-semibold">Approximate age <span className="font-normal text-[#53615c]">(optional, when known)</span></label>
+                  <p id="approximateAge-help" className="mt-1 text-sm text-[#53615c]">For example, About 4 years. Leave blank if unknown; age appears in the public preview.</p>
+                  <input id="approximateAge" type="text" autoComplete="off" value={draft.approximateAge} onChange={(event) => update({ ...draft, approximateAge: event.target.value })} aria-describedby="approximateAge-help" className={controlClass} />
+                </div>
               </div>
             </fieldset>
             <section className="mt-9 border-t border-[#d9dfda] pt-7" aria-labelledby="safety-title">
@@ -277,9 +317,53 @@ export default function LaptopDraftForm() {
                 <p className="mt-3 text-sm text-[#53615c]">A disclosed lock does not itself change condition. Checks prevented by a lock remain Could not test.</p>
               </section>
             </>}
+            <section aria-labelledby="location-title" className="mt-9 border-t border-[#d9dfda] pt-7">
+              <h2 id="location-title" className="text-xl font-semibold">Location and availability</h2>
+              <p className="mt-2 text-sm text-[#53615c]">Public location shows Cagayan de Oro City and a barangay. These practice choices are fictional, not a real barangay directory. Exact pickup or meetup details belong in private coordination after reservation.</p>
+              <div className="mt-5 space-y-5">
+                <div>
+                  <label htmlFor="barangay" className="font-semibold">Practice barangay <span className="font-normal text-[#53615c]">(required, public)</span></label>
+                  <select id="barangay" value={draft.barangay} onChange={(event) => update({ ...draft, barangay: event.target.value })} aria-required="true" aria-invalid={Boolean(errors.barangay)} aria-describedby={errors.barangay ? "barangay-error" : undefined} className={controlClass}>
+                    <option value="">Choose a fictional barangay</option>
+                    {Object.entries(practiceBarangays).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                  {fieldError("barangay")}
+                </div>
+                <div>
+                  <label htmlFor="fulfillment" className="font-semibold">Pickup or meetup availability <span className="font-normal text-[#53615c]">(required, public)</span></label>
+                  <select id="fulfillment" value={draft.fulfillment} onChange={(event) => update({ ...draft, fulfillment: event.target.value })} aria-required="true" aria-invalid={Boolean(errors.fulfillment)} aria-describedby={errors.fulfillment ? "fulfillment-error" : undefined} className={controlClass}>
+                    <option value="">Choose availability</option>
+                    {Object.entries(fulfillmentOptions).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                  {fieldError("fulfillment")}
+                </div>
+              </div>
+            </section>
+            <section aria-labelledby="seller-title" className="mt-9 border-t border-[#d9dfda] pt-7">
+              <h2 id="seller-title" className="text-xl font-semibold">Private seller details</h2>
+              <div className="mt-5">
+                <label htmlFor="privatePriceExpectation" className="font-semibold">Private price expectation (PHP) <span className="font-normal text-[#53615c]">(optional)</span></label>
+                <p id="privatePriceExpectation-help" className="mt-1 text-sm text-[#53615c]">Use a made-up amount. Only you see this benchmark when comparing offers. It is not a public asking price or a Halaga valuation.</p>
+                <input id="privatePriceExpectation" type="text" inputMode="decimal" autoComplete="off" value={draft.privatePriceExpectation} onChange={(event) => update({ ...draft, privatePriceExpectation: event.target.value })} aria-invalid={Boolean(errors.privatePriceExpectation)} aria-describedby={`privatePriceExpectation-help${errors.privatePriceExpectation ? " privatePriceExpectation-error" : ""}`} className={controlClass} />
+                {fieldError("privatePriceExpectation")}
+              </div>
+              <div className="mt-6">
+                <p id="ownershipDeclared-help" className="text-sm text-[#53615c]">Practice declaration only. This is a seller attestation, not independent proof of ownership.</p>
+                <label className="mt-2 flex min-h-12 cursor-pointer items-start gap-3 py-2">
+                  <input id="ownershipDeclared" type="checkbox" checked={draft.ownershipDeclared} onChange={(event) => update({ ...draft, ownershipDeclared: event.target.checked })} aria-required="true" aria-invalid={Boolean(errors.ownershipDeclared)} aria-describedby={`ownershipDeclared-help${errors.ownershipDeclared ? " ownershipDeclared-error" : ""}`} className="mt-1.5 h-4 w-4 shrink-0 accent-[#176b59]" />
+                  <span>{ownershipDeclaration} <span className="text-[#53615c]">(required)</span></span>
+                </label>
+                {fieldError("ownershipDeclared")}
+              </div>
+            </section>
+            <section aria-labelledby="photos-title" className="mt-9 border-t border-[#d9dfda] pt-7">
+              <h2 id="photos-title" className="text-xl font-semibold">Photos missing: 0 of 2 required</h2>
+              <p className="mt-2 text-sm text-[#53615c]">A real listing needs at least two clear photos of the actual laptop, including known visible defects. Stock images, catalog images, and screenshots alone do not qualify.</p>
+              <p className="mt-2 text-sm text-[#53615c]">You can review this practice draft without photos. Photo upload is unavailable, and publishing stays disabled.</p>
+            </section>
             <div className="mt-8 flex flex-wrap gap-3 border-t border-[#d9dfda] pt-6">
               <button type="submit" disabled={stopped} className={primaryClass}>Review sample draft</button>
-              <button type="button" className={secondaryClass} onClick={() => replace(emptyDraft(), "Form cleared. Nothing has been saved.")}>Clear form</button>
+              <button type="button" className={secondaryClass} onClick={() => replace({ ...emptyDraft(), ...emptyListingDetails }, "Form cleared. Nothing has been saved.")}>Clear form</button>
             </div>
           </form>}
         </div>

@@ -1,9 +1,16 @@
-# Halaga local laptop diagnostic prototype
+# Halaga local laptop listing prototype
 
 The English prototype now covers Q1–Q13 and their follow-ups from
 `../docs/design/LAPTOP_DIAGNOSTICS.md` (ADR-068). It calculates the four accepted
 conditions, explains the source answers, and shows battery safety, battery
 operation, lock status, and test coverage separately.
+
+The listing form also captures approximate age (optional; blank means Unknown),
+a fictional practice barangay, buyer pickup/meetup/both, and an explicit sample
+ownership declaration. An optional made-up PHP expectation appears only in the
+private seller review. The public preview renders an explicit public projection
+from `src/domain/laptop-listing.ts`, excluding the expectation and seller checklist.
+Both panels are local practice views, not authenticated access controls.
 
 Everything remains a local, synthetic-data exercise. Drafts are held only in
 React browser memory. There are no form submission endpoints, database calls,
@@ -25,6 +32,20 @@ to the local loopback interface. Stop the server with Ctrl+C.
 
 Choose an example, click **Load example**, and confirm replacement if asked.
 For ordinary examples, click **Review sample draft** to see the explanation.
+
+For the new listing details:
+
+1. Load **Safe**. It includes About 4 years, Practice barangay A, both fulfillment
+   methods, an accepted practice declaration, and a private PHP 2500 expectation.
+2. Change the age, practice barangay, or availability, then review. Those facts
+   appear in **Public listing preview** alongside condition and diagnostics.
+3. Find PHP 2500 only in **Private seller review**. Change that amount and review
+   again; the public preview must stay the same. Leave it blank to omit it.
+4. Leave age blank to see **Unknown**. Uncheck ownership or clear barangay or
+   availability and attempt review to see linked errors.
+5. Check **Photos missing: 0 of 2 required** and **Publish listing (disabled)**.
+   Review is allowed without photos for this exercise; no publication action exists.
+6. Clear the form or refresh the tab: all listing details and the declaration reset.
 
 | Made-up example | Expected result | Why |
 | --- | --- | --- |
@@ -61,11 +82,12 @@ Try these additional checks:
 ## Checks
 
 Inspected package scripts: `dev`, `build`, `start`, `lint`, and
-`test:diagnostics`. The diagnostic checks use Node 24's built-in test runner
+`test:diagnostics`, and `test:listing`. The checks use Node 24's built-in test runner
 and TypeScript support; no dependency or separate test framework was added.
 
 ```powershell
 npm.cmd run test:diagnostics
+npm.cmd run test:listing
 npm.cmd run lint
 npm.cmd run build
 ```
@@ -73,6 +95,8 @@ npm.cmd run build
 The checks cover all six examples plus rule priorities, battery cases,
 applicability, optional tests, missing parts, lock disclosures, contradictory
 observations, correction validation, and clearing answers after a safety stop.
+Listing checks cover public-field exclusion, unsupported geography/methods,
+required declaration, optional age/expectation, and independent preview copies.
 Node may print `MODULE_TYPELESS_PACKAGE_JSON` while detecting the TypeScript
 module format; that warning is not a failed test. The whole application's
 module configuration has not been changed solely to silence it.
@@ -105,6 +129,13 @@ Passing logic checks or a build does not establish WCAG compliance.
 - English usability validation and human-reviewed paired Cebuano/Bisaya
   wording remain required before participant/pilot use. No translation has
   been invented or marked accepted.
-- Actual-item photos, location/fulfillment, ownership declaration,
-  authenticated server validation, persistence, and publication remain future
-  slices. No hosting, storage, worker, or paid service decision is made here.
+- Barangay choices are explicitly fictional sample fixtures, not a maintained
+  Cagayan de Oro directory. Controlled real geography and a representative map
+  remain required for the real listing flow; no map provider is selected here.
+- Ownership acceptance is a browser-memory practice flag. There is no seller
+  identity, saved declaration/version/timestamp, or independent ownership check.
+  A real publication command must record the required declaration audit data.
+- Photos remain absent (0 of 2 required) in both form and review. No upload or
+  publication handler exists. Actual-item photos, authenticated server validation,
+  persistence, and publication remain future slices. No hosting, storage, worker,
+  or paid service decision is made here.
