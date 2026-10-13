@@ -57,6 +57,12 @@ const eslintConfig = defineConfig([
     files: ["src/server/prisma.ts"],
     rules: { "no-restricted-syntax": ["error", serverMarkerRequired] },
   },
+  {
+    files: ["src/server/guarded-command.ts"],
+    rules: {
+      "no-restricted-syntax": ["error", ...databaseRuntimeImports, ...sharedClientRuntimeImports, serverMarkerRequired],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

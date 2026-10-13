@@ -85,8 +85,62 @@ access and projection requirements. The browser-memory prototype still has no
 database calls or authenticated access control.
 
 `npm.cmd run test:foundation` also checks the import restrictions with synthetic
-module text. Authentication, domain read projections, guarded commands, and
-privacy-safe application logging remain pending; Slice 1 is still in progress.
+module text. Authentication, domain read projections, flow-specific commands,
+and privacy-safe application logging remain pending; Slice 1 is still in progress.
+
+## Guarded-command foundation
+
+`src/server/guarded-command.ts` provides `defineGuardedCommand`. It requires a
+Zod schema, actor resolver, database transaction runner, minimal state loader,
+authorization predicate, current-state predicate, and write callback. No callback
+is optional and neither predicate has an implicit allow result.
+
+Execution order is:
+
+1. Validate the raw input, including schema transforms, before resolving the actor
+   or starting a transaction. Invalid input raises `CommandRejected` with the
+   `INVALID_INPUT` code without exposing raw input or Zod issues.
+2. Resolve a trusted actor from server context. A missing actor raises
+   `UNAUTHORIZED`; a caller-supplied ID is not authentication.
+3. Inside one database transaction, load only the state needed by the guards.
+   Authorization must return exactly `true`, then the current-state predicate
+   must return exactly `true`. Otherwise the helper raises `UNAUTHORIZED` or
+   `INVALID_STATE` before calling the write callback.
+4. Perform all related writes using the supplied transaction handle. Return a
+   named, minimal projection. Commit happens only after the callback succeeds;
+   any thrown error must roll back the transaction.
+
+The transaction runner is required infrastructure supplied by the owning server
+repository. Prisma wiring uses `transaction: work => getPrisma().$transaction(work)`
+with its interactive transaction handle; see the
+[Prisma ORM 7 transaction contract](https://www.prisma.io/docs/orm/v7/prisma-client/queries/transactions).
+The helper itself does not import a database driver, create clients, or implement
+actor authentication. Schema transforms, actor resolution, state loading, and
+guards must not perform writes. Write callbacks must use the transaction handle,
+not the shared client, and must not perform network or other external side effects.
+Request handlers must translate internal rejection codes into authorized,
+accessible feedback; arbitrary infrastructure errors must not be serialized.
+
+`tests/guarded-command.test.mjs` is the only command definition in this slice.
+It resolves fictional session identities and requires ownership of an editable
+synthetic target. It atomically updates a title and related detail in two
+session-local PostgreSQL temporary tables. The test checks invalid input, missing
+actors, non-owners, missing targets, disallowed current state, successful commit,
+and a real second-write failure that rolls back the first. No Halaga domain
+records or policies are used, and temporary fixtures disappear on disconnect.
+`test:foundation` sets Node's `react-server` condition to load the server-only
+helper during verification.
+
+This is a sequencing foundation, not a complete domain-command implementation.
+No publication, negotiation, audit/outbox, locking, isolation customization,
+automatic retries, or idempotency behavior is added. Concrete commands still need
+their accepted flow-specific safeguards and verification under `architecture.md`
+section 5 and ADR-084. Better Auth session/security settings and rate limits remain
+open under ADR-074; they must be decided before implementing the real actor
+resolver. The account slice must answer: which session lifetime, cookie, token
+expiry, and reset/verification resend limits are approved? This generic example
+does not resolve those questions or authorize a product endpoint. Slice 1 remains
+in progress.
 
 ## Try it locally
 

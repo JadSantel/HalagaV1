@@ -13,6 +13,7 @@ is invented for this foundation step.
 | `src/server/repositories/` | Future server-only reads for the owning domain module, after verifying the caller and selecting an explicit authorized projection. No domain reads are implemented today. |
 | `src/app/` and other application modules | Consume scoped repository methods when they exist. No direct Prisma, generated database client, or PostgreSQL driver imports. Current pages read no persisted records. |
 | `src/server/runtime-config.ts` | Parse configuration; no database access. It is also used by Prisma CLI and local tooling. |
+| `src/server/guarded-command.ts` | Sequence validation, trusted actor resolution, state/authorization checks and transaction-scoped writes supplied by the owning repository. It has no database imports, concrete product command, or default permission policy. |
 | `src/server/foundation-validation.ts` and `src/domain/` | Validate inputs and derive domain values; no database access or authorization grant. |
 | `scripts/` and database verification tests | Local operator tooling with existing loopback guards, metadata checks, and rolled-back synthetic fixtures. They are not request handlers or repository APIs. |
 
@@ -40,3 +41,19 @@ rules are development checks, not runtime authorization. The shared client is
 created lazily on first use and reused across development module reloads. A
 running web request must not disconnect it after each query. Hosting connection
 limits and worker runtime integration remain open decisions.
+
+## Command integration
+
+A repository defining a concrete command may supply the shared client's
+interactive `$transaction` as the runner for `defineGuardedCommand`. Its state
+loader and write callback must use only that transaction handle. State loading
+selects the minimum authorized guard data; the write callback returns an explicit
+result projection. The helper does not sanitize an arbitrary result or make an
+unverified actor trustworthy. Validation, actor resolution and guards do no writes.
+
+The generic helper is currently demonstrated only with session-local synthetic
+PostgreSQL tables in `tests/guarded-command.test.mjs`. No account or marketplace
+command is implemented. Atomicity alone does not enforce retry idempotency,
+concurrency, revision/deadline policy, history, or audit/outbox requirements.
+Those remain mandatory before implementing the affected flow. See `app/README.md`
+for the command sequence, verification boundary, and unresolved auth settings.
