@@ -61,6 +61,43 @@ No authentication routes, publication commands, audit/outbox, or completion
 workflow are implemented. The schema-only Better Auth configuration in
 `scripts/auth-schema.config.ts` must never be used by application routes.
 
+## Authentication policy foundation
+
+[ADR-086](../docs/decisions/ADR-086-mvp-authentication-policies.md) records the approved
+policy. `src/server/auth-policy.ts` configures seven-day rolling sessions with daily
+renewal, a 15-minute freshness gate for email/password changes, host-only HttpOnly
+SameSite=Lax cookies, HTTPS/Secure production settings, and explicit endpoint limits.
+Rolling renewal never renews sign-in freshness. Cookie caching stays disabled.
+
+`src/server/repositories/auth.ts` constructs Better Auth with the shared Prisma
+adapter; no page or route consumes it yet. `BETTER_AUTH_URL` must be one origin,
+and `BETTER_AUTH_SECRET` must contain at least 32 characters. Nonempty
+`BETTER_AUTH_TRUSTED_ORIGINS` settings are rejected to preserve one origin.
+Production and non-loopback origins require HTTPS and `AUTH_TRUSTED_IP_HEADER`. Set that header
+only after verifying the proxy overwrites it with one client IP and direct access
+to the origin is blocked. No deployment header/provider is assumed. HTTP loopback
+development works without Secure cookies or forwarding-header trust.
+
+Registration, reset requests, and verification resends allow three requests per
+15-minute inactivity window; sign-in allows five per minute; other endpoints allow
+60 per minute. Buckets are per IP/endpoint. Production/non-local counters use the
+shared PostgreSQL `RateLimit` table with atomic increments; loopback development
+uses memory. Direct `auth.api` calls bypass the HTTP limiter, so future externally
+reachable wrappers need equivalent protection. Raw library logging is disabled
+under ADR-085; future handlers need safe outcome logging and error serialization.
+
+The additive rate-limit migration is checked in but not applied to the persistent
+database by this slice. Apply it through `db:migrate:local` locally and the reviewed
+deployment migration workflow before database-backed authentication is used.
+The core schema-generation fixture/snapshot excludes this additional counter model.
+
+Run `npm.cmd run test:auth` from `app` for synthetic handler checks and concurrent
+requests through two Prisma-backed auth instances. The database test requires local
+PostgreSQL, creates only a uniquely named synthetic schema, and removes it afterward.
+It creates no participant accounts and sends no emails. Token lifetimes, eligibility,
+durable email integration, cleanup/retention, and deployment readiness remain gates
+before mounting routes or accepting real participant data.
+
 ## Server data-access boundary
 
 `src/server/prisma.ts` is the only application module that creates a Prisma
@@ -141,11 +178,10 @@ This is a sequencing foundation, not a complete domain-command implementation.
 No publication, negotiation, audit/outbox, locking, isolation customization,
 automatic retries, or idempotency behavior is added. Concrete commands still need
 their accepted flow-specific safeguards and verification under `architecture.md`
-section 5 and ADR-084. Better Auth session/security settings and rate limits remain
-open under ADR-074; they must be decided before implementing the real actor
-resolver. The account slice must answer: which session lifetime, cookie, token
-expiry, and reset/verification resend limits are approved? This generic example
-does not resolve those questions or authorize a product endpoint. Slice 1 remains
+section 5 and ADR-084. ADR-086 now settles Better Auth session, cookie, freshness,
+and endpoint rate-limit policies. Token expiry, reviewed deployment proxy trust,
+account eligibility/mapping, durable email, and concrete session-to-actor resolution
+remain pending. This generic example does not authorize a product endpoint. Slice 1 remains
 in progress.
 
 ## Try it locally

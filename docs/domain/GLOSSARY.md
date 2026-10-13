@@ -14,6 +14,14 @@ The deadline for resolving mismatched final-price confirmations. It is the earli
 
 For MVP eligibility, a non-standalone product or peripheral intended for use with at least one supported device category. The accessory category is not a catch-all for any small electronic product.
 
+## Recent Sign-In
+
+A valid authentication session created less than 15 minutes ago. Required for sensitive email and password changes. Rolling session renewal does not change this timestamp or satisfy the requirement; the participant must sign in again after freshness expires (ADR-086).
+
+## Rolling Session
+
+An authentication session with a seven-day expiry renewed on use when at least one day has elapsed since the previous renewal. Inactive sessions expire; renewal does not count as a recent sign-in (ADR-086).
+
 ## Buyer
 
 The registered user acting as the prospective acquirer within a particular listing, offer negotiation, reservation, or transaction. Buyer is a contextual role, not a permanent account type.

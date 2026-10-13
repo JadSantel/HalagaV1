@@ -1,5 +1,6 @@
 import "server-only";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { prismaAdapter } from "@better-auth/prisma-adapter";
 import { PrismaClient } from "../generated/prisma/client";
 import { readRuntimeConfig } from "./runtime-config";
 
@@ -26,4 +27,9 @@ export function getPrisma(): PrismaClient {
   // Reuse the client when Next.js reloads server modules during development.
   if (process.env.NODE_ENV !== "production") developmentGlobal.halagaPrisma = client;
   return client;
+}
+
+/** Better Auth owns its private tables; expose its adapter only to the account repository. */
+export function getAuthDatabase() {
+  return prismaAdapter(getPrisma(), { provider: "postgresql", transaction: true });
 }

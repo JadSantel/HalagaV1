@@ -143,6 +143,14 @@ model Account {
   @@map("account")
 }
 
+// Better Auth's shared, atomic endpoint counters. Keys contain private IP/path data.
+model RateLimit {
+  id          String @id
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+}
+
 model Verification {
   id         String   @id
   identifier String

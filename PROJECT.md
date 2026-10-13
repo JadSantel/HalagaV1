@@ -153,6 +153,14 @@ Either user may block the other. A block:
 
 Active workflows must still reach a terminal state through cancellation, completion, administrative closure, or support resolution.
 
+### 8.5 Authentication protection
+
+Authentication sessions use a seven-day rolling lifetime, renewed on use at most once per day. Inactivity beyond the expiry requires sign-in again. Sensitive email and password changes require a session created less than 15 minutes ago; rolling renewal does not count as a new sign-in.
+
+Cookies remain host-only for the single application, with HttpOnly and SameSite=Lax protection. Production requires HTTPS and Secure cookies; local loopback HTTP development remains supported. Registration allows three requests per 15-minute inactivity window, sign-in five per minute, password-reset requests and verification-email resends each three per 15 minutes, and other authentication endpoints 60 per minute. Limits are per resolved client IP and endpoint, with shared PostgreSQL counters outside local development. Shared-IP participants may need to wait (ADR-086).
+
+These policies are accepted; account endpoints remain unimplemented. Token expiry, durable email integration, reviewed deployment proxy trust, and launch-readiness gates must be settled before affected account flows accept participants.
+
 ## 9. Supported Inventory
 
 ### 9.1 Top-level categories
