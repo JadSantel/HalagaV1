@@ -61,6 +61,33 @@ No authentication routes, publication commands, audit/outbox, or completion
 workflow are implemented. The schema-only Better Auth configuration in
 `scripts/auth-schema.config.ts` must never be used by application routes.
 
+## Server data-access boundary
+
+`src/server/prisma.ts` is the only application module that creates a Prisma
+client. `getPrisma()` uses the installed PostgreSQL adapter and shared runtime
+configuration parser. It creates the client lazily, reuses it within the process,
+and preserves it across development module reloads. Query logging is disabled.
+No request should disconnect this shared client after a read.
+
+Only modules in `src/server/repositories/` may import that client. ESLint rejects
+database/client imports in pages, components, domain code, and other application
+modules, including literal dynamic imports and `require()` calls. Infrastructure
+and repository modules must import `server-only`, which Next.js rejects in client
+import graphs. Local SQL tooling remains separate with its existing loopback
+guards and synthetic rollback fixtures.
+
+The current app needs no persisted domain reads, so this step adds no repository
+read methods. When an authorized flow needs a read, its repository must verify
+the caller and select only the explicit projection permitted for that caller.
+No ID parameter grants account ownership or staff access. See
+[`src/server/repositories/README.md`](src/server/repositories/README.md) for module
+access and projection requirements. The browser-memory prototype still has no
+database calls or authenticated access control.
+
+`npm.cmd run test:foundation` also checks the import restrictions with synthetic
+module text. Authentication, domain read projections, guarded commands, and
+privacy-safe application logging remain pending; Slice 1 is still in progress.
+
 ## Try it locally
 
 From PowerShell at the repository root:

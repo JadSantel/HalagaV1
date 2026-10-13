@@ -14,7 +14,7 @@
     "db:generate": "prisma generate --config prisma7.config.ts",
     "db:migrate:local": "node scripts/migrate-local.mjs",
     "db:foundation:check": "node scripts/check-foundation-installed.mjs",
-    "test:foundation": "node --test tests/foundation-validation.test.mjs tests/foundation-database.test.mjs"
+    "test:foundation": "node --test tests/foundation-validation.test.mjs tests/foundation-database.test.mjs tests/data-access-boundary.test.mjs"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "1.7.7",
@@ -26,6 +26,7 @@
     "pg": "8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "server-only": "0.0.1",
     "zod": "4.6.6"
   },
   "devDependencies": {
