@@ -20,8 +20,14 @@ export function logOperationalEvent(event: OperationalEvent, write: (line: strin
   if (event.code && ["INVALID_INPUT", "UNAUTHORIZED", "INVALID_STATE", "INTERNAL_ERROR"].includes(event.code)) {
     record.code = event.code;
   }
-  if (event.requestId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(event.requestId)) {
+  if (typeof event.requestId === "string" && event.requestId.length === 36 &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(event.requestId)) {
     record.requestId = event.requestId;
   }
-  write(JSON.stringify(record));
+  try {
+    write(JSON.stringify(record));
+  } catch {
+    // Operational output must not replace a committed result or the original command error.
+    // Do not retry through another sink: that could serialize the sink's exception.
+  }
 }

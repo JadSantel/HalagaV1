@@ -85,8 +85,14 @@ access and projection requirements. The browser-memory prototype still has no
 database calls or authenticated access control.
 
 `npm.cmd run test:foundation` also checks the import restrictions with synthetic
-module text. Authentication, domain read projections, flow-specific commands,
-and privacy-safe application logging remain pending; Slice 1 is still in progress.
+module text. Authentication, domain read projections, and flow-specific commands
+remain pending. The server-only logger emits only fixed operation/outcome/code
+fields and an optional primitive UUID request ID. Synthetic sentinel checks cover
+rejection, unexpected failures in every command phase, and successful results.
+Sink failures preserve command results and original errors; an event may be lost
+when output fails. Run `npm.cmd run test:logging` for these checks. Slice 1 is still
+in progress. See the [combined boundary review](../docs/architecture/SERVER_BOUNDARY_REVIEW.md)
+for findings, verification, and limits.
 
 ## Guarded-command foundation
 

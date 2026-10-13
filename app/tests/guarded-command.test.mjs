@@ -7,16 +7,19 @@ import { openLocalDatabase } from "../scripts/local-database.mjs";
 test("synthetic guarded command validates, checks actor/state and writes atomically", async (t) => {
   const client = await openLocalDatabase();
   const phases = [];
+  const lines = [];
+  const originalError = console.error;
   let failRelatedWrite = false;
   // These identities and ownership rules exist only in this synthetic test.
   const actors = new Map([["owner-session", "synthetic-owner"], ["other-session", "synthetic-other"]]);
-  const input = { id: 1, title: "New synthetic title", body: "New synthetic detail" };
+  const input = { id: 1, title: "SyntheticPrivateListing-title", body: "SyntheticRestrictedEvidence-body" };
   const snapshot = async () => (await client.query(
     `SELECT target.id, target.title, detail.body
      FROM pg_temp.command_target target JOIN pg_temp.command_detail detail ON detail.target_id = target.id`,
   )).rows;
 
   try {
+    console.error = (line) => lines.push(line);
     // Session-local tables disappear when this connection closes; no Halaga tables are used.
     await client.query(`CREATE TEMP TABLE command_target (
       id integer PRIMARY KEY, owner_id text NOT NULL, state text NOT NULL, title text NOT NULL
@@ -116,7 +119,20 @@ test("synthetic guarded command validates, checks actor/state and writes atomica
       assert.deepEqual(phases, ["actor", "begin", "load", "authorize", "state", "write", "commit"]);
       assert.deepEqual(await snapshot(), [{ id: 1, title: input.title, body: input.body }]);
     });
+    await t.test("real transaction logs omit input, ownership and PostgreSQL error details", () => {
+      assert.deepEqual(lines.map((line) => JSON.parse(line)), [
+        ...["INVALID_INPUT", "INVALID_INPUT", "UNAUTHORIZED", "UNAUTHORIZED", "UNAUTHORIZED", "INVALID_STATE"].map((code) => ({
+          operation: "guarded-command", outcome: "rejected", code,
+        })),
+        { operation: "guarded-command", outcome: "failed", code: "INTERNAL_ERROR" },
+        { operation: "guarded-command", outcome: "success" },
+      ]);
+      for (const sentinel of [input.title, input.body, "synthetic-owner", "owner-session", "command_detail", "23502"]) {
+        assert.equal(lines.join("\n").includes(sentinel), false);
+      }
+    });
   } finally {
+    console.error = originalError;
     await client.query("ROLLBACK").catch(() => {});
     await client.end();
   }

@@ -14,8 +14,33 @@ is invented for this foundation step.
 | `src/app/` and other application modules | Consume scoped repository methods when they exist. No direct Prisma, generated database client, or PostgreSQL driver imports. Current pages read no persisted records. |
 | `src/server/runtime-config.ts` | Parse configuration; no database access. It is also used by Prisma CLI and local tooling. |
 | `src/server/guarded-command.ts` | Sequence validation, trusted actor resolution, state/authorization checks and transaction-scoped writes supplied by the owning repository. It has no database imports, concrete product command, or default permission policy. |
+| `src/server/operational-log.ts` | Emit fixed operational metadata and an optional primitive UUID string. No database access, request/input/error serialization, or restricted audit access. Sink failures cannot alter command results or errors. |
 | `src/server/foundation-validation.ts` and `src/domain/` | Validate inputs and derive domain values; no database access or authorization grant. |
 | `scripts/` and database verification tests | Local operator tooling with existing loopback guards, metadata checks, and rolled-back synthetic fixtures. They are not request handlers or repository APIs. |
+
+## Data scopes and ownership
+
+This matrix maps the accepted information scopes and module boundaries from
+`architecture.md` section 3 and ADRs 069, 070, and 074 to the logical modules in
+`docs/architecture/DOMAIN_MODEL.md`. Concrete repository APIs and file layout
+remain unimplemented. This documentation does not create repository methods,
+authenticate actors, or grant access to stored records today.
+There are currently **no application repository reads or domain writes**.
+
+| Data scope | Permitted server reader when implemented | Permitted writer when implemented |
+| --- | --- | --- |
+| Public marketplace | Listings repository: explicit approved public listing/profile projection, after visibility and applicable blocking checks. Search consumes only that projection. Public candidates and held/draft revisions are not public records. | Listings module's guarded commands own revisions and lifecycle. Profiles/accounts own their public profile fields. Derived search updates use committed events and cannot publish a listing. |
+| Account-private | Accounts/eligibility or profiles repository for the verified owner; listings repository for the seller's private expectation. Staff access requires explicit role, purpose, and audit. | Owning accounts, profiles/verification, or listings guarded commands, with actor/eligibility/state checks. Better Auth alone owns identity, credential, session, and token writes under ADR-074; no runtime integration exists yet. |
+| Negotiation-private | Negotiation repository for that buyer and seller; seller comparison may read the seller's negotiations. Staff reads require purpose authorization and audit. Buyers never receive competing-buyer activity. | Negotiation guarded commands own inquiries, messages, and proposal history. Cross-module transitions use defined commands/services in the shared transaction. |
+| Reserved-transaction-private | Reservations/transactions repository for the reserved buyer and seller; purpose-authorized, audited staff only. | Reservations/transactions guarded commands own reservation, appointment, confirmation, and outcome records. They preserve revisions, deadlines, bilateral completion, and one active reservation. |
+| Restricted evidence | Owning profiles/verification, listings identifier, or cases repository: submitting-user access only where permitted; staff need explicit role, purpose, and access audit. No general evidence reader. | Owning profiles/verification, listings, or cases guarded commands and authorized processing/retention work own metadata/state. Private object bytes do not establish domain state or publication. |
+| Staff/audit | Audit or owning staff/case repository for role-authorized staff/system auditors. Participant findings/notifications require a separate authorized projection. | Owning commands atomically record required action/history metadata through the audit boundary. Operational logs cannot substitute for audit/access history. |
+
+Notification workers read recipient/channel-specific projections through owning
+services. Schedulers and retention jobs use trusted system actors and guarded
+commands; worker identity does not permit unrestricted reads or cross-module
+writes. Jobs/outbox, search, analytics, notifications, staff access, and retention
+execution are not implemented. Their accepted requirements remain gates.
 
 ## Adding the first repository method
 
