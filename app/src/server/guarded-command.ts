@@ -1,5 +1,6 @@
 import "server-only";
 import type { z } from "zod";
+import { logOperationalEvent } from "./operational-log.ts";
 
 export type CommandRejection = "INVALID_INPUT" | "UNAUTHORIZED" | "INVALID_STATE";
 
@@ -36,18 +37,30 @@ export function defineGuardedCommand<Request, Input, Actor, State, Transaction, 
   definition: GuardedCommandDefinition<Request, Input, Actor, State, Transaction, Result>,
 ) {
   return async (rawInput: unknown, request: Request): Promise<Result> => {
-    const parsed = await definition.schema.safeParseAsync(rawInput);
-    if (!parsed.success) throw new CommandRejected("INVALID_INPUT");
+    try {
+      const parsed = await definition.schema.safeParseAsync(rawInput);
+      if (!parsed.success) throw new CommandRejected("INVALID_INPUT");
 
-    const actor = await definition.resolveActor(request);
-    if (actor == null) throw new CommandRejected("UNAUTHORIZED");
+      const actor = await definition.resolveActor(request);
+      if (actor == null) throw new CommandRejected("UNAUTHORIZED");
 
-    return definition.transaction(async (transaction) => {
-      const state = await definition.loadState(transaction, parsed.data, actor);
-      const context = { input: parsed.data, actor, state };
-      if (await definition.authorize(context) !== true) throw new CommandRejected("UNAUTHORIZED");
-      if (await definition.isStateAllowed(context) !== true) throw new CommandRejected("INVALID_STATE");
-      return definition.write(transaction, context);
-    });
+      const result = await definition.transaction(async (transaction) => {
+        const state = await definition.loadState(transaction, parsed.data, actor);
+        const context = { input: parsed.data, actor, state };
+        if (await definition.authorize(context) !== true) throw new CommandRejected("UNAUTHORIZED");
+        if (await definition.isStateAllowed(context) !== true) throw new CommandRejected("INVALID_STATE");
+        return definition.write(transaction, context);
+      });
+      logOperationalEvent({ operation: "guarded-command", outcome: "success" });
+      return result;
+    } catch (error) {
+      const rejected = error instanceof CommandRejected;
+      logOperationalEvent({
+        operation: "guarded-command",
+        outcome: rejected ? "rejected" : "failed",
+        code: rejected ? error.code : "INTERNAL_ERROR",
+      });
+      throw error;
+    }
   };
 }

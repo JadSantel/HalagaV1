@@ -76,6 +76,8 @@ Prisma's schema and checked-in migration history must be kept aligned, with any 
 
 Every read path must select an explicit projection for one of these scopes. Public API responses, rendered metadata, search documents, logs, analytics, notifications, and caches must be treated as possible disclosure surfaces.
 
+Server operational logs use an allowlist of fixed operation, outcome, and internal error-code values, plus a request ID only when it passes the UUID format check. Do not log request bodies, parsed inputs, credentials, session or verification tokens, date of birth, private listing fields, evidence, raw validation issues, or raw exception messages. Unexpected failures map to a generic operational code. A request handler must keep this logger call separate from error serialization so detailed errors cannot enter logs or responses by accident.
+
 ## 4. Critical flow map
 
 ### 4.1 Create and publish a listing

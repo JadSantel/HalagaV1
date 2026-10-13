@@ -33,6 +33,11 @@ is invented for this foundation step.
 - Keep private responses out of public caches, metadata, logs, and client props
   that are outside the caller's permitted scope. Database credentials and a
   server-only marker do not grant access to a record.
+- Server logs use `logOperationalEvent` with fixed operation/outcome/code fields
+  and an optional UUID request ID. Never log request bodies, parsed input,
+  session data, validation issues, or raw exceptions. Convert unexpected errors
+  to `INTERNAL_ERROR`; preserve details only in restricted, purpose-limited
+  audit records when the product flow explicitly requires them.
 - Verify authorized and denied callers with synthetic fixtures when adding the
   method. Do not add publication, negotiation, or discovery reads as a shortcut.
 

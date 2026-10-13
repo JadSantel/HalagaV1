@@ -673,6 +673,8 @@ Sensitive or restricted data includes:
 
 These fields must never appear in public listing payloads, public metadata, logs without redaction, public analytics, or unrelated-user responses.
 
+Server operational logs may contain only allowlisted operational metadata, such as a validated request ID, fixed command/event name, outcome, and internal error code. They must exclude credentials, session or verification tokens, date of birth, private listing data, evidence, submitted form contents, and raw validation errors or exception messages. Request handlers must not log full request bodies.
+
 ### 28.2 Closed transactions
 
 Closed transaction records are retained for 24 months from terminal closure, then personal data is deleted or irreversibly anonymized unless a valid, documented, case-specific reason requires longer retention.
