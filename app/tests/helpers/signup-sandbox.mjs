@@ -36,7 +36,10 @@ export async function openSignupSandbox() {
     for (const entry of (await readdir(migrations, { withFileTypes: true })).filter((entry) => entry.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
       await connection.query(await readFile(new URL(`${entry.name}/migration.sql`, migrations), "utf8"));
     }
-    database = new PrismaClient({ adapter: new PrismaPg({ connectionString: DATABASE_URL }, { schema }), log: [] });
+    // Prisma qualifies model queries, but raw locking queries use PostgreSQL's search_path.
+    // Apply the random synthetic schema to every pooled connection, including transactions.
+    database = new PrismaClient({ adapter: new PrismaPg({ connectionString: DATABASE_URL,
+      options: `-c search_path=${schema},public` }, { schema }), log: [] });
     const auth = betterAuth({
       ...createAuthPolicy({ NODE_ENV: "development", BETTER_AUTH_URL: "http://127.0.0.1:3000",
         BETTER_AUTH_SECRET: "synthetic-signup-secret-for-local-tests-only" }),

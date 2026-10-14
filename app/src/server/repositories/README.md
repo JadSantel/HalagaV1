@@ -4,6 +4,8 @@ The laptop practice draft stays in browser memory. Slice 2 adds an unmounted
 account-private prerequisite reader for existing synthetic account mappings.
 No public, staff or marketplace workflow reader is implemented. An unmounted signup
 writer now coordinates private identity, credentials, eligibility and outbox intent.
+Unmounted verification commands issue/replace private tokens and atomically consume
+them, synchronize verification states and revoke sessions.
 
 ## Module access
 
@@ -13,6 +15,7 @@ writer now coordinates private identity, credentials, eligibility and outbox int
 | `src/server/repositories/auth.ts` | Construct the unmounted Better Auth account instance with ADR-086 policy and the infrastructure adapter. Better Auth owns private identity/session/token/counter tables; this is not a domain authorization grant or a public data reader. |
 | `src/server/repositories/accounts.ts` | Stored-session owner resolution and explicit account-private prerequisite projection; no DOB/email/token output, cache, staff access or action grant. Cookie headers remain private auth transport. |
 | `src/server/repositories/signup.ts` | Internal account-owned transaction coordinating the installed Better Auth identity/credential format, configured password hasher/limits, mapped domain account, private DOB/attestation and minimized outbox intent. No session/token, route, Server Action or email. Direct writes do not invoke library signup hooks; compatibility is tested against installed Better Auth. |
+| `src/server/repositories/email-verification.ts` | Internal account-owned, namespaced opaque-token issue/replacement with minimized outbox intent; atomic token consumption, identity/domain verification and session revocation. Explicit private guard queries lock the identity/mapping. Raw issue material is restricted to trusted internal callers; never a public response. No route, Server Action, library verification endpoint, dispatcher or delivery. |
 | `src/server/account-access.ts` | Server-only adult eligibility and publication/inquiry/proposal prerequisite rejection; restrictions, blocks and target/state authorization remain separate gates. |
 | `src/server/repositories/` | Other server-only reads belong to the owning module, after verifying the caller and selecting an explicit authorized projection. |
 | `src/app/` and other application modules | Consume scoped repository methods when they exist. No direct Prisma, generated database client, or PostgreSQL driver imports. Current pages read no persisted records. |
@@ -28,7 +31,7 @@ This matrix maps the accepted information scopes and module boundaries from
 `architecture.md` section 3 and ADRs 069, 070, and 074 to the logical modules in
 `docs/architecture/DOMAIN_MODEL.md`. Only the owner account prerequisite reader
 is implemented; remaining scope entries describe requirements for future APIs.
-Only the internal signup write is implemented; no marketplace action grants exist.
+Internal signup and email-verification writes are implemented; no marketplace action grants exist.
 
 | Data scope | Permitted server reader when implemented | Permitted writer when implemented |
 | --- | --- | --- |
@@ -86,7 +89,8 @@ unverified actor trustworthy. Validation, actor resolution and guards do no writ
 
 The generic helper is currently demonstrated only with session-local synthetic
 PostgreSQL tables in `tests/guarded-command.test.mjs`. No account or marketplace
-command is implemented. Atomicity alone does not enforce retry idempotency,
+command is implemented by that helper. Separate account-owned signup and verification
+commands have their own synthetic transaction checks. Atomicity alone does not enforce retry idempotency,
 concurrency, revision/deadline policy, history, or audit/outbox requirements.
 Those remain mandatory before implementing the affected flow. See `app/README.md`
 for the command sequence, verification boundary, and unresolved auth settings.

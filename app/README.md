@@ -62,6 +62,14 @@ workflow are implemented. The schema-only Better Auth configuration in
 `scripts/auth-schema.config.ts` must never be used by application routes.
 Signup now has an internal atomic writer and persistence-only verification-email
 outbox; see [local direct signup testing](../docs/SIGNUP_LOCAL_TESTING.md).
+Separate server-only verification commands now issue/replace 24-hour, single-use
+opaque tokens with private outbox intent. Consumption atomically sets both
+verification states, removes the token and revokes existing sessions. Failed writes
+or commit preserve prior state and the token for retry. No schema/dependency is added.
+Use `npm.cmd run test:verification` with the dedicated synthetic test database;
+[local verification testing](../docs/EMAIL_VERIFICATION_LOCAL_TESTING.md) provides
+setup, five direct manual scenarios and cleanup. Routes, UI, private link transport,
+job dispatch and email delivery remain unmounted.
 
 ## Authentication policy foundation
 
@@ -144,8 +152,9 @@ now captures the attestation version and atomically creates identity/credential,
 mapping/eligibility and verification-email intent. `npm.cmd run test:signup` requires
 an explicit separate local `SIGNUP_TEST_DATABASE_URL` for `halaga_signup_test`.
 Follow [the step-by-step synthetic exercise](../docs/SIGNUP_LOCAL_TESTING.md) for setup,
-direct calls, expected counts, failure/concurrency tests and cleanup. Restrictions,
-verification/reset/email-change transactions, token/delivery integration, cleanup,
+direct calls, expected counts, failure/concurrency tests and cleanup. Separate
+verification transactions now pass synthetic checks; see the local verification guide.
+Restrictions, reset/email-change transactions, durable token/delivery integration, cleanup,
 proxy trust and launch readiness remain gated. All account endpoints remain unmounted.
 
 Slice 2 verification on 2026-10-14 PHT, from `app`: `npm.cmd run test:auth`

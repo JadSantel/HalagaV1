@@ -130,8 +130,45 @@ writes do not run library signup hooks; review this integration on library/schem
 password configuration, plugin or database-hook changes. No signup hooks/plugins
 are configured currently. See `docs/SIGNUP_LOCAL_TESTING.md` for direct local
 testing, migration details and remaining boundaries. All account routes and email
-delivery remain unmounted. Verification/reset/email-change atomic flows remain
-unimplemented; this record changes no accepted policy or deployment setting.
+delivery remain unmounted. Separate verification implementation is recorded below;
+reset/email-change atomic flows remain unimplemented. This record changes no
+accepted policy or deployment setting.
+
+## Implementation record: unmounted email verification (2026-10-14)
+
+The account-owned verification repository now issues opaque 32-byte random tokens
+with a 24-hour lifetime. The existing private Better Auth verification table stores
+the namespaced SHA-256 digest, identity reference, target-email binding and timestamps.
+This does not use the library verification JWT/default lifecycle or invoke its hooks.
+No schema migration or dependency is added.
+
+Issue/replacement and consumption lock the same identity and domain mapping.
+Issue replaces the prior outstanding namespaced token and records a minimized,
+token-specific verification-email outbox intent in one transaction. Missing,
+unmapped, deleted or already verified identities produce no token/work. The raw
+token is returned only to trusted internal/synthetic callers after commit, never
+as a public request response. Future resend handlers must use generic confirmations
+and ADR-086 protection. Initial signup intent and pending intents are not dispatched.
+
+Consume validates the reread token, current address, undeleted mapping, unverified
+states and expiry after locking. One transaction consumes the token, sets both
+verification states and deletes existing sessions for that identity. Write or
+commit failure rolls back every effect and preserves the token for retry before
+expiry. It creates no session; fresh Better Auth sign-in sees matching verified
+states. Existing account-private projections remain unchanged.
+
+Eleven local synthetic checks cover successful verification/fresh sign-in, expiry
+at exactly 24 hours and the last valid millisecond, reuse, replacement, each required
+write failure and deferred commit failure, retry, current-address binding, ineligible
+requests, concurrent resends/consumes and unrelated-account isolation. The dedicated
+signup sandbox sets its pooled search path so raw lock queries share model-query
+isolation; fixtures and triggers are removed with the random schema afterward.
+
+See `docs/EMAIL_VERIFICATION_LOCAL_TESTING.md` for direct manual examples and setup.
+No route/UI, cookie response boundary or email delivery is mounted. Outbox records
+contain no recoverable raw link; durable private token transport, stale-intent
+handling and the full ADR-073 dispatch/job path remain integration work. No retry
+allowance, cleanup schedule, retention change or deployment setting is selected.
 
 ## Sources
 
