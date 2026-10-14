@@ -1,6 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { phpAmountSchema, itemQuantitySchema, laptopDiagnosticAnswerSchema } from "../src/server/foundation-validation.ts";
+import { readRuntimeConfig } from "../src/server/runtime-config.ts";
+
+test("malformed DATABASE_URL reports only the invalid field without leaking credentials or parser details", () => {
+  const username = "synthetic-db-user";
+  const password = "synthetic-db-password";
+  const databaseUrl = `postgresql://${username}:${password}@[broken-host/halaga`;
+
+  assert.throws(() => readRuntimeConfig({ DATABASE_URL: databaseUrl }), (error) => {
+    assert.ok(error instanceof Error);
+    assert.equal(error.message, "Invalid server configuration for DATABASE_URL. Check app/.env.example.");
+    const serialized = JSON.stringify(error, Object.getOwnPropertyNames(error));
+    for (const secret of [databaseUrl, username, password, "Invalid URL", "ERR_INVALID_URL"]) {
+      assert.equal(serialized.includes(secret), false);
+    }
+    return true;
+  });
+});
 
 test("PHP parser preserves exact centavos and rejects coercion/rounding", () => {
   for (const [input, expected] of [["1", "1.00"], ["0001.1", "1.10"], ["9999999999.99", "9999999999.99"], ["-0.00", "0.00"]]) {

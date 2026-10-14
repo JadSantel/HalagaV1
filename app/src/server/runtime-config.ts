@@ -1,8 +1,12 @@
 import { z } from "zod";
 
 const databaseUrlSchema = z.url({ error: "expected a valid URL" }).refine((value) => {
-  const protocol = new URL(value).protocol;
-  return protocol === "postgres:" || protocol === "postgresql:";
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === "postgres:" || protocol === "postgresql:";
+  } catch {
+    return false;
+  }
 }, "expected a PostgreSQL URL");
 
 export const runtimeConfigSchema = z.object({ DATABASE_URL: databaseUrlSchema });
