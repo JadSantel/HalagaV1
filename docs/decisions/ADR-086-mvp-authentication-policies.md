@@ -44,21 +44,22 @@ Focused synthetic tests exercise the library handler, rolling renewal, stale-sen
 
 ## Remaining gates and limitations
 
-- No authentication route or account UI is mounted. The user-visible sign-in outcome depends on later account-flow integration, including adult eligibility, stable identity/domain mapping, server action gates, and durable email intents.
-- Reset/verification token lifetimes and email-change verification/delivery behavior remain open under ADR-074. They must be decided before the associated routes are exposed; library defaults are not approved by this slice.
+- No authentication route or account UI is mounted. ADR-087 settles account-flow policy, but atomic Better Auth/domain/outbox integration and synthetic failure/retry verification must precede routes. Restrictions and full marketplace action authorization remain separate gates.
+- ADR-087 sets verification/email-change tokens to 24 hours and reset tokens to one hour, all single-use with resend replacement; it defines atomic verification/reset/email-change behavior and session invalidation. These policies supplement the session, cookie, and endpoint-rate-limit policies here.
 - Production origin, secret provisioning/rotation, proxy/header trust, host/database readiness, and library-error response handling remain deployment/integration work. No host or proxy provider is selected.
 - Better Auth endpoint rate limiting applies to HTTP handler requests, not direct `auth.api` calls. Future externally reachable server-action/API wrappers must route through the limiter or provide equivalent reviewed protection.
 - The library prunes expired counters during an expired-bucket reset. This is opportunistic cleanup, not a bounded-retention job. Expired session/token/counter cleanup and provider backup purge behavior require review before real participant use; no worker schedule is selected here.
 - The migration is checked in and exercised in a disposable test schema. It is not applied to the persistent local or deployed database by this slice. Deploy it through the reviewed migration workflow before using database-backed authentication.
 - The ADR-081 synthetic-data and launch-readiness gates remain in force. No dependency, paid service, real-email integration, or deployment is added.
 
-Questions for the next dependent slice: Which reset and verification token lifetimes are approved? Which email-change confirmation and durable-delivery flow is approved? Which production origin, sanitized client-IP header, and direct-origin access restriction will the selected deployment provide? What bounded cleanup process will remove expired authentication and counter records? These parts remain paused rather than inheriting library or hosting defaults.
+Remaining gates: implement and test the accepted account policies before exposing routes. Production origin, trusted client-IP header/direct-origin protection, secret provisioning/rotation, session/token/counter cleanup, and launch readiness remain open; no host or cleanup schedule is selected here.
 
 ## Sources
 
 - Owner's authentication implementation request and numerical-policy approval, 2026-10-13
 - `PROJECT.md` sections 8, 26, 28, 33, and 34; `architecture.md` sections 3, 6, and 8.2
 - ADR-074, ADR-081, ADR-083, and ADR-085
+- ADR-087
 - [Better Auth session management](https://better-auth.com/docs/concepts/session-management)
 - [Better Auth rate limiting](https://better-auth.com/docs/concepts/rate-limit)
 - [Better Auth cookies](https://better-auth.com/docs/concepts/cookies)

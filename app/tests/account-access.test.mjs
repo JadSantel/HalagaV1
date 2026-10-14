@@ -51,6 +51,7 @@ test("stored sessions resolve only their own account with private projections, r
     await connection.query(`SET search_path TO "${schema}", public`);
     const migration = await readFile(new URL("../prisma/migrations/20261012130000_account_listing_foundation/migration.sql", import.meta.url), "utf8");
     await connection.query(migration);
+    await connection.query(await readFile(new URL("../prisma/migrations/20261014090000_signup_transaction/migration.sql", import.meta.url), "utf8"));
     database = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }, { schema }), log: [] });
     const auth = betterAuth({
       ...createAuthPolicy({ NODE_ENV: "development", BETTER_AUTH_URL: "http://127.0.0.1:3000",

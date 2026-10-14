@@ -95,10 +95,10 @@ The architecture handoff names eight screen groups. The details below decompose 
 ### 5.1 Account creation, eligibility, sign-in, and verification
 
 - **Goal:** create an eligible account and verify email before publishing, inquiring, or offering.
-- **Hierarchy:** display name; email/password; date of birth and explicit 18+ attestation; terms/privacy links; verification pending/sent/verified state. Explain that age is self-declared and email verification does not prove identity or trustworthiness.
+- **Hierarchy:** display name; email/password; private date of birth; separate unchecked 18+ eligibility attestation using the exact wording/version in ADR-087; terms/privacy links; verification pending/sent/verified state. Explain that age is self-declared and email verification proves address control only.
 - **Actions:** create account, sign in, resend verification, continue after verification. Secondary links to sign-in or return to the intended listing/action.
-- **States:** loading while submitting; empty initial form; field-level and summary errors; duplicate/invalid email and delivery failure with safe recovery; success/pending verification; disabled protected action until account eligibility and email verification pass. Preserve return destination without prematurely submitting protected action.
-- **Responsive/privacy:** single column on mobile; date of birth/email private to owner and authorized staff only. Do not put them in URL, public profile, listing, or email body beyond necessary verification flow. Do not design an underage-account resolution path; that policy is deferred.
+- **States:** loading while submitting; field-level and summary errors; non-enumerating generic signup/resend/reset confirmations; verification pending/delayed with safe resend; verification completion then fresh sign-in; disabled protected action until account eligibility and email verification pass. A signup DOB under 18 is rejected before account creation and discarded. Preserve return destination without prematurely submitting protected action.
+- **Responsive/privacy:** single column on mobile; date of birth/email private to account owner and authorized staff only. Do not put them in URLs, public profiles, listings, or unnecessary email content. Do not design an underage-account resolution path for an existing account; that policy remains deferred. Email changes keep the old verified address active until the new address is verified, then switch atomically and require fresh sign-in (ADR-087).
 
 ### 5.2 Marketplace results, filters, and public listing detail
 

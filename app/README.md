@@ -57,9 +57,11 @@ future hosting must support it.
 `npm.cmd run db:foundation:check` verifies the installed migration checksum,
 15 constraints and seven publication/history triggers without reading participant records.
 
-No authentication routes, publication commands, audit/outbox, or completion
+No authentication routes, publication commands, audit service, or completion
 workflow are implemented. The schema-only Better Auth configuration in
 `scripts/auth-schema.config.ts` must never be used by application routes.
+Signup now has an internal atomic writer and persistence-only verification-email
+outbox; see [local direct signup testing](../docs/SIGNUP_LOCAL_TESTING.md).
 
 ## Authentication policy foundation
 
@@ -95,9 +97,10 @@ Run `npm.cmd run test:auth` from `app` for synthetic handler checks and concurre
 requests through two Prisma-backed auth instances. The database test requires local
 PostgreSQL, creates only a uniquely named synthetic schema, and removes it afterward.
 The account-access test creates made-up identities/accounts in its own disposable
-schema and sends no emails. Token lifetimes, registration and verification integration,
-durable email delivery, cleanup/retention, and deployment readiness remain gates
-before mounting routes or accepting real participant data.
+schema and sends no emails. [ADR-087](../docs/decisions/ADR-087-account-onboarding-and-email-credential-flows.md)
+settles account-flow policy; atomic route integration, durable email delivery,
+cleanup/retention, and deployment readiness remain gates before routes mount or
+real participant data is accepted.
 
 ## Account access prerequisites (slice 2, synthetic only)
 
@@ -115,7 +118,8 @@ or analytics. No staff reader is implemented.
 
 Adult eligibility requires DOB showing at least 18 on the current PHT calendar date
 and a non-future attestation timestamp. This is self-declared eligibility, not verified
-age. Rejection does not change an underage account or choose its treatment. Email
+age. Signup rejects an under-18 DOB without retaining it. Treatment of an existing
+account later found underage remains deferred. Email
 prerequisites require agreement between the current auth identity and domain verification
 timestamp; disagreement fails closed until verification integrates them. Freshness
 uses session creation, never renewal time.
@@ -134,11 +138,15 @@ remain unchanged. Direct internal session reads are not exposed wrappers; future
 external handlers still need the ADR-086 limiter. Fixed `account-access` outcome logs
 and generic `INTERNAL_ERROR` failures exclude raw errors and submitted data.
 
-`npm.cmd run test:auth` covers these prerequisites and real Prisma/session reads in
-an isolated local synthetic schema, removed afterward. Registration/mapping creation,
-attestation version capture (ADR-042), restrictions, token/delivery decisions, cleanup,
-proxy trust and launch readiness remain gated. Existing schema columns do not complete
-onboarding. No ADR changes are needed: accepted behavior is unchanged.
+`npm.cmd run test:auth` covers these prerequisites and synthetic Prisma/session reads in
+an isolated local synthetic schema, removed afterward. The unmounted signup operation
+now captures the attestation version and atomically creates identity/credential,
+mapping/eligibility and verification-email intent. `npm.cmd run test:signup` requires
+an explicit separate local `SIGNUP_TEST_DATABASE_URL` for `halaga_signup_test`.
+Follow [the step-by-step synthetic exercise](../docs/SIGNUP_LOCAL_TESTING.md) for setup,
+direct calls, expected counts, failure/concurrency tests and cleanup. Restrictions,
+verification/reset/email-change transactions, token/delivery integration, cleanup,
+proxy trust and launch readiness remain gated. All account endpoints remain unmounted.
 
 Slice 2 verification on 2026-10-14 PHT, from `app`: `npm.cmd run test:auth`
 (8 passed), `npm.cmd run test:foundation` (21 passed), `npm.cmd run test:logging`
@@ -229,10 +237,11 @@ This is a sequencing foundation, not a complete domain-command implementation.
 No publication, negotiation, audit/outbox, locking, isolation customization,
 automatic retries, or idempotency behavior is added. Concrete commands still need
 their accepted flow-specific safeguards and verification under `architecture.md`
-section 5 and ADR-084. ADR-086 now settles Better Auth session, cookie, freshness,
-and endpoint rate-limit policies. Token expiry, reviewed deployment proxy trust,
-onboarding/mapping creation, restrictions, durable email and full command authorization
-remain pending. Slice 2 resolves existing account mappings from stored sessions.
+section 5 and ADR-084. ADR-086 settles Better Auth session, cookie, freshness and
+endpoint rate-limit policies; ADR-087 settles account-flow behavior and token lifetimes.
+Reviewed deployment proxy trust, onboarding/mapping creation, restrictions, durable
+email execution and full command authorization remain pending. Slice 2 resolves
+existing account mappings from stored sessions.
 This generic example does not authorize a product endpoint. The
 application/data foundation slice is complete; product reads and commands remain
 for their owning slices.

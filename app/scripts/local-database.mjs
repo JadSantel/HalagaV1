@@ -2,8 +2,8 @@ import "dotenv/config";
 import pg from "pg";
 import { readRuntimeConfig } from "../src/server/runtime-config.ts";
 
-export async function openLocalDatabase() {
-  const { DATABASE_URL } = readRuntimeConfig(process.env);
+export async function openLocalDatabase(environment = process.env) {
+  const { DATABASE_URL } = readRuntimeConfig(environment);
   const url = new URL(DATABASE_URL);
   if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname) ||
       (url.searchParams.get("schema") ?? "public") !== "public") {

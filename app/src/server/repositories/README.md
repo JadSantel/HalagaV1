@@ -2,7 +2,8 @@
 
 The laptop practice draft stays in browser memory. Slice 2 adds an unmounted
 account-private prerequisite reader for existing synthetic account mappings.
-No public, staff or marketplace workflow reader and no domain writer is implemented.
+No public, staff or marketplace workflow reader is implemented. An unmounted signup
+writer now coordinates private identity, credentials, eligibility and outbox intent.
 
 ## Module access
 
@@ -11,6 +12,7 @@ No public, staff or marketplace workflow reader and no domain writer is implemen
 | `src/server/prisma.ts` | Construct and share the generated Prisma client using the installed PostgreSQL adapter and validated server configuration. This is infrastructure, not an authorization service. |
 | `src/server/repositories/auth.ts` | Construct the unmounted Better Auth account instance with ADR-086 policy and the infrastructure adapter. Better Auth owns private identity/session/token/counter tables; this is not a domain authorization grant or a public data reader. |
 | `src/server/repositories/accounts.ts` | Stored-session owner resolution and explicit account-private prerequisite projection; no DOB/email/token output, cache, staff access or action grant. Cookie headers remain private auth transport. |
+| `src/server/repositories/signup.ts` | Internal account-owned transaction coordinating the installed Better Auth identity/credential format, configured password hasher/limits, mapped domain account, private DOB/attestation and minimized outbox intent. No session/token, route, Server Action or email. Direct writes do not invoke library signup hooks; compatibility is tested against installed Better Auth. |
 | `src/server/account-access.ts` | Server-only adult eligibility and publication/inquiry/proposal prerequisite rejection; restrictions, blocks and target/state authorization remain separate gates. |
 | `src/server/repositories/` | Other server-only reads belong to the owning module, after verifying the caller and selecting an explicit authorized projection. |
 | `src/app/` and other application modules | Consume scoped repository methods when they exist. No direct Prisma, generated database client, or PostgreSQL driver imports. Current pages read no persisted records. |
@@ -26,12 +28,12 @@ This matrix maps the accepted information scopes and module boundaries from
 `architecture.md` section 3 and ADRs 069, 070, and 074 to the logical modules in
 `docs/architecture/DOMAIN_MODEL.md`. Only the owner account prerequisite reader
 is implemented; remaining scope entries describe requirements for future APIs.
-No domain writes or marketplace action grants are implemented.
+Only the internal signup write is implemented; no marketplace action grants exist.
 
 | Data scope | Permitted server reader when implemented | Permitted writer when implemented |
 | --- | --- | --- |
 | Public marketplace | Listings repository: explicit approved public listing/profile projection, after visibility and applicable blocking checks. Search consumes only that projection. Public candidates and held/draft revisions are not public records. | Listings module's guarded commands own revisions and lifecycle. Profiles/accounts own their public profile fields. Derived search updates use committed events and cannot publish a listing. |
-| Account-private | Accounts/eligibility or profiles repository for the verified owner; listings repository for the seller's private expectation. Staff access requires explicit role, purpose, and audit. | Owning accounts, profiles/verification, or listings guarded commands, with actor/eligibility/state checks. Better Auth alone owns identity, credential, session, token, and private operational counter writes under ADRs 074/086. Its policy factory is configured but no account routes or domain authorization are integrated. |
+| Account-private | Accounts/eligibility or profiles repository for the verified owner; listings repository for the seller's private expectation. Staff access requires explicit role, purpose, and audit. | Owning accounts, profiles/verification, or listings guarded commands, with actor/eligibility/state checks. The accounts module coordinates signup identity/credential writes with domain state and outbox intent under ADR-087 using the installed Better Auth format and hasher. Better Auth owns session, token and private operational counter writes under ADRs 074/086. No account routes or domain authorization grants are mounted. |
 | Negotiation-private | Negotiation repository for that buyer and seller; seller comparison may read the seller's negotiations. Staff reads require purpose authorization and audit. Buyers never receive competing-buyer activity. | Negotiation guarded commands own inquiries, messages, and proposal history. Cross-module transitions use defined commands/services in the shared transaction. |
 | Reserved-transaction-private | Reservations/transactions repository for the reserved buyer and seller; purpose-authorized, audited staff only. | Reservations/transactions guarded commands own reservation, appointment, confirmation, and outcome records. They preserve revisions, deadlines, bilateral completion, and one active reservation. |
 | Restricted evidence | Owning profiles/verification, listings identifier, or cases repository: submitting-user access only where permitted; staff need explicit role, purpose, and access audit. No general evidence reader. | Owning profiles/verification, listings, or cases guarded commands and authorized processing/retention work own metadata/state. Private object bytes do not establish domain state or publication. |

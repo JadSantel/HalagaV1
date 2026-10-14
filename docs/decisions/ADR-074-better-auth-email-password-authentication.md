@@ -21,7 +21,7 @@ The marketplace has a unified user account model: one person may act as buyer an
 - Treat marketplace roles, staff permissions, adult eligibility, blocks, restrictions, verification badges, and deletion lifecycle as Halaga domain authorization, not Better Auth roles alone.
 - Deliver verification and password-reset email through the durable notification/job path where integration permits; failure to deliver an email must be observable and safely retryable.
 - Verify sessions and domain authorization in every protected page, endpoint, server action, and worker command. Client-side route guards are only navigation assistance.
-- Configure authentication rate limiting, session lifetime, cookie properties, token expiry, and reset/verification resend policy explicitly before implementation; do not rely on hidden defaults.
+- Configure authentication rate limiting, session lifetime, cookie properties, token expiry, and reset/verification resend policy explicitly before implementation; do not rely on hidden defaults. ADR-086 and ADR-087 record the accepted policies.
 
 ## Consequences
 

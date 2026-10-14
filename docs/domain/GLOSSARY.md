@@ -18,6 +18,18 @@ For MVP eligibility, a non-standalone product or peripheral intended for use wit
 
 A valid authentication session created less than 15 minutes ago. Required for sensitive email and password changes. Rolling session renewal does not change this timestamp or satisfy the requirement; the participant must sign in again after freshness expires (ADR-086).
 
+## Adult Eligibility Attestation
+
+The explicit, versioned signup statement that a participant is at least 18 and eligible to participate. Halaga stores the accepted text version and timestamp alongside private self-declared DOB. `adult-eligibility-en-v1` is the current approved wording identifier (ADR-042, ADR-087).
+
+## Email Verification Token
+
+A single-use credential proving control of the target email address. Signup verification and email-change tokens expire after 24 hours; a resend replaces the outstanding token. Password-reset tokens are separate and expire after one hour (ADR-087).
+
+## Pending Email Change
+
+An email change requested with a recent sign-in but not yet verified at the proposed address. The current verified address remains primary and marketplace actions remain available until proof atomically switches the account to the new verified address. Completion revokes all sessions (ADR-087).
+
 ## Rolling Session
 
 An authentication session with a seven-day expiry renewed on use when at least one day has elapsed since the previous renewal. Inactive sessions expire; renewal does not count as a recent sign-in (ADR-086).
