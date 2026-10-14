@@ -74,6 +74,33 @@ The first attempt to run a pinned `auth@1.7.7` CLI failed because that independe
 
 `npm.cmd run db:foundation:check` verified the installed migration checksum, 15 constraints and seven enabled publication/history triggers. Prisma migration status reports the schema up to date. ESLint passes. No browser/UI, real participant, lifecycle-command, or public-deployment verification was performed; those flows are not implemented by this foundation.
 
+## Slice 2 old-address notice schema review (2026-10-14)
+
+ADR-087 requires a durable security notice to the previously verified address
+when an email change commits. The signup outbox's account-reference-only shape
+cannot retain that recipient: the referenced identity now contains the new
+address. A consumed token also cannot serve as its durable recipient record.
+Encoding an address in a deduplication key or retaining a consumed credential
+would spread private data or conflate token and notification lifecycles.
+
+The narrow migration `20261014100000_email_change_notice_recipient` adds nullable
+private `outbox_event.recipientEmail`. Its SQL-only check
+`outbox_event_security_notice_recipient` requires a nonempty recipient for
+`account.email-changed-security-notice` and requires null for every other event
+type. Existing intent rows stay null; no old recipient is fabricated. Prisma
+represents the column; retain the SQL-only purpose check in future migrations.
+The token binding fits the existing private verification table, so no token,
+account or session schema change is needed. No package is added.
+
+The security intent omits the proposed/new address, raw token/link and other
+unnecessary private data. Recipient reads are restricted to the delivery purpose
+and authorized/audited diagnosis; general logs/readers/caches must exclude it.
+Retention/deletion integration remains gated and this snapshot does not justify
+indefinite retention. See ADR-087's implementation record and
+`docs/EMAIL_CHANGE_LOCAL_TESTING.md` for privacy review and verification.
+The migration is replayed in random disposable test schemas only, not applied
+to persistent local/deployed data. Future use requires reviewed migration rollout.
+
 ## Settled review questions
 
 ADR-084 records the decisions:

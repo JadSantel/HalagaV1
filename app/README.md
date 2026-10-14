@@ -82,6 +82,22 @@ documents eight direct manual exercises, failure/retry cases and cleanup.
 Routes, UI and delivery stay unmounted; private token transport, dispatch/jobs,
 cookie responses and sign-in/reset race integration remain gates.
 
+Server-only email change now requires the owner's valid stored session created
+less than 15 minutes earlier, rechecked under locks. Request preserves the old
+verified primary address while replacing a bound 24-hour token and recording
+minimized verification intent. Proof atomically consumes the token, switches and
+verifies the new address, revokes all stored sessions and records a private
+old-address security-notice intent. Write/commit failure preserves the old state
+and token for retry. Other account history and token families remain intact.
+The original outbox cannot resolve the old address after a switch; one narrow
+additive recipient-snapshot migration is required for that notice type only.
+It is replayed only in disposable synthetic schemas, not applied persistently.
+No dependency is added. Run `npm.cmd run db:generate`, then
+`npm.cmd run test:email-change` with the dedicated `halaga_signup_test` URL.
+[Local email-change testing](../docs/EMAIL_CHANGE_LOCAL_TESTING.md) documents
+nine direct exercises, the schema/privacy review and remaining integration gates.
+Routes, UI, email delivery and token transport stay unmounted.
+
 ## Authentication policy foundation
 
 [ADR-086](../docs/decisions/ADR-086-mvp-authentication-policies.md) records the approved
@@ -165,8 +181,8 @@ an explicit separate local `SIGNUP_TEST_DATABASE_URL` for `halaga_signup_test`.
 Follow [the step-by-step synthetic exercise](../docs/SIGNUP_LOCAL_TESTING.md) for setup,
 direct calls, expected counts, failure/concurrency tests and cleanup. Separate
 verification transactions now pass synthetic checks; see the local verification guide.
-Restrictions, email-change transactions, durable token/delivery integration,
-sign-in/reset race and cookie-response integration, cleanup,
+Restrictions, durable token/delivery integration,
+sign-in racing reset/email proof and cookie-response integration, cleanup,
 proxy trust and launch readiness remain gated. All account endpoints remain unmounted.
 
 Slice 2 verification on 2026-10-14 PHT, from `app`: `npm.cmd run test:auth`

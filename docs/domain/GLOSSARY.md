@@ -28,7 +28,11 @@ A single-use credential proving control of the target email address. Signup veri
 
 ## Pending Email Change
 
-An email change requested with a recent sign-in but not yet verified at the proposed address. The current verified address remains primary and marketplace actions remain available until proof atomically switches the account to the new verified address. Completion revokes all sessions (ADR-087).
+An email change requested with a recent sign-in but not yet verified at the proposed address. The current verified address remains primary and marketplace actions remain available until proof atomically switches the account to the new verified address. Completion revokes all sessions and records a privacy-reviewed security notice to the old address (ADR-087).
+
+## Old-Address Security-Notice Recipient
+
+The private snapshot of the previously verified email address needed to deliver the security notice after an email switch. It is restricted to that delivery purpose and authorized, audited staff diagnosis. The notice intent excludes the proposed/new address and unnecessary private data; preserving intent history does not authorize indefinite recipient retention (ADR-087 implementation record).
 
 ## Rolling Session
 

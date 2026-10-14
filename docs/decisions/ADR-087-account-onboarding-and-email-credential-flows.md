@@ -131,7 +131,7 @@ password configuration, plugin or database-hook changes. No signup hooks/plugins
 are configured currently. See `docs/SIGNUP_LOCAL_TESTING.md` for direct local
 testing, migration details and remaining boundaries. All account routes and email
 delivery remain unmounted. Separate verification and reset implementations are
-recorded below; email-change atomic flows remain unimplemented. This record
+recorded below, including email-change atomic flows. This record
 changes no accepted policy or deployment setting.
 
 ## Implementation record: unmounted email verification (2026-10-14)
@@ -207,6 +207,66 @@ private token transport, stale-intent handling, full ADR-073 dispatch/jobs and
 sign-in/reset race integration remain gates; library sign-in currently does not
 share these locks. No dependency, migration, cleanup schedule, retry allowance,
 retention change or deployment setting is selected. This record changes no policy.
+
+## Implementation record: unmounted email change (2026-10-14)
+
+The account-owned email-change repository resolves the owner through Better
+Auth's stored-session API, with cookie cache disabled, then locks the existing
+identity/domain mapping and rechecks the exact stored session under lock. The
+session must be valid and created less than 15 minutes earlier; renewal does not
+renew freshness. Both commands require undeleted mapped adult prerequisites and
+matching verified identity/domain state. No caller-selected account ID is accepted.
+
+Request leaves the existing verified address primary. It atomically replaces
+only the prior namespaced email-change token and records a minimized,
+token-specific verification intent. The existing private verification table
+stores a SHA-256 digest of a random 32-byte token and a strict binding of domain
+account ID, current address and normalized proposed address. Expiry is 24 hours
+after issue. Raw material returns only after commit to trusted synthetic/internal
+callers; no private token transport is mounted.
+
+Proof locks and rereads the account and token, rechecks mapping, eligibility,
+creation time, original expiry, both addresses and proposed-address availability.
+The existing unique email constraint arbitrates racing claims. One transaction
+consumes the token, switches and verifies the auth address, updates domain
+verification time, removes every stored session and records the old-address
+security-notice intent. Write or commit failure preserves old state and the token
+for retry before expiry. Account identity/history, eligibility data, credentials,
+separate verification/reset tokens and unrelated accounts remain intact.
+
+Schema review found one blocker: the original account-reference-only outbox
+cannot identify the old recipient after the identity switches to the new address.
+The narrow additive migration `20261014100000_email_change_notice_recipient`
+adds a nullable private recipient snapshot. Its SQL check requires the snapshot
+only for `account.email-changed-security-notice` and forbids it for other event
+types. Earlier intents remain null. The migration is exercised only in disposable
+schemas; it is not applied to persistent local/deployed data. No dependency is added.
+
+The version-1 intent privacy review permits only the old recipient, account
+reference, digest-based work key and event time. It excludes the proposed/new
+address, raw token/link, DOB, password, session, IP and rendered message. Future
+rendering may state that the email changed and sessions were revoked; it must
+not fetch the new address into that notice. Recipient access remains delivery-
+purpose-only or authorized/audited staff diagnosis. It is private delivery data,
+excluded from generic/public readers, logs, analytics and caches. Approved
+retention/deletion rules apply; intent history does not authorize indefinite
+recipient retention. No template, retention period or cleanup schedule is selected.
+
+Sixteen local synthetic PostgreSQL checks cover fresh-session boundaries,
+replacement, expiry, single use, missing/deleted/remapped accounts, eligibility,
+address conflicts, each write and deferred commit failure, same-token retry,
+concurrent requests/proof/address claims, post-resolution session rechecks,
+locked expiry, history/token/account isolation, stored-session revocation,
+fresh Better Auth sign-in and old-recipient intent minimization/schema enforcement.
+See `docs/EMAIL_CHANGE_LOCAL_TESTING.md` for direct manual exercises and results.
+
+Routes, UI, cookie-response boundary, token transport and email delivery remain
+unmounted. Durable dispatch/jobs and stale-intent suppression remain gates.
+Library sign-in/session creation does not share account-owned locks; old-address
+sign-in racing proof still requires route integration review. Direct writes
+bypass library email-change hooks; recheck compatibility on library/schema/plugin
+or hook changes. No deployment, paid service, retry allowance, deletion process,
+retention change or marketplace authorization policy is selected by this record.
 
 ## Sources
 

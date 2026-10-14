@@ -156,7 +156,8 @@ cookie clearing and sign-in/reset concurrency, including sign-in that checked
 old credentials before reset but attempts session creation afterward; direct
 library sign-in does not participate in these account-owned locks. Synthetic
 checks here prove revocation of existing stored sessions and serialized account
-commands, not a mounted sign-in race boundary. Email-change flows, restrictions,
-full authorization, proxy/origin trust, secret provisioning, cleanup and ADR-081
+commands, not a mounted sign-in race boundary. Email change now has separate
+unmounted synthetic transactions; see `docs/EMAIL_CHANGE_LOCAL_TESTING.md`.
+Restrictions, full authorization, proxy/origin trust, secret provisioning, cleanup and ADR-081
 launch readiness remain gates. Browser/accessibility and real-email/provider
 checks do not apply to this unmounted server-only exercise.
