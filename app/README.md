@@ -71,6 +71,17 @@ Use `npm.cmd run test:verification` with the dedicated synthetic test database;
 setup, five direct manual scenarios and cleanup. Routes, UI, private link transport,
 job dispatch and email delivery remain unmounted.
 
+Server-only password reset now issues/replaces one-hour opaque tokens with
+private outbox intent. Consumption atomically replaces the credential hash,
+consumes the token and revokes every stored session while preserving both
+verification states and separate verification tokens. Write/commit failure
+preserves the token and old password for retry before expiry. No migration or
+dependency is added. Run `npm.cmd run test:reset` with the same dedicated
+`halaga_signup_test` database. [Local password-reset testing](../docs/PASSWORD_RESET_LOCAL_TESTING.md)
+documents eight direct manual exercises, failure/retry cases and cleanup.
+Routes, UI and delivery stay unmounted; private token transport, dispatch/jobs,
+cookie responses and sign-in/reset race integration remain gates.
+
 ## Authentication policy foundation
 
 [ADR-086](../docs/decisions/ADR-086-mvp-authentication-policies.md) records the approved
@@ -154,7 +165,8 @@ an explicit separate local `SIGNUP_TEST_DATABASE_URL` for `halaga_signup_test`.
 Follow [the step-by-step synthetic exercise](../docs/SIGNUP_LOCAL_TESTING.md) for setup,
 direct calls, expected counts, failure/concurrency tests and cleanup. Separate
 verification transactions now pass synthetic checks; see the local verification guide.
-Restrictions, reset/email-change transactions, durable token/delivery integration, cleanup,
+Restrictions, email-change transactions, durable token/delivery integration,
+sign-in/reset race and cookie-response integration, cleanup,
 proxy trust and launch readiness remain gated. All account endpoints remain unmounted.
 
 Slice 2 verification on 2026-10-14 PHT, from `app`: `npm.cmd run test:auth`

@@ -130,9 +130,9 @@ writes do not run library signup hooks; review this integration on library/schem
 password configuration, plugin or database-hook changes. No signup hooks/plugins
 are configured currently. See `docs/SIGNUP_LOCAL_TESTING.md` for direct local
 testing, migration details and remaining boundaries. All account routes and email
-delivery remain unmounted. Separate verification implementation is recorded below;
-reset/email-change atomic flows remain unimplemented. This record changes no
-accepted policy or deployment setting.
+delivery remain unmounted. Separate verification and reset implementations are
+recorded below; email-change atomic flows remain unimplemented. This record
+changes no accepted policy or deployment setting.
 
 ## Implementation record: unmounted email verification (2026-10-14)
 
@@ -169,6 +169,44 @@ No route/UI, cookie response boundary or email delivery is mounted. Outbox recor
 contain no recoverable raw link; durable private token transport, stale-intent
 handling and the full ADR-073 dispatch/job path remain integration work. No retry
 allowance, cleanup schedule, retention change or deployment setting is selected.
+
+## Implementation record: unmounted password reset (2026-10-14)
+
+The account-owned password-reset repository issues opaque 32-byte random tokens
+with a one-hour lifetime. The existing private verification table stores a
+separate namespaced SHA-256 digest, identity reference, current-address binding
+and timestamps. Issue/replacement locks the identity/domain mapping and existing
+credential, replaces only the previous reset token and atomically records a
+minimized, token-specific password-reset email outbox intent. Unknown, unmapped,
+deleted or missing/ambiguous credential identities produce no token/work. Both
+verified and unverified mapped password identities can reset. Raw issue material
+returns after commit only to trusted internal/synthetic callers; future request
+handlers must return generic confirmations and enforce ADR-086 protection.
+
+Consume uses the configured Better Auth password hasher/limits outside the
+transaction, then locks and rereads account, credential, token, current address
+and original expiry. One transaction consumes the token, replaces the existing
+credential hash and removes every stored session for that identity. Neither
+verification state, private eligibility history, separate verification token nor
+unrelated account/provider credential is changed. No new session is established.
+Write, hash or commit failure leaves old state available for retry before expiry;
+successful replay is rejected. Direct writes bypass library reset hooks, so
+library/schema/password configuration/plugin/hook changes require integration review.
+
+Local synthetic PostgreSQL checks cover expiry boundaries, replacement/reuse,
+each required write and deferred commit failure, same-token retry, hasher/input
+failures, private-safe errors, address/credential guards, verified/unverified and
+mismatched verification states, concurrent issue/consume, verification/reset races,
+unrelated isolation, old-cookie rejection and fresh Better Auth sign-in compatibility.
+The existing dedicated loopback sandbox removes its random schema afterward.
+See `docs/PASSWORD_RESET_LOCAL_TESTING.md` for manual success, expiry, replacement,
+reuse, issue failure and write/commit failure/retry exercises.
+
+No route, UI, cookie-response boundary or email delivery is mounted. Durable
+private token transport, stale-intent handling, full ADR-073 dispatch/jobs and
+sign-in/reset race integration remain gates; library sign-in currently does not
+share these locks. No dependency, migration, cleanup schedule, retry allowance,
+retention change or deployment setting is selected. This record changes no policy.
 
 ## Sources
 

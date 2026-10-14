@@ -14,6 +14,7 @@
     "test:auth": "node --conditions=react-server --test tests/auth-policy.test.mjs tests/auth-rate-limit-database.test.mjs tests/account-access.test.mjs",
     "test:signup": "node --conditions=react-server --test tests/signup-database.test.mjs",
     "test:verification": "node --conditions=react-server --test tests/email-verification-database.test.mjs",
+    "test:reset": "node --conditions=react-server --test tests/password-reset-database.test.mjs",
     "db:check": "node scripts/check-database.mjs",
     "db:generate": "prisma generate --config prisma7.config.ts",
     "db:migrate:local": "node scripts/migrate-local.mjs",
