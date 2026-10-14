@@ -161,6 +161,8 @@ Cookies remain host-only for the single application, with HttpOnly and SameSite=
 
 These policies are accepted; account endpoints remain unimplemented. Token expiry, durable email integration, reviewed deployment proxy trust, and launch-readiness gates must be settled before affected account flows accept participants.
 
+The synthetic-only slice 2 foundation checks adult and email prerequisites against stored sessions and existing account mappings. It exposes no account endpoints or marketplace action grants. Registration, versioned attestation capture, restrictions and full command authorization remain implementation gates; see `docs/IMPLEMENTATION_SLICES.md`.
+
 ## 9. Supported Inventory
 
 ### 9.1 Top-level categories

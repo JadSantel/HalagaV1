@@ -1,9 +1,8 @@
 # Server repository boundary
 
-The current application has no persisted domain reads. Its laptop practice draft
-stays in browser memory. This directory defines the permitted location for reads
-when a supported flow first needs them; no repository method or caller identity
-is invented for this foundation step.
+The laptop practice draft stays in browser memory. Slice 2 adds an unmounted
+account-private prerequisite reader for existing synthetic account mappings.
+No public, staff or marketplace workflow reader and no domain writer is implemented.
 
 ## Module access
 
@@ -11,7 +10,9 @@ is invented for this foundation step.
 | --- | --- |
 | `src/server/prisma.ts` | Construct and share the generated Prisma client using the installed PostgreSQL adapter and validated server configuration. This is infrastructure, not an authorization service. |
 | `src/server/repositories/auth.ts` | Construct the unmounted Better Auth account instance with ADR-086 policy and the infrastructure adapter. Better Auth owns private identity/session/token/counter tables; this is not a domain authorization grant or a public data reader. |
-| `src/server/repositories/` | Future server-only reads for the owning domain module, after verifying the caller and selecting an explicit authorized projection. No domain reads are implemented today. |
+| `src/server/repositories/accounts.ts` | Stored-session owner resolution and explicit account-private prerequisite projection; no DOB/email/token output, cache, staff access or action grant. Cookie headers remain private auth transport. |
+| `src/server/account-access.ts` | Server-only adult eligibility and publication/inquiry/proposal prerequisite rejection; restrictions, blocks and target/state authorization remain separate gates. |
+| `src/server/repositories/` | Other server-only reads belong to the owning module, after verifying the caller and selecting an explicit authorized projection. |
 | `src/app/` and other application modules | Consume scoped repository methods when they exist. No direct Prisma, generated database client, or PostgreSQL driver imports. Current pages read no persisted records. |
 | `src/server/runtime-config.ts` | Parse configuration; no database access. It is also used by Prisma CLI and local tooling. |
 | `src/server/guarded-command.ts` | Sequence validation, trusted actor resolution, state/authorization checks and transaction-scoped writes supplied by the owning repository. It has no database imports, concrete product command, or default permission policy. |
@@ -23,10 +24,9 @@ is invented for this foundation step.
 
 This matrix maps the accepted information scopes and module boundaries from
 `architecture.md` section 3 and ADRs 069, 070, and 074 to the logical modules in
-`docs/architecture/DOMAIN_MODEL.md`. Concrete repository APIs and file layout
-remain unimplemented. This documentation does not create repository methods,
-authenticate actors, or grant access to stored records today.
-There are currently **no application repository reads or domain writes**.
+`docs/architecture/DOMAIN_MODEL.md`. Only the owner account prerequisite reader
+is implemented; remaining scope entries describe requirements for future APIs.
+No domain writes or marketplace action grants are implemented.
 
 | Data scope | Permitted server reader when implemented | Permitted writer when implemented |
 | --- | --- | --- |
@@ -51,8 +51,8 @@ execution are not implemented. Their accepted requirements remain gates.
   ID supplied by a caller is not proof of ownership. Staff reads additionally
   require the documented role, purpose, and access audit.
 - Apply the relevant visibility, ownership, workflow state, revision, deadline,
-  and blocking checks before returning data. This foundation does not provide
-  authentication or make incomplete eligibility/restriction data authoritative.
+  and blocking checks before returning data. Account prerequisites do not make
+  incomplete restrictions or other command guards authoritative.
 - Use an explicit Prisma `select` for the scope in `architecture.md` section 3.
   Return only a named, minimal projection. Do not expose full records, credentials,
   session/reset/verification tokens, private media object keys, or raw errors.

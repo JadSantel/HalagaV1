@@ -94,9 +94,60 @@ The core schema-generation fixture/snapshot excludes this additional counter mod
 Run `npm.cmd run test:auth` from `app` for synthetic handler checks and concurrent
 requests through two Prisma-backed auth instances. The database test requires local
 PostgreSQL, creates only a uniquely named synthetic schema, and removes it afterward.
-It creates no participant accounts and sends no emails. Token lifetimes, eligibility,
-durable email integration, cleanup/retention, and deployment readiness remain gates
+The account-access test creates made-up identities/accounts in its own disposable
+schema and sends no emails. Token lifetimes, registration and verification integration,
+durable email delivery, cleanup/retention, and deployment readiness remain gates
 before mounting routes or accepting real participant data.
+
+## Account access prerequisites (slice 2, synthetic only)
+
+`src/server/repositories/accounts.ts` resolves a stored Better Auth session to its
+unique existing domain account. Callers cannot choose an account ID. Missing mappings,
+deleted accounts, invalid/expired/revoked sessions deny access. Reads do not create
+mappings or collect DOB/attestations. No account routes, UI or domain writes are mounted.
+
+The explicit account-private guard query selects ID, display name, DOB, attestation
+timestamp, email-verification timestamp and deletion timestamp. The returned owner-only
+projection contains ID, display name and adult, email-verification and recent-sign-in
+flags. It excludes DOB, email, credentials, session/token material and staff data.
+Do not use it as a public profile, cache it, or pass it to unrelated users, metadata
+or analytics. No staff reader is implemented.
+
+Adult eligibility requires DOB showing at least 18 on the current PHT calendar date
+and a non-future attestation timestamp. This is self-declared eligibility, not verified
+age. Rejection does not change an underage account or choose its treatment. Email
+prerequisites require agreement between the current auth identity and domain verification
+timestamp; disagreement fails closed until verification integrates them. Freshness
+uses session creation, never renewal time.
+
+`requireAccountPrerequisites` rejects missing accounts, failed adult eligibility and
+unverified email for publication, inquiry and proposal submission. This is only a
+prerequisite check, never permission to execute an action. Restrictions/blocks are
+not stored or evaluated yet. Full commands remain unmounted until those checks,
+transaction-scoped rechecks, target/state guards, audit/outbox and retry safeguards
+exist. No permission or restriction defaults are invented here.
+
+The reader requires a callback for Better Auth response headers so a future response
+handler can propagate renewal/deletion cookies. These are private auth transport:
+never serialize them into JSON, client props or logs. Refresh and cookie policies
+remain unchanged. Direct internal session reads are not exposed wrappers; future
+external handlers still need the ADR-086 limiter. Fixed `account-access` outcome logs
+and generic `INTERNAL_ERROR` failures exclude raw errors and submitted data.
+
+`npm.cmd run test:auth` covers these prerequisites and real Prisma/session reads in
+an isolated local synthetic schema, removed afterward. Registration/mapping creation,
+attestation version capture (ADR-042), restrictions, token/delivery decisions, cleanup,
+proxy trust and launch readiness remain gated. Existing schema columns do not complete
+onboarding. No ADR changes are needed: accepted behavior is unchanged.
+
+Slice 2 verification on 2026-10-14 PHT, from `app`: `npm.cmd run test:auth`
+(8 passed), `npm.cmd run test:foundation` (21 passed), `npm.cmd run test:logging`
+(5 passed), `npm.cmd run lint` and `npm.cmd run build` (passed). The first auth
+run failed because Node's strip-only TypeScript loader rejects parameter
+properties; using an explicit class field fixed it. Tests retain the existing
+`MODULE_TYPELESS_PACKAGE_JSON` warning. `git diff --check` passed from the root.
+No persistent migration, dependency install, real-data or deployment check ran.
+No UI changed; browser/accessibility checks were not run for this server-only step.
 
 ## Server data-access boundary
 
@@ -113,8 +164,8 @@ and repository modules must import `server-only`, which Next.js rejects in clien
 import graphs. Local SQL tooling remains separate with its existing loopback
 guards and synthetic rollback fixtures.
 
-The current app needs no persisted domain reads, so this step adds no repository
-read methods. When an authorized flow needs a read, its repository must verify
+Slice 2 adds the server-internal account prerequisite reader described above.
+Other persisted reads remain absent. Each new repository reader must verify
 the caller and select only the explicit projection permitted for that caller.
 No ID parameter grants account ownership or staff access. See
 [`src/server/repositories/README.md`](src/server/repositories/README.md) for module
@@ -122,8 +173,8 @@ access and projection requirements. The browser-memory prototype still has no
 database calls or authenticated access control.
 
 `npm.cmd run test:foundation` also checks the import restrictions with synthetic
-module text. Authentication, domain read projections, and flow-specific commands
-remain pending. The server-only logger emits only fixed operation/outcome/code
+module text. Account prerequisites are implemented; other domain projections and
+flow-specific commands remain pending. The server-only logger emits fixed operation/outcome/code
 fields and an optional primitive UUID request ID. Synthetic sentinel checks cover
 rejection, unexpected failures in every command phase, and successful results.
 Sink failures preserve command results and original errors; an event may be lost
@@ -180,8 +231,9 @@ automatic retries, or idempotency behavior is added. Concrete commands still nee
 their accepted flow-specific safeguards and verification under `architecture.md`
 section 5 and ADR-084. ADR-086 now settles Better Auth session, cookie, freshness,
 and endpoint rate-limit policies. Token expiry, reviewed deployment proxy trust,
-account eligibility/mapping, durable email, and concrete session-to-actor resolution
-remain pending. This generic example does not authorize a product endpoint. The
+onboarding/mapping creation, restrictions, durable email and full command authorization
+remain pending. Slice 2 resolves existing account mappings from stored sessions.
+This generic example does not authorize a product endpoint. The
 application/data foundation slice is complete; product reads and commands remain
 for their owning slices.
 

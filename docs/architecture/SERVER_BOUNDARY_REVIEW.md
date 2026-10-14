@@ -1,5 +1,12 @@
 # Server data-access, command, and logging boundary review
 
+Slice 2 update (2026-10-14 PHT): the review below records the earlier foundation
+snapshot. `app/src/server/repositories/accounts.ts` now adds an unmounted owner-only
+prerequisite reader with explicit projections, stored-session verification and
+privacy-safe failures. `app/tests/account-access.test.mjs` verifies it against
+isolated synthetic PostgreSQL fixtures. No product command or account route is
+mounted. See `app/README.md` and `docs/IMPLEMENTATION_SLICES.md` for current gates.
+
 - Reviewed: 2026-10-13, PHT
 - Baseline: `3be42d4`; working tree was clean before review.
 - Boundary task diffs: `624642b..3be42d4`, covering `842da12` (data access),

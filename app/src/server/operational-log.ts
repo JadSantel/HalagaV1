@@ -4,7 +4,7 @@ export type OperationalOutcome = "success" | "rejected" | "failed";
 export type OperationalCode = "INVALID_INPUT" | "UNAUTHORIZED" | "INVALID_STATE" | "INTERNAL_ERROR";
 
 type OperationalEvent = Readonly<{
-  operation: "guarded-command";
+  operation: "guarded-command" | "account-access";
   outcome: OperationalOutcome;
   code?: OperationalCode;
   requestId?: string;
@@ -12,9 +12,10 @@ type OperationalEvent = Readonly<{
 
 /** Emit only fixed operational fields. Never pass request, input, or exception objects here. */
 export function logOperationalEvent(event: OperationalEvent, write: (line: string) => void = console.error): void {
-  if (event.operation !== "guarded-command" || !["success", "rejected", "failed"].includes(event.outcome)) return;
+  const operation = event.operation;
+  if (!["guarded-command", "account-access"].includes(operation) || !["success", "rejected", "failed"].includes(event.outcome)) return;
   const record: Record<string, string> = {
-    operation: "guarded-command",
+    operation,
     outcome: event.outcome,
   };
   if (event.code && ["INVALID_INPUT", "UNAUTHORIZED", "INVALID_STATE", "INTERNAL_ERROR"].includes(event.code)) {

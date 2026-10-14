@@ -1,9 +1,9 @@
 import "server-only";
 import { betterAuth } from "better-auth";
-import { createAuthPolicy } from "../auth-policy";
-import { getAuthDatabase } from "../prisma";
+import { createAuthPolicy } from "../auth-policy.ts";
+import { getAuthDatabase } from "../prisma.ts";
 
-// No routes consume this yet. Account eligibility and durable email remain separate gates.
+// No routes consume this yet. Domain prerequisites and durable email remain separate concerns.
 export function createAccountAuth() {
   const policy = createAuthPolicy(process.env);
   return betterAuth({

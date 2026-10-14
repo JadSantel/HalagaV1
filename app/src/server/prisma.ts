@@ -1,8 +1,8 @@
 import "server-only";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { prismaAdapter } from "@better-auth/prisma-adapter";
-import { PrismaClient } from "../generated/prisma/client";
-import { readRuntimeConfig } from "./runtime-config";
+import { PrismaClient } from "../generated/prisma/client.ts";
+import { readRuntimeConfig } from "./runtime-config.ts";
 
 const developmentGlobal = globalThis as typeof globalThis & {
   halagaPrisma?: PrismaClient;
