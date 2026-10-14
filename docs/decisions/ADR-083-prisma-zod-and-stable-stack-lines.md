@@ -18,7 +18,7 @@ At decision time, Prisma's release-status documentation identifies Prisma ORM 8 
 - Use Zod 4 for runtime validation of untrusted data at server boundaries. Shared schemas may also support client-side feedback, but the server remains authoritative. Domain commands, authorization, privacy-safe projections, and database constraints remain separate required controls.
 - Use Tailwind CSS 4 as the styling framework with the official Next.js integration. Tailwind selection does not select visual design, design tokens, or a component library; those remain governed by `design.md` and separate accepted decisions.
 - Adopt these stable release lines for initial implementation: Node.js 24 LTS, Next.js 16, React 19, TypeScript 5.9, Prisma ORM 7, PostgreSQL 18, Better Auth 1.x, and Zod 4. Tailwind CSS 4.3 is the current stable line at the time of this decision.
-- Do not freeze patch versions in this ADR. At application bootstrap, pin exact package versions in the manifest and lockfile and the Node.js patch/runtime in the runtime pin. Keep dependencies on maintained security releases; review major upgrades as needed. PostgreSQL minor patch support and upgrade procedure are confirmed with the selected host.
+- Do not freeze patch versions in this ADR. At application bootstrap, pin exact package versions in the manifest and lockfile and the Node.js patch/runtime in the runtime pin. The bootstrap is complete: `app/package.json` and `app/package-lock.json` use exact direct dependency versions, and `app/.nvmrc` pins Node.js `24.21.0` (verified with Node.js `v24.21.0`). Keep dependencies on maintained security releases; review major upgrades as needed. PostgreSQL minor patch support and upgrade procedure are confirmed with the selected host.
 - Prisma ORM 8 may be reconsidered after general availability and a compatibility review; it is not selected by this ADR.
 
 ## Consequences
@@ -26,7 +26,7 @@ At decision time, Prisma's release-status documentation identifies Prisma ORM 8 
 - Prisma's schema and migration history need review together, especially when PostgreSQL-specific checks, partial indexes, exclusion rules, or concurrency controls are required.
 - The database remains the enforcement point for transaction-critical invariants even when the Prisma client provides application types.
 - Zod schemas help parse and report malformed inputs but do not become the definition of domain eligibility or authorization by themselves.
-- Exact package patches will be selected when the runnable project is bootstrapped, then become reproducible through the lockfile and runtime pin.
+- Exact direct package patches are reproducible through the manifest and lockfile, and the Node.js patch is selected in the runtime pin. Keep these pins updated through reviewed maintenance changes.
 - No hosting provider, package manager, PostgreSQL host, paid service, or billing path is selected.
 
 ## Sources

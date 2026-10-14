@@ -128,7 +128,7 @@ fields and an optional primitive UUID request ID. Synthetic sentinel checks cove
 rejection, unexpected failures in every command phase, and successful results.
 Sink failures preserve command results and original errors; an event may be lost
 when output fails. Run `npm.cmd run test:logging` for these checks. Slice 1 is still
-in progress. See the [combined boundary review](../docs/architecture/SERVER_BOUNDARY_REVIEW.md)
+complete. Product reads and commands remain for their owning slices. See the [combined boundary review](../docs/architecture/SERVER_BOUNDARY_REVIEW.md)
 for findings, verification, and limits.
 
 ## Guarded-command foundation
@@ -181,8 +181,9 @@ their accepted flow-specific safeguards and verification under `architecture.md`
 section 5 and ADR-084. ADR-086 now settles Better Auth session, cookie, freshness,
 and endpoint rate-limit policies. Token expiry, reviewed deployment proxy trust,
 account eligibility/mapping, durable email, and concrete session-to-actor resolution
-remain pending. This generic example does not authorize a product endpoint. Slice 1 remains
-in progress.
+remain pending. This generic example does not authorize a product endpoint. The
+application/data foundation slice is complete; product reads and commands remain
+for their owning slices.
 
 ## Try it locally
 
