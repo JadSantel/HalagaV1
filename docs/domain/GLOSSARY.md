@@ -34,6 +34,27 @@ An email change requested with a recent sign-in but not yet verified at the prop
 
 The private snapshot of the previously verified email address needed to deliver the security notice after an email switch. It is restricted to that delivery purpose and authorized, audited staff diagnosis. The notice intent excludes the proposed/new address and unnecessary private data; preserving intent history does not authorize indefinite recipient retention (ADR-087 implementation record).
 
+## Password-Change Security Notice
+
+A mandatory durable, account-private in-app notice for every successful authenticated
+password change. Email is mandatory only when the primary address is verified in
+both Better Auth and the domain at commit, with the domain timestamp no later than
+the event. Unverified or mismatched states receive no email intent or snapshot;
+later verification does not backfill email. Required intents commit atomically with
+credential replacement and other-session revocation. This policy is accepted under
+ADR-087's owner-approved 2026-10-15 supplement; notice writes remain unimplemented.
+It does not define password-reset notices or replace the email-switch notice.
+
+## Password-Change Notice Recipient
+
+The immutable private snapshot of the verified primary address at a successful
+password change, used only for its eligible email delivery/recovery and authorized,
+audited staff diagnosis. A subsequent email switch cannot retarget or suppress that
+historical warning merely because primary changed. Pending or previously held
+addresses are not fallback recipients. No snapshot is retained for an email-ineligible
+change. Content omits addresses; purpose-limited retention/cleanup remains separately
+gated (ADR-087). This differs from the old-address recipient of an email-switch notice.
+
 ## Rolling Session
 
 An authentication session with a seven-day expiry renewed on use when at least one day has elapsed since the previous renewal. Inactive sessions expire; renewal does not count as a recent sign-in (ADR-086).

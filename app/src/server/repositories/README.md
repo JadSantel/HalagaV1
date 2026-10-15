@@ -14,12 +14,15 @@ private old-address notice intent. Its initiating session must be fresh under lo
 Unmounted authenticated password change rechecks the stored-session owner, mapping,
 credential and original session freshness under locks, then atomically replaces the
 credential and revokes other sessions while retaining the initiating session exactly.
-Its security-notice contract remains unresolved; no notice policy is selected.
+Its security-notice contract is accepted under ADR-087's owner-approved supplement:
+in-app notice for every success, email only to the primary address verified in both
+stores at commit. Required atomic notice writes remain unimplemented; keep it unmounted.
 
 ## Module access
 
 | Module | Permitted access |
 | --- | --- |
+| `src/server/repositories/account-email-intents.ts` | Trusted internal account-module synthetic inspection only. Explicit guard projections check current token-specific work and old-recipient snapshots; output is fixed status without addresses/tokens/bindings/digests. Notice branch never reads the identity/new email. No participant/staff reader, dispatch, write, cache, provider, job claim or send authorization. Inspection locks end at commit. See `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md` for unresolved decisions and tests. |
 | `src/server/prisma.ts` | Construct and share the generated Prisma client using the installed PostgreSQL adapter and validated server configuration. This is infrastructure, not an authorization service. |
 | `src/server/repositories/auth.ts` | Construct the unmounted Better Auth account instance with ADR-086 policy and the infrastructure adapter. Better Auth owns private identity/session/token/counter tables; this is not a domain authorization grant or a public data reader. |
 | `src/server/repositories/accounts.ts` | Stored-session owner resolution and explicit account-private prerequisite projection; no DOB/email/token output, cache, staff access or action grant. Cookie headers remain private auth transport. |
@@ -27,7 +30,7 @@ Its security-notice contract remains unresolved; no notice policy is selected.
 | `src/server/repositories/email-verification.ts` | Internal account-owned, namespaced opaque-token issue/replacement with minimized outbox intent; atomic token consumption, identity/domain verification and session revocation. Explicit private guard queries lock the identity/mapping. Raw issue material is restricted to trusted internal callers; never a public response. No route, Server Action, library verification endpoint, dispatcher or delivery. |
 | `src/server/repositories/password-reset.ts` | Internal account-owned, one-hour reset-token issue/replacement with minimized outbox intent; atomic credential replacement, token consumption and session revocation. Locks identity/mapping and the existing credential; preserves both verification states and separate verification tokens. Restricted issue material is never a public response. No route, Server Action, library reset endpoint or delivery. |
 | `src/server/repositories/email-change.ts` | Internal account-owned, fresh stored-session request with 24-hour bound-token replacement and minimized verification intent; atomic proof, address switch/verification, session revocation and old-address security intent. Locks/rechecks session, identity/mapping and proof; preserves history and separate token families. Restricted issue material is never a public response. No route, UI, token transport or delivery. |
-| `src/server/repositories/password-change.ts` | Internal account-owned credential replacement with stored-session owner resolution, locked mapping/credential/session rechecks and original creation age below 15 minutes. Uses configured Better Auth limits/hasher/current-password verifier. Atomic replacement/revocation preserves the initiating session exactly, verification, token families and account history. Fixed safe results/errors; no route, UI, endpoint integration or delivery. Password-change notice decision remains open. |
+| `src/server/repositories/password-change.ts` | Internal account-owned credential replacement with stored-session owner resolution, locked mapping/credential/session rechecks and original creation age below 15 minutes. Uses configured Better Auth limits/hasher/current-password verifier. Atomic replacement/revocation preserves the initiating session exactly, verification, token families and account history. Fixed safe results/errors. Approved required notice writes remain unimplemented; command stays unmounted. |
 | `src/server/account-access.ts` | Server-only adult eligibility and publication/inquiry/proposal prerequisite rejection; restrictions, blocks and target/state authorization remain separate gates. |
 | `src/server/repositories/` | Other server-only reads belong to the owning module, after verifying the caller and selecting an explicit authorized projection. |
 | `src/app/` and other application modules | Consume scoped repository methods when they exist. No direct Prisma, generated database client, or PostgreSQL driver imports. Current pages read no persisted records. |
@@ -123,7 +126,8 @@ cookie response integration and sign-in racing account changes remain unmounted/
 Password change has separate isolated transaction checks and direct manual exercises
 in `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`. Session resolution disables refresh for
 that operation to avoid pretransaction renewal writes. It preserves the initiating
-session exactly and leaves the unresolved password-change notice contract pending.
+session exactly. The owner-approved notice contract is accepted, but its required
+atomic intents/recipient binding are not implemented; password change stays unmounted.
 Atomicity alone does not enforce retry idempotency,
 concurrency, revision/deadline policy, history, or audit/outbox requirements.
 Those remain mandatory before implementing the affected flow. See `app/README.md`

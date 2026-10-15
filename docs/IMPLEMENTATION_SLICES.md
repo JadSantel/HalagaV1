@@ -41,10 +41,11 @@ replacement atomically revokes all other stored sessions and retains the initiat
 session exactly; verification, token families, account history and unrelated accounts
 survive. Thirteen reported PostgreSQL/input tests and eight direct exercises cover
 freshness, missing state, hash/write/commit failure, rollback/retry, cookies, isolation
-and concurrent account changes. No migration or dependency is added. The password-
-change notice trigger/recipient remains unresolved under ADR-087's general delivery
-clause; no notice intent or omission policy is selected. That decision, any required
-atomic intent, sign-in races and existing route/security/readiness gates remain.
+and concurrent account changes. No migration or dependency is added. The owner-
+approved ADR-087 supplement now requires in-app notice for every success, with
+email only to a commit-time primary address verified in both stores. Required
+atomic notice writes remain unimplemented; this credential/session-only slice is
+incomplete for mounting. Sign-in races and existing readiness gates also remain.
 See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`. Routes, UI, endpoint integration and
 email delivery remain unmounted.
 
@@ -60,13 +61,33 @@ not the unmounted-command boundary or any accepted product decision.
 
 **Mounting remains blocked:** digest-only tokens and generic outbox intents provide
 no durable private raw-token transport or crash-safe handoff; dispatch/stale-work
-rules and job parameters remain unresolved. Password-change notice trigger/recipient
-and any required atomic intent are undecided. Sign-in/session creation races,
+rules and job parameters remain unresolved. Password-change notice policy is
+accepted, but its required atomic intents/recipient binding are missing. Sign-in/session creation races,
 functional client states, terms/privacy content, restrictions/blocks and readiness
 gates remain. No policy is silently chosen. Existing scripts report 106 passing
 backend tests; lint/build pass. See `docs/ACCOUNT_FLOW_INTEGRATION.md` for changed
 boundaries, exact blockers, test setup and verification limitations. Slice 2 remains
 partial and synthetic only.
+
+Slice 2 account email delivery remains **blocked, not complete** (2026-10-15 PHT).
+The independent `account-email-intents.ts` inspector checks existing token-specific
+work against current account/binding/expiry state and checks old-recipient notice
+snapshots without reading the new address. Its only output is a fixed status.
+Signup's original intent is explicitly token-unbound. This inspector neither
+mutates nor sends and its locks end at commit; it supplies no dispatch, lease,
+processed-work, retry, provider or delivery guarantee. Thirteen new synthetic tests
+and four manual exercises cover these independent boundaries. Exporting the existing
+strict email-change binding schema changes no validation policy.
+
+ADR-087 records exact unresolved choices: recoverable private transport and
+atomic handoff, approved templates/link contract, worker parameters and ambiguous-
+send recovery, restricted failed-job/operator retry, retention/deletion and cleanup.
+Existing schema cannot represent the complete private transport/job path. No
+speculative migration or operational default is added. Slice 9 execution remains
+unimplemented; fake-provider rendering/retry/recovery tests remain blocked and
+unrun. Account commands stay unmounted and static previews remain disabled.
+See `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md` for scope, sources, direct commands
+and verification limits. No new product/privacy/operations decision is accepted.
 
 ## Cross-slice acceptance checks
 

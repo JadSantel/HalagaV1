@@ -60,7 +60,7 @@ future hosting must support it.
 Slice 2 now provides disabled account screen previews at `/account` and a protected,
 unmounted Better Auth plugin/handler over existing account operations. It is used
 only by synthetic fixtures, not application routes or Server Actions. Token delivery,
-password-change notice policy and sign-in races still block account API mounting.
+required password-change notice writes and sign-in races still block account API mounting.
 See [account integration status and exact blockers](../docs/ACCOUNT_FLOW_INTEGRATION.md).
 This is the current UI/integration status; older local-operation records below
 describe their original unmounted boundaries. `npm.cmd run test:auth` now requires
@@ -116,9 +116,11 @@ write/commit failure preserves the old credential and all sessions for retry.
 No dependency or migration is added. Run `npm.cmd run test:password-change` with
 the dedicated `halaga_signup_test` URL. [Local password-change testing](../docs/PASSWORD_CHANGE_LOCAL_TESTING.md)
 documents eight direct exercises, concurrency checks and remaining gates.
-ADR-087's password-change notice trigger/recipient remains unresolved; no notice
-intent or omission policy is selected. Routes, UI, email delivery and endpoint
-integration remain unmounted pending that decision and existing integration gates.
+ADR-087's owner-approved 2026-10-15 supplement requires an in-app notice after every
+successful password change and email only to the primary address verified in both
+stores at commit. Required atomic notice writes are not implemented. Account commands
+remain unmounted pending those writes and existing integration/readiness gates;
+the disabled preview is not a working password-change flow.
 
 ## Authentication policy foundation
 
@@ -215,6 +217,19 @@ properties; using an explicit class field fixed it. Tests retain the existing
 `MODULE_TYPELESS_PACKAGE_JSON` warning. `git diff --check` passed from the root.
 No persistent migration, dependency install, real-data or deployment check ran.
 No UI changed; browser/accessibility checks were not run for this server-only step.
+
+## Account email intent inspection (delivery remains blocked)
+
+`npm.cmd run test:account-email-intents` uses the existing dedicated local
+`halaga_signup_test` sandbox and 13 synthetic checks. The internal inspector
+rechecks token-specific account/binding/expiry state and notice-only old-address
+snapshots, returns fixed status without private data, and never sends or mutates.
+Its locks end at commit; it is not delivery authorization or job deduplication.
+No route, UI action, provider adapter or worker imports it. Durable private transport,
+approved templates/links, job parameters, recovery and retention remain blocked
+under ADR-087; no migration or operational default is introduced. See
+[the local guide](../docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md) for direct manual
+exercises, source passages and the unrun provider/rendering/job tests.
 
 ## Server data-access boundary
 

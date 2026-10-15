@@ -409,9 +409,10 @@ session remains unchanged. Failures roll back both effects for same-session retr
 Other account state, tokens and history are preserved. Synthetic checks cover these
 guards and account-owned reset/verification/email-proof races. Library sign-in still
 does not share these locks; sign-in racing replacement remains an integration gate.
-ADR-087 does not settle the password-change security-notice trigger/recipient despite
-its general account-security delivery clause. That dependent intent/privacy contract
-remains open; this synthetic operation selects neither sending nor omission as policy.
+ADR-087's owner-approved 2026-10-15 supplement now settles the notice contract:
+mandatory durable account-private in-app notice for every success, with email only
+to a primary address verified in both stores at commit. This credential/session-only
+operation lacks the required notice writes and does not satisfy that contract.
 See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`; no migration/dependency or mounted flow
 is added.
 
@@ -424,9 +425,19 @@ cookies; password change preserves its initiating cookie. `/account` mounts stat
 disabled previews only. This supersedes earlier statements that no UI or endpoint
 integration code exists, while all account API commands remain unmounted.
 Digest-only token storage/outbox intent cannot supply durable raw delivery material;
-transport/crash recovery, stale intents, ADR-073 dispatch parameters, password-change
-notice policy and library sign-in races remain explicit mounting gates. See
+transport/crash recovery, stale intents, ADR-073 dispatch parameters, approved
+password-change notice writes and library sign-in races remain mounting gates. See
 `docs/ACCOUNT_FLOW_INTEGRATION.md`; no policy or operational parameter changes.
+
+Independent Slice 2 intent inspection now rechecks existing account/token bindings,
+current state and original expiry under account locks and returns only fixed status.
+Notice inspection reads only the old-recipient snapshot, never the new address.
+It performs no dispatch or mutation and its locks end at commit; it is not send
+authorization, a claim or duplicate-effect prevention. Initial signup remains
+token-unbound. Private transport, approved templates/link contract, job parameters,
+ambiguous-send recovery and retention/cleanup remain unresolved as recorded in
+ADR-087 and `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`. No schema migration,
+worker, provider adapter or new operational/privacy policy is added by this step.
 
 ## 6. Flow-level notification contract
 
@@ -439,6 +450,40 @@ Notification rendering uses channel-specific, privacy-reviewed templates:
 - Failed email delivery does not roll back the domain action.
 - Read/unread state belongs to in-app delivery, not to the underlying domain event.
 - Duplicate worker execution must not create duplicate logical notifications.
+
+Authenticated password change follows ADR-087's owner-approved notice contract.
+Every successful change requires one account-private in-app notice; email is
+mandatory only if the locked primary address has Better Auth `emailVerified = true`
+and a non-null domain `emailVerifiedAt` no later than the event time. Unverified,
+mismatched or future-dated verification receives no email intent/snapshot, without
+blocking password maintenance, repairing verification or granting marketplace access.
+Later verification does not backfill the notice.
+
+Under the existing identity/domain, credential, initiating-session lock order,
+reread the primary address and both verification states. Credential replacement,
+other-session revocation, in-app intent and eligible email intent/immutable recipient
+snapshot must commit together. Intent-write failure rolls back all effects; later
+delivery failure does not. Use one opaque committed-change identity and channel-
+specific work keys/processed-work records, never password/session/address-derived
+keys. Distinct changes in one session remain distinct; rejected commands add no notice.
+
+If password change at verified A commits before email proof switches to B, its
+notice remains bound to A even after the switch; changed primary alone must not
+suppress it. The email-switch notice is separate. Proof first revokes the initiating
+session and prevents that password change and its notice; a later fresh-session
+change binds to B. Pending email changes cannot redirect notices. Verification races
+use commit-time eligibility with no later backfill.
+
+Allow only the change fact, PHT event time, accurate session-revocation facts and
+approved recovery guidance. Omit credentials/tokens, session IDs, IP/device/location,
+DOB, display name, addresses in subject/body and marketplace/private content.
+Owner-only in-app detail, purpose/role/audited staff access and minimized worker
+projections apply. Snapshots are delivery-private, excluded from generic readers,
+logs, analytics, caches and responses. ADR-073/075 govern duplicate suppression,
+retry/recovery and delivery failure; provider-accept/crash reconciliation remains
+unresolved. Recipient/attempt retention, cleanup, deletion propagation and final
+templates remain gates; neither transaction retention nor intent history authorizes
+indefinite recipient storage. No notice schema or implementation is added here.
 
 ## 7. Screen-design handoff
 
@@ -485,7 +530,7 @@ These decisions must be recorded rather than inferred in code. Some are needed b
 - Listing renewal limits, grace period, and the `Newest` timestamp behavior after renewal/material republication.
 - Whether to send appointment reminders and, if so, their timing and delivery rules (separate from ADR-063 completion reminders).
 - Handling an account discovered to be underage.
-- Password-change security-notice trigger, recipient and minimized intent/template privacy contract: ADR-087 explicitly requires an email-switch notice but leaves this password-change behavior unresolved. Decide before dependent notice work or password-change route mounting; the synthetic credential/session operation is implemented independently.
+- Password-change notice implementation: ADR-087's owner-approved supplement settles mandatory in-app notices, verified-only commit-bound email and content/privacy limits. Required atomic notice writes, final templates, recipient/attempt retention and cleanup, provider-accept/crash recovery and sign-in races remain gates before mounting. The synthetic credential/session-only operation is incomplete for that approved contract.
 - Category-request waitlist behavior and diagnostic questions/safe-testing guidance for supported categories beyond the laptop prototype.
 - External emergency or law-enforcement escalation procedure.
 - Service availability, performance, browser support, PWA position, and storage-capacity targets.

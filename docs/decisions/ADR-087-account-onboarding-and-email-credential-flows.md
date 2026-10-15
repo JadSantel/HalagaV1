@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-14
+- Password-change notice supplement approved by owner: 2026-10-15 PHT
 - Supplements: ADR-032, ADR-042, ADR-074, ADR-075, ADR-086
 
 ## Context
@@ -70,6 +71,80 @@ registration, verification, reset, and email-change routes.
   privacy-reviewed security notice to the old address.
 - A failed or expired email-change attempt leaves the old address active. A
   later change request supersedes the prior outstanding change token.
+
+### Password-change security notices (owner-approved 2026-10-15)
+
+This explicit decision resolves the earlier trigger/recipient gap. The general
+account-security delivery clause alone did not require a password-change notice.
+The owner approved the recommendation and contract in
+[`docs/PASSWORD_CHANGE_NOTICE_DECISION_BRIEF.md`](../PASSWORD_CHANGE_NOTICE_DECISION_BRIEF.md).
+It applies to authenticated password change, not password reset.
+
+- Every successful change requires one mandatory, durable, account-private in-app
+  security notice. Email is mandatory only when the primary address has both
+  Better Auth `emailVerified = true` and a non-null domain `emailVerifiedAt` no
+  later than the event time, reread under the committing transaction's locks.
+- Unverified accounts, either mismatch direction and future verification timestamps
+  receive the in-app notice but no email intent or recipient snapshot. Record a
+  fixed private email-eligibility outcome without address copies. Do not block
+  password maintenance, repair verification or grant marketplace access. Later
+  verification does not backfill email for an earlier change. These notices are
+  essential security messages, not an optional marketing preference.
+- Reuse identity/domain, credential and initiating-session lock order. Atomically
+  commit credential replacement, other-session revocation, the in-app notice intent
+  and any required email intent with its immutable recipient snapshot. Required
+  intent-write or commit failure rolls back all effects. The earlier session lookup
+  is not authoritative for address or verification. Permit only account reference,
+  versioned event type, opaque change/work identifier, event time, channel/eligibility
+  outcome and eligible email recipient as needed. Deduplication keys must not derive
+  from passwords, sessions or addresses.
+- Bind email to the verified primary address at the successful change. If password
+  change commits at A before email proof switches to B, deliver that warning to A;
+  do not retarget or suppress it merely because the primary address later changes.
+  Email proof still creates its separate old-address notice. If proof commits first,
+  its session revocation rejects password change from the old initiating session:
+  no password-change notice results. A subsequent fresh-session change binds to B.
+  Pending email-change requests cannot select a recipient. Verification races use
+  the same locked commit-time eligibility, without later backfill.
+- Content may state that the password changed, its PHT event time and that other
+  sessions were revoked while the initiating session remained signed in. Do not
+  identify who acted or guarantee that no later session exists. Guidance may ask
+  the recipient to open Halaga directly and use approved recovery if unexpected.
+  Do not invent a support contact, origin, recovery URL or action token. Final
+  subject/body/template review remains required.
+- Omit passwords/hashes, tokens or credential-bearing links, session IDs, IP/device/
+  location information, DOB, display name, current/new/pending addresses in subject
+  or body, private messages, proposal amounts, IMEI and evidence. The recipient is
+  delivery addressing only: exclude it from generic readers, operational logs,
+  analytics, caches and command responses. In-app detail is owner-only. Staff
+  access requires role, purpose and audit; workers use recipient/channel projections.
+- Each committed change has one stable logical event identity with channel-specific
+  work keys and processed-work records. Retries/lease recovery reuse those keys;
+  distinct changes in the same session remain distinct. Failed/rejected commands
+  create no notice. Apply ADR-073's expiring leases, recovery, bounded exponential
+  backoff, restricted failed-job queue and audited controlled retries. Exactly-once
+  mailbox delivery is not guaranteed across provider-accept/crash ambiguity;
+  provider idempotency/reconciliation remains a dispatch gate. Email failure never
+  undoes committed credentials, changes verification or chooses a fallback address.
+  The durable in-app record remains available independently of email delivery.
+- Recipient snapshots are private delivery data retained only for approved delivery/
+  recovery purposes, then deleted or irreversibly anonymized under an approved
+  cleanup rule. Minimal delivery metadata has its own classification. Transaction
+  and negotiation periods do not set notice-recipient retention. Ordinary periods,
+  cleanup, delayed-work/account-deletion handling and provider/backup deletion remain
+  readiness gates. ADR-079's scoped exceptions require review at least every 30
+  calendar days; they do not establish a missing ordinary retention period.
+
+This favors avoiding disclosures to unproved mailboxes over external warnings for
+unverified users. In-app notices cannot reliably reach an owner locked out by an
+attacker, and verified email cannot protect a compromised mailbox or guarantee
+prompt delivery. Existing password/session controls remain necessary.
+
+Acceptance is not implementation. The existing credential/session-only operation
+does not satisfy the required notice writes and must remain unmounted. The current
+SQL recipient constraint permits only the email-switch notice; no schema expansion,
+provider credentials, delivery or participant data is introduced by this supplement.
+Separate job, template, retention, sign-in race and launch-readiness gates remain.
 
 ### Delivery, limits, and implementation boundary
 
@@ -303,7 +378,8 @@ proof races. Eight direct manual exercises also pass. The existing dedicated
 loopback sandbox removes its random schema afterward. See
 `docs/PASSWORD_CHANGE_LOCAL_TESTING.md` for commands, outcomes and integration gates.
 
-**Unresolved notice contract:** the password/email-change decision explicitly
+**Historical notice gap, resolved by the owner-approved supplement above:** the
+original password/email-change decision explicitly
 requires an old-address notice for an email switch. The general delivery clause
 mentions account-security email and committed password changes, but specifies no
 password-change notice trigger or recipient. PROJECT section 8.5 states session
@@ -314,8 +390,11 @@ privacy review need an explicit decision before dependent notice implementation.
 This slice adds no notice intent and does not accept omission as product policy.
 The credential/session transaction proceeds independently as requested.
 
-Routes, UI, email delivery and endpoint integration remain unmounted. Resolve the
-notice contract (and any required atomic intent), integrate origin/CSRF/endpoint
+The earlier gap analysis above records the state before owner approval; it is not
+a current open policy. The operation still adds no required notice work.
+
+Routes, UI, email delivery and endpoint integration remain unmounted. Implement the
+approved required atomic intents, integrate origin/CSRF/endpoint
 limits, safe errors and response cookies, and settle sign-in/session creation racing
 credential replacement before mounting. Library sign-in does not share account-owned
 locks. Direct writes bypass change-password hooks; review library/schema/password
@@ -349,12 +428,56 @@ tokens in public handlers is not a working delivery mechanism. No recoverable to
 is added to generic outbox records, response, URL or log; no alternative transport,
 cleanup schedule or operational parameter is selected.
 
-The password-change notice trigger/recipient and any required atomic intent remain
-separate mounting gates. Sign-in/session creation racing account changes also
+At this integration record's creation the notice policy was unresolved. The later
+owner-approved supplement resolves trigger/recipient; required atomic notice writes
+remain a separate mounting gate. Sign-in/session creation racing account changes also
 remains unresolved; this plugin does not expose sign-in. See
 `docs/ACCOUNT_FLOW_INTEGRATION.md` for exact blockers, endpoint contracts, screens,
 the 106 reported passing backend tests, build/lint results and accessibility limits.
 This record changes no accepted policy, privacy boundary or launch gate.
+
+## Implementation record: delivery blocker and independent intent inspection (2026-10-15)
+
+The requested four-message durable delivery path remains blocked. ADR-073 accepts
+durability mechanisms but explicitly defers polling/lease/heartbeat/retry allowances,
+alerting and recovery operations. ADR-075 requires privacy-reviewed templates but
+approves no account-message copy/link contract. This ADR's existing implementation
+records explicitly leave recoverable private token transport and crash/stale-work
+handling unresolved. PROJECT §28 and architecture §8.2 supply no transport/attempt/
+notice-recipient retention or cleanup schedule. These passages are complementary;
+the delivery mandate does not supersede the unresolved privacy/operations gates.
+No new decision is accepted by this implementation record.
+
+Schema review confirms digest-only `verification` rows and minimized intents cannot
+recover links. Initial signup has no token association. Existing schema also lacks
+job/attempt/lease/failure/processed-work state. A new migration must follow an
+accepted transport/job design; none is introduced speculatively. Required decisions,
+source passages and direct manual instructions are recorded in
+`docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`. No encryption/storage choice,
+template, token URL, operational number, retention period or provider adapter is
+selected. Fake-provider rendering/retry/recovery tests remain blocked and unrun.
+
+Independent synthetic work adds an unmounted account-owned intent inspector. It
+returns fixed status only, never addresses, token/binding/digest material or raw
+diagnostics. It rechecks existing token/account/recipient-binding/expiry guards
+under account locks, including expiry after credential waits, without mutating
+tokens/intents or dispatching. Email-change shares the existing strict binding
+schema. The notice branch reads only the old-recipient snapshot and never the
+identity's current/new address. Initial signup is explicitly unbound; no resend
+token is borrowed or generated. Repeated inspection is read-only; its transaction
+locks end at commit, so its result is not send authorization or job deduplication.
+It defines no delayed/deleted-account notice policy.
+
+Thirteen local tests cover intent bindings, stale/consumed/replaced/expired work,
+cross-account isolation, malformed/header-injection bindings, snapshot-only notice
+reads, minimized outputs/errors, deferred commit rollback/retry and actual lock
+waits. The combined existing account/foundation/logging regression run passed 119
+tests; all four direct manual intent exercises, lint and build passed. Initial
+example-credential authentication and synthetic fixture-clock failures were
+corrected and rerun; see the local guide for exact results. Delivery itself,
+all job/provider checks and account API mounting remain
+gated; disabled static previews collect no data. No migration, dependency, real
+email, participant data, paid service, provider credential or deployment is added.
 
 ## Sources
 
@@ -362,3 +485,4 @@ This record changes no accepted policy, privacy boundary or launch gate.
 - `architecture.md` sections 3, 5, 6, and 8.2
 - ADR-032, ADR-042, ADR-073, ADR-074, ADR-075, ADR-081, ADR-085, and ADR-086
 - Owner's account-flow decision interview, 2026-10-14
+- Owner approval of the password-change notice brief and contract, 2026-10-15 PHT

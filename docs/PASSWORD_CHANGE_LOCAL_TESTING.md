@@ -71,7 +71,8 @@ inside the synthetic process. Each invocation removes its schema and sends no em
 | `commit-failure` | A deferred trigger rejects commit after the credential write. Every effect rolls back; removing the trigger permits same-session retry. |
 
 All exercises assert unchanged token and outbox counts. They create no
-password-change notice intent; that trigger remains an unresolved policy decision.
+password-change notice intent. They verify only the credential/session slice;
+the approved required notice writes remain unimplemented and block mounting.
 
 ## Operation and privacy boundary
 
@@ -105,19 +106,24 @@ has committed; competing requests cannot authenticate against a stale hash.
 
 ## Security-notice decision and remaining gates
 
-ADR-087, “Password and email changes,” explicitly requires a notice to the old
-address after an **email** switch. Its delivery clause covers “account-security
-email” and says delivery failure cannot undo a committed password change, but does
-not specify whether a password change itself requires a notice or its recipient.
-Architecture section 6 requires any required notification intent to commit with its
-state change; it does not define this missing trigger. PROJECT section 8.5 likewise
-defines password-change session behavior without specifying a notice. These passages
-do not establish an approved password-change notice contract. Record the trigger,
-recipient and minimized intent/template privacy review before implementing that
-part. This operation leaves it pending, without treating either sending or omission
-as accepted product policy. No notice/outbox behavior or schema default is invented.
+The owner approved the [decision brief](PASSWORD_CHANGE_NOTICE_DECISION_BRIEF.md)
+and contract on 2026-10-15 PHT. ADR-087 now requires an account-private durable in-app
+notice after every successful authenticated password change, with email only to
+the primary address verified in both stores at commit (`emailVerifiedAt` no later
+than the event). Unverified, mismatched or future-dated verification gets no email
+intent/snapshot. Password maintenance remains available without verification repair
+or marketplace access. Later verification does not backfill an email. Bind required
+intents and the eligible immutable recipient atomically with credential/session
+writes; later email changes cannot retarget the warning. The ADR records content,
+race, retry/failure and retention limits. Final templates and operational retention/
+cleanup remain unresolved. This resolves the policy gap, not the implementation.
 
-Before mounting, resolve that decision and implement any required atomic intent;
+The current operation still creates no notice intent. Unchanged-outbox assertions
+are deliberate tests of this incomplete credential/session slice, not full ADR-087
+compliance. The mounting-boundary regression checks disabled previews and absence
+of password-change command wiring while required notice writes are missing.
+
+Before mounting, implement the approved required atomic notice writes;
 review direct credential-write compatibility on library/schema/password configuration,
 plugin or database-hook changes; integrate safe errors and response cookies with
 origin/CSRF and ADR-086 endpoint/IP protection. The direct operation does not invoke
@@ -148,3 +154,31 @@ environment wrapper failed because native argument handling removed JavaScript
 quotes; no test ran in that attempt. Passing that wrapper through stdin fixed
 the launcher. Test URLs were supplied explicitly to subprocesses using the
 dedicated local database; no connection material was printed.
+
+## Owner-approved policy update verification (2026-10-15 PHT)
+
+The notice contract is now accepted; required notice writes are still unimplemented.
+The existing database assertions continue to describe only the credential/session
+slice. A new static regression prevents application command wiring and verifies
+disabled previews while this slice lacks the required notices. It is not runtime
+delivery, recipient/race or full mounting-readiness verification.
+
+Commands run from `app`:
+
+```powershell
+node --conditions=react-server --test --test-name-pattern="password change rejects|notice-incomplete password change" tests/password-change-database.test.mjs
+npm.cmd run lint -- tests/password-change-database.test.mjs src/server/repositories/password-change.ts
+```
+
+Both selected tests passed; targeted ESLint passed. The existing Node
+`MODULE_TYPELESS_PACKAGE_JSON` warning remains. `git diff --check` passed from the
+repository root with LF/CRLF warnings. The first broad link check failed on existing
+broken links in `app/README.md` to absent `SIGNUP_LOCAL_TESTING.md` (twice) and
+`EMAIL_VERIFICATION_LOCAL_TESTING.md`. Comparison with HEAD confirmed these links
+predate this update. Follow-up checks passed for 32 existing local links, no new
+broken links, approved source status, the accepted-ADR anchor and the unchanged
+recipient schema restriction. The missing guides were not recreated in this slice.
+No database, full build or delivery tests were run for this
+policy/documentation and static-boundary update. Actual notice-intent, recipient,
+rollback, duplicate/recovery and provider-failure coverage remains required when
+the approved contract is implemented; existing independent delivery gates remain.

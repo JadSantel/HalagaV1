@@ -26,7 +26,8 @@ function requireFreshSession(session: { createdAt: Date; expiresAt: Date } | und
 
 /** Internal only: no route, Server Action, library change-password endpoint or email.
  * Request headers resolve the owner; no caller-selected account/session ID is accepted.
- * Direct credential writes bypass library hooks. Notice policy remains unresolved.
+ * Direct writes bypass library hooks. ADR-087 notice policy is accepted, but required
+ * atomic notice writes are missing: this credential/session-only slice must stay unmounted.
  */
 export function createPasswordChangeOperation(
   database: ReturnType<typeof getPrisma>,

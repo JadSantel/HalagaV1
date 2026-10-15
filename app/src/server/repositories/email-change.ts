@@ -8,7 +8,7 @@ import { createAccountAuth } from "./auth.ts";
 const namespace = "halaga-email-change:";
 const emailSchema = z.email().transform((email) => email.toLowerCase());
 const requestSchema = z.strictObject({ proposedEmail: emailSchema });
-const bindingSchema = z.strictObject({
+export const emailChangeBindingSchema = z.strictObject({
   accountId: z.uuid(), currentEmail: z.email(), proposedEmail: z.email(),
 }).refine((value) => value.currentEmail === value.currentEmail.toLowerCase() &&
   value.proposedEmail === value.proposedEmail.toLowerCase() && value.currentEmail !== value.proposedEmail);
@@ -126,7 +126,7 @@ export function createEmailChangeOperations(
           const token = tokens[0]; // Reread after any competing request/consume.
           const now = currentTime(clock);
           let binding;
-          try { binding = bindingSchema.safeParse(token ? JSON.parse(token.value) : null); }
+          try { binding = emailChangeBindingSchema.safeParse(token ? JSON.parse(token.value) : null); }
           catch { throw new EmailChangeRejected("INVALID_TOKEN"); }
           if (!account || !eligible(account, now) || !token || !binding.success ||
               token.identifier !== namespace + account.userId || token.createdAt > now || token.expiresAt <= now ||

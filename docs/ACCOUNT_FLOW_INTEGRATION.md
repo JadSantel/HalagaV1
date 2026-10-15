@@ -72,15 +72,20 @@ transport, token URL format, callback URL, redirect contract or client submit pa
    No dispatcher or job materialization exists. Recipient-bound transport, obsolete
    intent suppression after resend/address changes, privacy-reviewed templates and
    the required job-class/recovery/retention decisions must be settled together.
+   Independent account-owned intent inspection now checks current token/binding/
+   expiry state and old-recipient snapshots with fixed status-only results. Its
+   locks end at commit; it provides no sending, durable suppression, claim,
+   processed-work or recovery contract. See `ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`.
    This change selects no transport, encryption/key policy, retry allowance,
    schedule, cleanup rule, retention period or provider configuration.
-3. **Password-change notice policy.** ADR-087 explicitly requires an old-address
-   notice for email switch; its general delivery clause does not define a password-
-   change notice trigger or recipient. PROJECT §8.5 defines session behavior and
-   architecture §6 requires atomic *required* intents; neither supplies that policy.
-   Decide whether a notice is required, its recipient and minimized privacy contract,
-   then implement any required atomic intent. No notice is added and omission is
-   not accepted as product policy. Password-change mounting stays gated separately.
+3. **Password-change notice implementation.** The owner approved the
+   [decision brief](PASSWORD_CHANGE_NOTICE_DECISION_BRIEF.md) on 2026-10-15 PHT.
+   ADR-087 now requires in-app notice for every success and email only to the
+   commit-time primary address verified in both stores. Unverified/mismatched
+   states get no email, with no later backfill or recipient retargeting. Required
+   atomic intents/recipient binding are not implemented; password-change mounting
+   stays gated. Policy approval adds no notice behavior, schema or delivery and
+   does not settle final templates, retention or worker parameters.
 4. **Sign-in/session creation races.** Existing library sign-in does not share the
    account-owned identity/mapping/credential locks. A sign-in can race reset,
    email proof or password replacement. The synthetic plugin intentionally exposes

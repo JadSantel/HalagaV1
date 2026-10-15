@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { readFile, readdir } from "node:fs/promises";
 import { setTimeout } from "node:timers/promises";
 import test from "node:test";
 import { createPasswordChangeOperation, PasswordChangeRejected } from "../src/server/repositories/password-change.ts";
@@ -32,7 +33,25 @@ test("password change rejects invalid shapes and maps auth failures to fixed saf
   await assert.rejects(failing(new Headers(), input, () => {}), rejects("INTERNAL_ERROR"));
 });
 
-test("isolated PostgreSQL authenticated password-change transactions", async (t) => {
+// Remove/update this gate only with approved notice writes and remaining mounting checks.
+test("notice-incomplete password change stays unmounted with disabled previews", async () => {
+  const appDirectory = new URL("../src/app/", import.meta.url);
+  const files = (await readdir(appDirectory, { recursive: true })).filter((name) => /\.[cm]?[jt]sx?$/.test(name));
+  for (const name of files) {
+    const source = await readFile(new URL(name.replaceAll("\\", "/"), appDirectory), "utf8");
+    assert.doesNotMatch(source,
+      /account-flow-plugin|repositories\/(?:auth|account-flows|password-change)|createPasswordChangeOperation/,
+      `${name} must not mount the notice-incomplete account commands`);
+  }
+  const auth = await readFile(new URL("../src/server/repositories/auth.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(auth, /account-flow-plugin|createAccountFlowPlugin/);
+  const screens = await readFile(new URL("../src/app/account/screens.tsx", import.meta.url), "utf8");
+  assert.match(screens, /required disabled/);
+  assert.match(screens, /type="submit" disabled/);
+  assert.doesNotMatch(screens, /onSubmit|formAction|onClick|fetch\(/);
+});
+
+test("isolated PostgreSQL credential/session-only password change (required notice writes not implemented)", async (t) => {
   const sandbox = await openSignupSandbox();
   const { database, auth, connection } = sandbox;
   let now = new Date();
@@ -71,6 +90,7 @@ test("isolated PostgreSQL authenticated password-change transactions", async (t)
       id: true, eventType: true, eventVersion: true, deduplicationKey: true, recipientEmail: true, createdAt: true, dispatchedAt: true } }),
   });
   const assertPreserved = (before, after) => {
+    // Unchanged intents describe the incomplete slice, not compliance with approved notice policy.
     for (const key of ["identity", "account", "tokens", "intents"]) assert.deepEqual(after[key], before[key]);
     assert.deepEqual(after.credentials.filter((row) => row.providerId !== "credential"),
       before.credentials.filter((row) => row.providerId !== "credential"));
