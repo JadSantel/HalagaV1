@@ -398,6 +398,23 @@ Token transport, delivery/jobs, recipient retention/cleanup and cookie integrati
 remain gates. Library sign-in/session creation racing reset or email proof does
 not share these account-owned locks and requires integration review before mounting.
 
+Unmounted authenticated password change resolves the stored-session owner without
+refreshing the session, snapshots the domain mapping and hashes using Better Auth's
+configured limits/hasher. It locks identity/domain mapping, credential and initiating
+session in that order. It rechecks mapping, deletion, credential binding, exact
+session/token ownership, expiry and creation age below 15 minutes, verifies the
+current locked password and rechecks freshness before writing. One transaction
+replaces the existing credential and deletes every other session; the initiating
+session remains unchanged. Failures roll back both effects for same-session retry.
+Other account state, tokens and history are preserved. Synthetic checks cover these
+guards and account-owned reset/verification/email-proof races. Library sign-in still
+does not share these locks; sign-in racing replacement remains an integration gate.
+ADR-087 does not settle the password-change security-notice trigger/recipient despite
+its general account-security delivery clause. That dependent intent/privacy contract
+remains open; this synthetic operation selects neither sending nor omission as policy.
+See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`; no migration/dependency or mounted flow
+is added.
+
 ## 6. Flow-level notification contract
 
 State changes first commit the domain record and a durable notification intent in the same transaction. Delivery occurs asynchronously.
@@ -455,6 +472,7 @@ These decisions must be recorded rather than inferred in code. Some are needed b
 - Listing renewal limits, grace period, and the `Newest` timestamp behavior after renewal/material republication.
 - Whether to send appointment reminders and, if so, their timing and delivery rules (separate from ADR-063 completion reminders).
 - Handling an account discovered to be underage.
+- Password-change security-notice trigger, recipient and minimized intent/template privacy contract: ADR-087 explicitly requires an email-switch notice but leaves this password-change behavior unresolved. Decide before dependent notice work or password-change route mounting; the synthetic credential/session operation is implemented independently.
 - Category-request waitlist behavior and diagnostic questions/safe-testing guidance for supported categories beyond the laptop prototype.
 - External emergency or law-enforcement escalation procedure.
 - Service availability, performance, browser support, PWA position, and storage-capacity targets.

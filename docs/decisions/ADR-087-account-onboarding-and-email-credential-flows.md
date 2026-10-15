@@ -268,6 +268,61 @@ bypass library email-change hooks; recheck compatibility on library/schema/plugi
 or hook changes. No deployment, paid service, retry allowance, deletion process,
 retention change or marketplace authorization policy is selected by this record.
 
+## Implementation record: unmounted authenticated password change (2026-10-15)
+
+The account-owned password-change operation resolves ownership through Better
+Auth's stored-session API, with cookie caching and refresh disabled for this call.
+It accepts current/new passwords and server request headers, never an account ID.
+Disabling refresh prevents renewal writes outside the credential transaction;
+ordinary session reads retain ADR-086 rolling renewal. It snapshots the domain
+mapping and uses the configured Better Auth password limits/hasher. Under the same
+identity/domain lock order as verification/reset/email change, it rereads that
+mapping, requires an undeleted account and exactly one existing correctly mapped
+password credential, then locks/rechecks the exact stored initiating session.
+Session creation age must be below 15 minutes, with a valid expiry and no future
+creation timestamp. The existing library current-password requirement is retained:
+the configured verifier checks the locked current hash, then freshness is checked
+again. Concurrent changes cannot verify against an outdated credential hash.
+
+One transaction updates only that credential and removes every other stored
+session, preserving the initiating session exactly. No new session is created.
+Verification states, private eligibility/history, separate verification/reset/
+email-change tokens, other provider credentials, existing intents and unrelated
+accounts remain intact. Write or deferred commit failure rolls back both effects;
+the same fresh session and old credential can retry. Results and errors are fixed,
+minimal values without private material, raw exceptions or causes. Missing legacy
+credentials/mappings are rejected, never repaired. No migration or dependency is
+needed for this bounded operation.
+
+Thirteen reported local synthetic tests cover input and configured limits, exact
+freshness/expiry boundaries, renewal without freshness, retained/revoked cookies,
+missing/deleted/remapped accounts, malformed credentials, hash/verify/write/commit
+failure, rollback/retry, lock waits, post-resolution changes, history/token/account
+isolation, competing same/different-session changes and reset/verification/email-
+proof races. Eight direct manual exercises also pass. The existing dedicated
+loopback sandbox removes its random schema afterward. See
+`docs/PASSWORD_CHANGE_LOCAL_TESTING.md` for commands, outcomes and integration gates.
+
+**Unresolved notice contract:** the password/email-change decision explicitly
+requires an old-address notice for an email switch. The general delivery clause
+mentions account-security email and committed password changes, but specifies no
+password-change notice trigger or recipient. PROJECT section 8.5 states session
+behavior; architecture section 6 requires atomic persistence of required intents,
+without defining that missing trigger. These passages do not settle whether a
+password change requires a notice. Trigger, recipient and minimized intent/template
+privacy review need an explicit decision before dependent notice implementation.
+This slice adds no notice intent and does not accept omission as product policy.
+The credential/session transaction proceeds independently as requested.
+
+Routes, UI, email delivery and endpoint integration remain unmounted. Resolve the
+notice contract (and any required atomic intent), integrate origin/CSRF/endpoint
+limits, safe errors and response cookies, and settle sign-in/session creation racing
+credential replacement before mounting. Library sign-in does not share account-owned
+locks. Direct writes bypass change-password hooks; review library/schema/password
+configuration/plugin/database-hook compatibility on changes. Existing durable-job,
+cleanup/retention, deployment and ADR-081 readiness gates remain. This record changes
+no accepted product behavior, notice policy, operational parameter or launch gate.
+
 ## Sources
 
 - `PROJECT.md` sections 8, 26, 28, 33, and 34

@@ -11,6 +11,10 @@ one-hour token and revokes sessions while preserving verification states.
 Unmounted email change keeps the old verified address active during pending proof,
 then atomically switches/verifies the address, revokes sessions and records the
 private old-address notice intent. Its initiating session must be fresh under locks.
+Unmounted authenticated password change rechecks the stored-session owner, mapping,
+credential and original session freshness under locks, then atomically replaces the
+credential and revokes other sessions while retaining the initiating session exactly.
+Its security-notice contract remains unresolved; no notice policy is selected.
 
 ## Module access
 
@@ -23,6 +27,7 @@ private old-address notice intent. Its initiating session must be fresh under lo
 | `src/server/repositories/email-verification.ts` | Internal account-owned, namespaced opaque-token issue/replacement with minimized outbox intent; atomic token consumption, identity/domain verification and session revocation. Explicit private guard queries lock the identity/mapping. Raw issue material is restricted to trusted internal callers; never a public response. No route, Server Action, library verification endpoint, dispatcher or delivery. |
 | `src/server/repositories/password-reset.ts` | Internal account-owned, one-hour reset-token issue/replacement with minimized outbox intent; atomic credential replacement, token consumption and session revocation. Locks identity/mapping and the existing credential; preserves both verification states and separate verification tokens. Restricted issue material is never a public response. No route, Server Action, library reset endpoint or delivery. |
 | `src/server/repositories/email-change.ts` | Internal account-owned, fresh stored-session request with 24-hour bound-token replacement and minimized verification intent; atomic proof, address switch/verification, session revocation and old-address security intent. Locks/rechecks session, identity/mapping and proof; preserves history and separate token families. Restricted issue material is never a public response. No route, UI, token transport or delivery. |
+| `src/server/repositories/password-change.ts` | Internal account-owned credential replacement with stored-session owner resolution, locked mapping/credential/session rechecks and original creation age below 15 minutes. Uses configured Better Auth limits/hasher/current-password verifier. Atomic replacement/revocation preserves the initiating session exactly, verification, token families and account history. Fixed safe results/errors; no route, UI, endpoint integration or delivery. Password-change notice decision remains open. |
 | `src/server/account-access.ts` | Server-only adult eligibility and publication/inquiry/proposal prerequisite rejection; restrictions, blocks and target/state authorization remain separate gates. |
 | `src/server/repositories/` | Other server-only reads belong to the owning module, after verifying the caller and selecting an explicit authorized projection. |
 | `src/app/` and other application modules | Consume scoped repository methods when they exist. No direct Prisma, generated database client, or PostgreSQL driver imports. Current pages read no persisted records. |
@@ -38,7 +43,7 @@ This matrix maps the accepted information scopes and module boundaries from
 `architecture.md` section 3 and ADRs 069, 070, and 074 to the logical modules in
 `docs/architecture/DOMAIN_MODEL.md`. Only the owner account prerequisite reader
 is implemented; remaining scope entries describe requirements for future APIs.
-Internal signup, email-verification, password-reset and email-change writes are implemented; no marketplace action grants exist.
+Internal signup, email-verification, password-reset, email-change and password-change writes are implemented; no marketplace action grants exist.
 
 | Data scope | Permitted server reader when implemented | Permitted writer when implemented |
 | --- | --- | --- |
@@ -106,6 +111,10 @@ switches/verifies the address, revokes sessions and records old-address notice i
 The outbox's private old-recipient snapshot is restricted to that notice type;
 never expose it in generic event readers or log it. Token transport, dispatch/jobs,
 cookie response integration and sign-in racing account changes remain unmounted/gated.
+Password change has separate isolated transaction checks and direct manual exercises
+in `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`. Session resolution disables refresh for
+that operation to avoid pretransaction renewal writes. It preserves the initiating
+session exactly and leaves the unresolved password-change notice contract pending.
 Atomicity alone does not enforce retry idempotency,
 concurrency, revision/deadline policy, history, or audit/outbox requirements.
 Those remain mandatory before implementing the affected flow. See `app/README.md`

@@ -98,6 +98,19 @@ No dependency is added. Run `npm.cmd run db:generate`, then
 nine direct exercises, the schema/privacy review and remaining integration gates.
 Routes, UI, email delivery and token transport stay unmounted.
 
+Server-only authenticated password change now resolves the stored-session owner
+and rechecks original creation age below 15 minutes, mapping and credential under
+locks. It uses Better Auth's configured limits/hasher/current-password verifier and
+atomically replaces the existing credential while revoking every other stored
+session. The initiating session, verification, tokens and account history survive;
+write/commit failure preserves the old credential and all sessions for retry.
+No dependency or migration is added. Run `npm.cmd run test:password-change` with
+the dedicated `halaga_signup_test` URL. [Local password-change testing](../docs/PASSWORD_CHANGE_LOCAL_TESTING.md)
+documents eight direct exercises, concurrency checks and remaining gates.
+ADR-087's password-change notice trigger/recipient remains unresolved; no notice
+intent or omission policy is selected. Routes, UI, email delivery and endpoint
+integration remain unmounted pending that decision and existing integration gates.
+
 ## Authentication policy foundation
 
 [ADR-086](../docs/decisions/ADR-086-mvp-authentication-policies.md) records the approved

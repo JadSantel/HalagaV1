@@ -16,6 +16,7 @@
     "test:verification": "node --conditions=react-server --test tests/email-verification-database.test.mjs",
     "test:reset": "node --conditions=react-server --test tests/password-reset-database.test.mjs",
     "test:email-change": "node --conditions=react-server --test tests/email-change-database.test.mjs",
+    "test:password-change": "node --conditions=react-server --test tests/password-change-database.test.mjs",
     "db:check": "node scripts/check-database.mjs",
     "db:generate": "prisma generate --config prisma7.config.ts",
     "db:migrate:local": "node scripts/migrate-local.mjs",

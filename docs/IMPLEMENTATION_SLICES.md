@@ -33,6 +33,21 @@ No production marketplace flow is implemented yet.
 | 13 | Pilot trust, analytics, and operational readiness | Event-time cohort and success metrics, safety continuation gate, accessibility review, backup/restore and recovery validation, quotas/availability checks, and operator readiness. Launch gates must pass before real participant data or public registration. | Not started |
 | 14 | Remaining category diagnostics | Accepted, validated diagnostic schemas and usability-tested flows for every supported non-laptop category, including smartphone identifier handling. Do not infer question sets from the laptop prototype. | Blocked on product/design validation |
 
+Slice 2 additionally implements the synthetic, unmounted authenticated password-change
+operation under ADR-087. Stored-session ownership and original creation age below
+15 minutes are rechecked with the mapping and credential under transaction locks.
+Configured Better Auth limits/hasher/current-password verification apply. Credential
+replacement atomically revokes all other stored sessions and retains the initiating
+session exactly; verification, token families, account history and unrelated accounts
+survive. Thirteen reported PostgreSQL/input tests and eight direct exercises cover
+freshness, missing state, hash/write/commit failure, rollback/retry, cookies, isolation
+and concurrent account changes. No migration or dependency is added. The password-
+change notice trigger/recipient remains unresolved under ADR-087's general delivery
+clause; no notice intent or omission policy is selected. That decision, any required
+atomic intent, sign-in races and existing route/security/readiness gates remain.
+See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`. Routes, UI, endpoint integration and
+email delivery remain unmounted.
+
 ## Cross-slice acceptance checks
 
 - Every state-changing command checks actor, authorization, eligibility, current state, revision, and deadline as applicable; concurrency and retries preserve invariants.

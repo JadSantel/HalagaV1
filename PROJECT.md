@@ -165,6 +165,21 @@ ADR-087 sets verification and email-change tokens to 24 hours and password-reset
 
 The synthetic-only slice 2 foundation checks adult and email prerequisites against stored sessions and existing account mappings. Its unmounted signup domain operation atomically writes identity/credential records, domain account, private eligibility data and a durable verification-email outbox intent. Unmounted verification commands now issue/replace 24-hour tokens with private outbox intent and atomically consume a valid token, synchronize both verification states and revoke existing sessions. Unmounted password reset issues/replaces one-hour tokens with private outbox intent and atomically replaces the credential, consumes the token and revokes every stored session, preserving both email-verification states. Unmounted email change now rechecks a valid session created less than 15 minutes earlier under locks, preserves the old verified address while issuing/replacing a bound 24-hour token, then atomically consumes proof, switches/verifies the address, revokes stored sessions and records a security-notice intent to the old address. A narrow additive outbox recipient snapshot is necessary because an account reference alone resolves to the new address after a switch; it is restricted to that notice type and exercised only in disposable schemas. The notice intent omits the proposed address and other unnecessary private data. Synthetic checks prove write/commit rollback, token retry, expiry, replacement, single-use and concurrency. It exposes no account endpoints or marketplace action grants. Durable private token transport, dispatch/delivery and route integration (including cookie clearing and sign-in racing reset/email change) remain gated; see `docs/IMPLEMENTATION_SLICES.md`, `docs/SIGNUP_LOCAL_TESTING.md`, `docs/EMAIL_VERIFICATION_LOCAL_TESTING.md`, `docs/PASSWORD_RESET_LOCAL_TESTING.md` and `docs/EMAIL_CHANGE_LOCAL_TESTING.md`.
 
+Slice 2 also has an unmounted authenticated password-change operation. It resolves
+the stored-session owner, checks original creation age below 15 minutes and rechecks
+the exact session, undeleted mapping and existing credential under locks. Better
+Auth's configured limits, hasher and current-password verifier apply. Credential
+replacement and removal of every other stored session commit atomically; the
+initiating session, verification states, tokens and account history survive.
+Synthetic PostgreSQL checks cover boundaries, failures, retry and concurrent
+account operations; see `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`. No migration or
+dependency is needed. ADR-087 explicitly requires an email-switch notice but does
+not settle a password-change notice trigger/recipient; its general security-email
+delivery clause is insufficient to select that behavior. That decision and any
+required atomic intent remain gates before mounting, alongside sign-in races and
+the existing integration/readiness gates. No password-change notice policy is
+selected by this implementation record.
+
 ## 9. Supported Inventory
 
 ### 9.1 Top-level categories
@@ -902,6 +917,7 @@ These items are intentionally not invented in this specification. They require a
 - The exact timestamp behavior for `Newest` after renewal or material republication.
 - Provider-specific backup purge timing and deletion propagation.
 - Treatment of an account later found to be underage.
+- Whether an authenticated password change requires a security notice, its recipient and privacy-reviewed intent/template contract (ADR-087 implementation record); resolve before dependent notice implementation or route mounting.
 - External emergency or law-enforcement escalation procedure.
 - IMEI or device-identifier blocklist integrations.
 - Availability, performance, browser-support, PWA, and storage-capacity targets.
