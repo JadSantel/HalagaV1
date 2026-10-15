@@ -72,14 +72,14 @@ test("isolated PostgreSQL account email intent inspection (no sending)", async (
     id: true, accountId: true, eventType: true, deduplicationKey: true, recipientEmail: true, createdAt: true, dispatchedAt: true,
   } });
   try {
-    await t.test("signup intent is unbound; inspection never issues a token or attaches a later resend", async () => {
+    await t.test("signup intent owns its initial token and does not borrow a later resend token", async () => {
       const account = await fixture();
       const intent = await database.outboxEvent.findUnique({ where: { deduplicationKey: `signup-verification:${account.accountId}` }, select: { id: true } });
       const before = await database.verification.count();
-      await assertStatus(intent.id, "SIGNUP_TOKEN_UNBOUND");
+      await assertStatus(intent.id, "TOKEN_CURRENT");
       assert.equal(await database.verification.count(), before);
       const issued = await issue("verification", account);
-      await assertStatus(intent.id, "SIGNUP_TOKEN_UNBOUND");
+      await assertStatus(intent.id, "STALE");
       await verification.consume(issued.token);
       await assertStatus(intent.id, "STALE");
     });

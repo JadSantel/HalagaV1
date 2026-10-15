@@ -376,7 +376,7 @@ Durable asynchronous work initially uses PostgreSQL rather than an external queu
 
 The initial logical model and system-boundary diagrams are maintained in `docs/architecture/DOMAIN_MODEL.md`.
 
-Slice 2's unmounted signup now uses one Prisma transaction for the installed Better Auth identity/credential format, mapped domain account, private eligibility data and persistence-only `outbox_event` verification-email intent. The event contains only an account reference, versioned type and unique logical-work key, with a null dispatch timestamp. No dispatcher/job materialization, token issue, session creation or delivery runs at signup. Separate unmounted verification commands now serialize issue/replacement and consumption by locking the identity/mapping. Issue stores a namespaced token digest and target-address binding in the existing private verification table and records a token-specific intent atomically. Consume rereads the token after locking and atomically removes it, updates both verification states and revokes the identity's sessions. Unmounted reset uses the same identity/mapping locks plus an existing-credential lock. Issue replaces only the separate one-hour reset token and records private outbox intent atomically. Consume hashes with the configured Better Auth hasher/limits before the transaction, then rechecks token/address/expiry under locks and atomically consumes the token, replaces the credential hash and removes every stored session. It preserves both verification states and separate verification tokens. Synthetic checks prove expiry, single-use, replacement, write/commit rollback and concurrent outcomes. Raw tokens return only to the trusted internal issuer; durable private token transport and future dispatch still require the full lease/retry/idempotency/retention design before mounting. Route integration must also settle cookie clearing and sign-in/reset concurrency; current library sign-in does not share account-owned locks. See `docs/SIGNUP_LOCAL_TESTING.md`, `docs/EMAIL_VERIFICATION_LOCAL_TESTING.md`, `docs/PASSWORD_RESET_LOCAL_TESTING.md` and ADR-087's implementation records; no operational parameter or policy is selected by this boundary.
+Slice 2 signup now commits its initial verification token digest, AES-GCM-encrypted private delivery payload, minimized intent and job row atomically with identity, credential and account state. Verification resend, reset and email-change issue/replacement do the same for their token family. The internal dispatcher checks current account/token/binding/expiry under the established locks, suppresses stale work, and uses the ADR-088 fenced lease and recovery rules. Raw tokens never enter generic intents, responses, logs or rendered-message storage. Routes and worker deployment remain unmounted. Route integration must also settle sign-in/reset concurrency; current library sign-in does not share account-owned locks. See `docs/SIGNUP_LOCAL_TESTING.md`, `docs/EMAIL_VERIFICATION_LOCAL_TESTING.md`, `docs/PASSWORD_RESET_LOCAL_TESTING.md` and ADR-087/088.
 
 Slice 2 also implements unmounted email change under ADR-087. Request resolves
 the session owner, locks identity/domain mapping and rechecks the exact stored
@@ -394,8 +394,8 @@ is required for that security-notice event only; an SQL check excludes it from
 other intent types. The notice omits the proposed address and other unnecessary
 private data. See `docs/EMAIL_CHANGE_LOCAL_TESTING.md` and ADR-087 for the privacy
 review and synthetic checks. The migration is replayed only in disposable schemas.
-Token transport, delivery/jobs, recipient retention/cleanup and cookie integration
-remain gates. Library sign-in/session creation racing reset or email proof does
+Delivery transport and internal dispatch/recovery are implemented under ADR-088.
+Cookie integration remains in the unmounted handler. Library sign-in/session creation racing reset or email proof does
 not share these account-owned locks and requires integration review before mounting.
 
 Unmounted authenticated password change resolves the stored-session owner without
@@ -424,20 +424,20 @@ responses exclude issue material. Committed verification/reset/email proof clear
 cookies; password change preserves its initiating cookie. `/account` mounts static,
 disabled previews only. This supersedes earlier statements that no UI or endpoint
 integration code exists, while all account API commands remain unmounted.
-Digest-only token storage/outbox intent cannot supply durable raw delivery material;
-transport/crash recovery, stale intents, ADR-073 dispatch parameters, approved
-password-change notice writes and library sign-in races remain mounting gates. See
-`docs/ACCOUNT_FLOW_INTEGRATION.md`; no policy or operational parameter changes.
+ADR-088 now supplies encrypted token handoff, approved templates/fragment links,
+stale-intent suppression and account-email dispatch/recovery. Password-change notice
+writes, link-page integration, worker deployment, staff recovery and library sign-in
+races remain mounting gates. See `docs/ACCOUNT_FLOW_INTEGRATION.md` and
+`docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`.
 
-Independent Slice 2 intent inspection now rechecks existing account/token bindings,
-current state and original expiry under account locks and returns only fixed status.
-Notice inspection reads only the old-recipient snapshot, never the new address.
-It performs no dispatch or mutation and its locks end at commit; it is not send
-authorization, a claim or duplicate-effect prevention. Initial signup remains
-token-unbound. Private transport, approved templates/link contract, job parameters,
-ambiguous-send recovery and retention/cleanup remain unresolved as recorded in
-ADR-087 and `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`. No schema migration,
-worker, provider adapter or new operational/privacy policy is added by this step.
+Independent Slice 2 intent inspection returns fixed statuses. The separate internal
+dispatcher has its own PostgreSQL claim, account/token recheck, stale suppression,
+Brevo send and fenced outcome write; inspector results are not send authorization.
+Initial signup now owns its verification token and encrypted delivery payload.
+ADR-088 accepts templates/link behavior, retry and crash recovery, token replacement,
+and bounded retention. The dispatcher is not mounted and no worker is deployed;
+staff retry/audit and link-page integration remain gates. See
+`docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`.
 
 ## 6. Flow-level notification contract
 
@@ -513,7 +513,7 @@ This is an architecture working draft, not an implementation-ready specification
 - The application is a modular monolith; PostgreSQL is the relational system of record (ADRs 069–070).
 - PostgreSQL-backed outbox and durable jobs, bounded retries, expiring leases, idempotency, failed-job handling, and controlled retries are accepted. A separate Node.js worker remains the proposed runtime, not a final deployment decision (ADR-073).
 - Better Auth and Brevo Free are selected for authentication and transactional email (ADRs 074–075).
-- ADR-086 sets seven-day rolling sessions with daily renewal, 15-minute sign-in freshness for sensitive changes, host-only secure production cookies, and explicit endpoint rate limits. ADR-087 sets atomic signup, adult attestation, verification, reset and email-change behavior. Slice 2 resolves stored sessions to domain accounts and implements synthetic unmounted signup, verification, reset and email-change transactions with outbox intent. Account routes remain unmounted pending remaining account-flow protection, private token transport, dispatch/delivery, cookie responses and sign-in race integration; restrictions and full command authorization are separate gates. See `docs/IMPLEMENTATION_SLICES.md` and `app/README.md` for implemented versus gated boundaries.
+- ADR-086 sets seven-day rolling sessions with daily renewal, 15-minute sign-in freshness for sensitive changes, host-only secure production cookies, and explicit endpoint rate limits. ADR-087 sets atomic signup, adult attestation, verification, reset and email-change behavior. ADR-088 sets encrypted account-email handoff, templates/links, delivery retries/recovery and retention. Slice 2 implements these internal account transactions and dispatcher, but keeps routes and worker deployment unmounted pending link-page integration, password-change notice writes, sign-in races, staff recovery and provider/readiness setup. Restrictions and full command authorization are separate gates. See `docs/IMPLEMENTATION_SLICES.md` and `app/README.md` for implemented versus gated boundaries.
 - MVP search uses PostgreSQL, not a separate search service (ADR-076).
 - Prisma ORM 7 and versioned migrations follow ADR-083. ADR-084 settles the first foundation's UUIDs, exact centavo money and versioned per-question JSON diagnostic storage. The first account/listing migration enforces revision FKs, storage checks and publication history constraints; the physical review records SQL-only triggers and the native `btree_gist` availability exclusion. Marketplace commands and their authorization/audit/outbox gates remain unimplemented.
 - Public-pilot recovery targets are RPO ≤24 hours and RTO ≤24 hours; these must be demonstrated in a restore test, not assumed from a provider's marketing (ADR-082).
@@ -530,7 +530,7 @@ These decisions must be recorded rather than inferred in code. Some are needed b
 - Listing renewal limits, grace period, and the `Newest` timestamp behavior after renewal/material republication.
 - Whether to send appointment reminders and, if so, their timing and delivery rules (separate from ADR-063 completion reminders).
 - Handling an account discovered to be underage.
-- Password-change notice implementation: ADR-087's owner-approved supplement settles mandatory in-app notices, verified-only commit-bound email and content/privacy limits. Required atomic notice writes, final templates, recipient/attempt retention and cleanup, provider-accept/crash recovery and sign-in races remain gates before mounting. The synthetic credential/session-only operation is incomplete for that approved contract.
+- Password-change notice implementation: ADR-087's owner-approved supplement settles mandatory in-app notices, verified-only commit-bound email and content/privacy limits. Required atomic notice writes, password-change email copy and sign-in races remain gates before mounting. ADR-088 supplies the generic account-email transport, dispatch/recovery and terminal retention mechanics. The synthetic credential/session-only operation is incomplete for the approved contract.
 - Category-request waitlist behavior and diagnostic questions/safe-testing guidance for supported categories beyond the laptop prototype.
 - External emergency or law-enforcement escalation procedure.
 - Service availability, performance, browser support, PWA position, and storage-capacity targets.
@@ -540,8 +540,8 @@ These decisions must be recorded rather than inferred in code. Some are needed b
 **Deployment, infrastructure, and operations**
 
 - Web and worker hosting/deployment, PostgreSQL hosting/connection model, backup/restore implementation, object storage and image/evidence processing providers, and observability/analytics implementation.
-- Final Node.js worker deployment and operational parameters: polling/lease/heartbeat values, retry allowances by job class, alert thresholds, worker rollout compatibility, and recovery runbook.
-- ADR-087 settles signup, adult attestation, verification (24-hour single-use), password reset (one-hour single-use), email change, generic account-request responses, and session-revocation behavior. Session, cookie, freshness, and numerical endpoint/IP limits remain as accepted in ADR-086. Synthetic unmounted signup, verification, reset and email-change atomic transactions are implemented; account routes still require remaining flow protection, private token transport, dispatch/delivery, cookie-response and sign-in race integration. Session/token/counter/notice-recipient cleanup and secret provisioning/rotation remain open. Production origin and trusted client-IP header require deployment review (proxy overwrites header; direct origin access blocked); no proxy/provider is assumed. Endpoint limits do not cover direct `auth.api` calls, so future external wrappers need equivalent protection. Exact dependency/runtime patches are pinned at application bootstrap; provider-supported PostgreSQL minor patch and upgrade policy are verified when hosting is selected.
+- Final Node.js worker deployment, polling schedule, alert thresholds, rollout compatibility and recovery runbook. ADR-088 sets the account-email two-minute lease and bounded 429 retry policy; other job classes still need policies.
+- ADR-087 settles signup, adult attestation, verification (24-hour single-use), password reset (one-hour single-use), email change, generic account-request responses, and session-revocation behavior. ADR-088 settles encrypted private handoff, account email content/links, dispatch and terminal retention. Session, cookie, freshness and endpoint/IP limits remain as accepted in ADR-086. Account routes still require link-page integration, remaining flow protection, cookie response and sign-in race work. Session/token/counter cleanup, password-change notice writes, restricted staff reconciliation and production secret provisioning/rotation remain open. Production origin and trusted client-IP header require deployment review; no proxy/provider is assumed. Endpoint limits do not cover direct `auth.api` calls, so future external wrappers need equivalent protection. Exact dependency/runtime patches are pinned at application bootstrap; provider-supported PostgreSQL minor patch and upgrade policy are verified when hosting is selected.
 - Early validation uses local/private environments and synthetic data. Real participant data and public-pilot deployment are gated on documented privacy, backup/restore (RPO ≤24h/RTO ≤24h), retention/deletion, worker-recovery, availability, and quota checks or an explicitly approved, costed exception (ADRs 071, 081, 082).
 
 **Validation and design completeness**

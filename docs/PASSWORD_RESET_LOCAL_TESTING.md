@@ -1,9 +1,11 @@
 # Unmounted password reset: local synthetic testing
 
-This Slice 2 implementation follows accepted ADR-087. It is an internal server
-repository, not an HTTP route or Server Action. No account UI, email dispatcher,
-provider callback, or delivery is mounted. Use fictional `.invalid` addresses
-and synthetic credentials only; do not submit real participant data.
+This Slice 2 implementation follows accepted ADR-087. The historical command checks
+below predate ADR-088's encrypted delivery payload and dispatcher. It remains an
+internal server repository, not an HTTP route or Server Action; no functional UI or
+worker is mounted. Use fictional `.invalid` addresses and synthetic credentials
+only; do not submit real participant data. See
+`ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md` for current delivery status.
 
 ## Setup
 

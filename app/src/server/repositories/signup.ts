@@ -1,7 +1,8 @@
 import "server-only";
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { hasAdultEligibility } from "../account-access.ts";
+import { accountEmailTokenRecord } from "../account-email-crypto.ts";
 import { getPrisma } from "../prisma.ts";
 import { createAccountAuth } from "./auth.ts";
 
@@ -58,6 +59,10 @@ export function createSignupOperation(
       const hash = await password.hash(data.password);
       await database.$transaction(async (transaction) => {
         const authUserId = randomUUID();
+        const outboxEventId = randomUUID();
+        const token = randomBytes(32).toString("hex");
+        const tokenId = "halaga-email-verification:" + createHash("sha256").update(token).digest("hex");
+        const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
         try {
           await transaction.user.create({
             data: { id: authUserId, name: data.displayName, email: data.email, emailVerified: false },
@@ -79,10 +84,19 @@ export function createSignupOperation(
             adultAttestedAt: now, adultAttestationVersion },
           select: { id: true },
         });
+        await transaction.verification.create({
+          data: { id: tokenId, identifier: "halaga-email-verification:" + authUserId,
+            value: data.email, expiresAt, createdAt: now, updatedAt: now }, select: { id: true },
+        });
+        const eventType = "account.verification-email-requested";
+        const deduplicationKey = `signup-verification:${account.id}`;
         await transaction.outboxEvent.create({
-          data: { accountId: account.id, eventType: "account.verification-email-requested", eventVersion: 1,
-            deduplicationKey: `signup-verification:${account.id}` },
+          data: { id: outboxEventId, accountId: account.id, eventType, eventVersion: 1, deduplicationKey },
           select: { id: true },
+        });
+        await transaction.accountEmailDelivery.create({
+          data: accountEmailTokenRecord(token, { outboxEventId, accountId: account.id, eventType,
+            eventVersion: 1, deduplicationKey }, expiresAt), select: { id: true },
         });
       });
       return received;

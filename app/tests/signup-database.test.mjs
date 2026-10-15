@@ -32,7 +32,8 @@ test("isolated PostgreSQL signup transaction", async (t) => {
   const { database, auth, connection } = sandbox;
   const signup = createSignupOperation(database, auth, () => now);
   const counts = async () => Promise.all([database.user.count(), database.account.count(),
-    database.userAccount.count(), database.outboxEvent.count(), database.session.count(), database.verification.count()]);
+    database.userAccount.count(), database.outboxEvent.count(), database.session.count(), database.verification.count(),
+    database.accountEmailDelivery.count()]);
   try {
     await t.test("underage DOB and invalid password persist nothing", async () => {
       await assert.rejects(signup({ ...syntheticSignup, dateOfBirth: "2008-10-15" }), rejects("ADULT_ELIGIBILITY_REQUIRED"));
@@ -40,22 +41,22 @@ test("isolated PostgreSQL signup transaction", async (t) => {
       for (const value of ["x".repeat(password.config.minPasswordLength - 1), "x".repeat(password.config.maxPasswordLength + 1)]) {
         await assert.rejects(signup({ ...syntheticSignup, password: value }), rejects("INVALID_INPUT"));
       }
-      assert.deepEqual(await counts(), [0, 0, 0, 0, 0, 0]);
+      assert.deepEqual(await counts(), [0, 0, 0, 0, 0, 0, 0]);
       const hashingFailure = createSignupOperation(database, { $context: Promise.resolve({ password: {
         config: password.config, hash() { throw new Error("synthetic-private-hash-error"); },
       } }) }, () => now);
       await assert.rejects(hashingFailure(syntheticSignup), rejects("INTERNAL_ERROR"));
-      assert.deepEqual(await counts(), [0, 0, 0, 0, 0, 0]);
+      assert.deepEqual(await counts(), [0, 0, 0, 0, 0, 0, 0]);
     });
 
     await t.test("database failure at each required write rolls back every record", async () => {
       await connection.query(`CREATE FUNCTION synthetic_write_failure() RETURNS trigger LANGUAGE plpgsql AS $$
         BEGIN RAISE EXCEPTION 'synthetic-private-error'; END $$`);
-      for (const table of ["user", "account", "user_account", "outbox_event"]) {
+      for (const table of ["user", "account", "user_account", "verification", "outbox_event", "account_email_delivery"]) {
         await connection.query(`CREATE TRIGGER synthetic_failure BEFORE INSERT ON "${table}" FOR EACH ROW EXECUTE FUNCTION synthetic_write_failure()`);
         try {
           await assert.rejects(signup(syntheticSignup), rejects("INTERNAL_ERROR"));
-          assert.deepEqual(await counts(), [0, 0, 0, 0, 0, 0], `No residual writes after ${table} failure`);
+          assert.deepEqual(await counts(), [0, 0, 0, 0, 0, 0, 0], `No residual writes after ${table} failure`);
         } finally {
           await connection.query(`DROP TRIGGER synthetic_failure ON "${table}"`);
         }
@@ -64,7 +65,7 @@ test("isolated PostgreSQL signup transaction", async (t) => {
       await connection.query('CREATE CONSTRAINT TRIGGER synthetic_failure AFTER INSERT ON "outbox_event" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION synthetic_write_failure()');
       try {
         await assert.rejects(signup(syntheticSignup), rejects("INTERNAL_ERROR"));
-        assert.deepEqual(await counts(), [0, 0, 0, 0, 0, 0]);
+        assert.deepEqual(await counts(), [0, 0, 0, 0, 0, 0, 0]);
       } finally {
         await connection.query('DROP TRIGGER synthetic_failure ON "outbox_event"');
       }
@@ -72,7 +73,7 @@ test("isolated PostgreSQL signup transaction", async (t) => {
 
     await t.test("eighteenth birthday in PHT commits mapped identity, hashed credential, private eligibility and intent", async () => {
       assert.deepEqual(await signup({ ...syntheticSignup, dateOfBirth: "2008-10-14", email: "Signup@Example.Invalid" }), received);
-      assert.deepEqual(await counts(), [1, 1, 1, 1, 0, 0]);
+      assert.deepEqual(await counts(), [1, 1, 1, 1, 0, 1, 1]);
       const identity = await database.user.findUnique({ where: { email: syntheticSignup.email }, select: { id: true, emailVerified: true } });
       assert.equal(identity.emailVerified, false);
       const credential = await database.account.findFirst({ where: { userId: identity.id }, select: { userId: true, accountId: true, providerId: true, password: true } });
@@ -96,6 +97,7 @@ test("isolated PostgreSQL signup transaction", async (t) => {
       await database.$disconnect();
       assert.equal(await database.outboxEvent.count(), 1);
       await connection.query('DELETE FROM "outbox_event"');
+      await connection.query('DELETE FROM "verification"');
       await connection.query('DELETE FROM "user_account"');
       await connection.query('DELETE FROM "user"');
     });
@@ -106,7 +108,7 @@ test("isolated PostgreSQL signup transaction", async (t) => {
         (index % 2 ? signup : otherSignup)({ ...syntheticSignup, email: index % 2 ? "Signup@Example.Invalid" : syntheticSignup.email })));
       assert.deepEqual(results, Array.from({ length: 6 }, () => ({ status: "fulfilled", value: received })));
       assert.deepEqual(await signup(syntheticSignup), received);
-      assert.deepEqual(await counts(), [1, 1, 1, 1, 0, 0]);
+      assert.deepEqual(await counts(), [1, 1, 1, 1, 0, 1, 1]);
       const { rows } = await connection.query(`SELECT count(*)::int AS count FROM "user" u
         JOIN "account" c ON c."userId" = u.id
         JOIN "user_account" a ON a."authUserId" = u.id
@@ -118,7 +120,7 @@ test("isolated PostgreSQL signup transaction", async (t) => {
       const result = await auth.api.signInEmail({ body: { email: syntheticSignup.email, password: syntheticSignup.password } });
       assert.equal(result.user.emailVerified, false);
       assert.equal(await database.session.count(), 1);
-      assert.equal(await database.verification.count(), 0);
+      assert.equal(await database.verification.count(), 1);
       assert.equal(await database.outboxEvent.count(), 1);
     });
   } finally {

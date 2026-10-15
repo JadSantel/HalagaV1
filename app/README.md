@@ -59,8 +59,10 @@ future hosting must support it.
 
 Slice 2 now provides disabled account screen previews at `/account` and a protected,
 unmounted Better Auth plugin/handler over existing account operations. It is used
-only by synthetic fixtures, not application routes or Server Actions. Token delivery,
-required password-change notice writes and sign-in races still block account API mounting.
+only by synthetic fixtures, not application routes or Server Actions. ADR-088 adds
+atomic encrypted email handoff and an unmounted Brevo dispatcher. Link pages, worker
+deployment, password-change notice writes, staff recovery and sign-in races still
+block account API mounting and real delivery.
 See [account integration status and exact blockers](../docs/ACCOUNT_FLOW_INTEGRATION.md).
 This is the current UI/integration status; older local-operation records below
 describe their original unmounted boundaries. `npm.cmd run test:auth` now requires
@@ -69,27 +71,29 @@ the explicit dedicated `SIGNUP_TEST_DATABASE_URL` used by the other account suit
 No authentication API routes, publication commands, audit service, or completion
 workflow are implemented. The schema-only Better Auth configuration in
 `scripts/auth-schema.config.ts` must never be used by application routes.
-Signup now has an internal atomic writer and persistence-only verification-email
-outbox; see [local direct signup testing](../docs/SIGNUP_LOCAL_TESTING.md).
+Signup now atomically creates an initial 24-hour verification token, digest,
+encrypted delivery payload and outbox intent; see
+[account delivery status](../docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md).
 Separate server-only verification commands now issue/replace 24-hour, single-use
 opaque tokens with private outbox intent. Consumption atomically sets both
 verification states, removes the token and revokes existing sessions. Failed writes
-or commit preserve prior state and the token for retry. No schema/dependency is added.
+or commit preserve prior state and the token for retry. Resend encrypts its token
+in the durable delivery row and suppresses queued work for the replaced token.
 Use `npm.cmd run test:verification` with the dedicated synthetic test database;
 [local verification testing](../docs/EMAIL_VERIFICATION_LOCAL_TESTING.md) provides
-setup, five direct manual scenarios and cleanup. Routes, UI, private link transport,
-job dispatch and email delivery remain unmounted.
+setup, five direct manual scenarios and cleanup. Routes, UI actions and worker
+delivery remain unmounted; link-page handling and sign-in races remain gates.
 
 Server-only password reset now issues/replaces one-hour opaque tokens with
-private outbox intent. Consumption atomically replaces the credential hash,
+private outbox intent and encrypted delivery payload. Consumption atomically replaces the credential hash,
 consumes the token and revokes every stored session while preserving both
 verification states and separate verification tokens. Write/commit failure
 preserves the token and old password for retry before expiry. No migration or
 dependency is added. Run `npm.cmd run test:reset` with the same dedicated
 `halaga_signup_test` database. [Local password-reset testing](../docs/PASSWORD_RESET_LOCAL_TESTING.md)
 documents eight direct manual exercises, failure/retry cases and cleanup.
-Routes, UI and delivery stay unmounted; private token transport, dispatch/jobs,
-cookie responses and sign-in/reset race integration remain gates.
+Routes, UI actions and worker delivery stay unmounted; link-page handling, cookie
+responses and sign-in/reset race integration remain gates.
 
 Server-only email change now requires the owner's valid stored session created
 less than 15 minutes earlier, rechecked under locks. Request preserves the old
@@ -99,9 +103,9 @@ verifies the new address, revokes all stored sessions and records a private
 old-address security-notice intent. Write/commit failure preserves the old state
 and token for retry. Other account history and token families remain intact.
 The original outbox cannot resolve the old address after a switch; one narrow
-additive recipient-snapshot migration is required for that notice type only.
-It is replayed only in disposable synthetic schemas, not applied persistently.
-No dependency is added. Run `npm.cmd run db:generate`, then
+recipient-snapshot migration is required for that notice type only. ADR-088 adds
+the account delivery migration; both are replayed only in disposable schemas in
+these checks. Run `npm.cmd run db:generate`, then
 `npm.cmd run test:email-change` with the dedicated `halaga_signup_test` URL.
 [Local email-change testing](../docs/EMAIL_CHANGE_LOCAL_TESTING.md) documents
 nine direct exercises, the schema/privacy review and remaining integration gates.
@@ -218,18 +222,18 @@ properties; using an explicit class field fixed it. Tests retain the existing
 No persistent migration, dependency install, real-data or deployment check ran.
 No UI changed; browser/accessibility checks were not run for this server-only step.
 
-## Account email intent inspection (delivery remains blocked)
+## Account email delivery (unmounted)
 
-`npm.cmd run test:account-email-intents` uses the existing dedicated local
-`halaga_signup_test` sandbox and 13 synthetic checks. The internal inspector
-rechecks token-specific account/binding/expiry state and notice-only old-address
-snapshots, returns fixed status without private data, and never sends or mutates.
-Its locks end at commit; it is not delivery authorization or job deduplication.
-No route, UI action, provider adapter or worker imports it. Durable private transport,
-approved templates/links, job parameters, recovery and retention remain blocked
-under ADR-087; no migration or operational default is introduced. See
-[the local guide](../docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md) for direct manual
-exercises, source passages and the unrun provider/rendering/job tests.
+ADR-088 adds purpose-bound AES-GCM token transport, initial signup token issuance,
+replacement suppression, fixed English templates, configured-origin fragment links,
+Brevo dispatch, fenced PostgreSQL leases, bounded 429 retries, ambiguous-send
+quarantine and cleanup. `dispatchOneAccountEmail()` sends at most one job;
+`recoverAndClean()` recovers expired claims and purges terminal records. Neither is
+mounted in a route or deployed worker. The independent inspector returns fixed
+statuses only and does not authorize later sending. Provider and fake-provider
+recovery checks have not been run. See
+[the local guide](../docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md) and
+[ADR-088](../docs/decisions/ADR-088-account-email-delivery-and-recovery.md).
 
 ## Server data-access boundary
 

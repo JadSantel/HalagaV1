@@ -3,7 +3,8 @@
 - Status: Accepted
 - Date: 2026-10-14
 - Password-change notice supplement approved by owner: 2026-10-15 PHT
-- Supplements: ADR-032, ADR-042, ADR-074, ADR-075, ADR-086
+- Account email delivery supplement: ADR-088, accepted 2026-10-15 PHT on explicit owner request
+- Supplements: ADR-032, ADR-042, ADR-074, ADR-075, ADR-086, ADR-088
 
 ## Context
 
@@ -478,6 +479,17 @@ corrected and rerun; see the local guide for exact results. Delivery itself,
 all job/provider checks and account API mounting remain
 gated; disabled static previews collect no data. No migration, dependency, real
 email, participant data, paid service, provider credential or deployment is added.
+
+## Implementation update: account email delivery accepted (2026-10-15)
+
+ADR-088 supersedes this ADR's historical delivery-blocker notes for durable private
+transport, approved account-email copy/link behavior, dispatch, stale-intent
+suppression, crash recovery and retention. Signup now commits its initial token and
+encrypted payload; resend/reset/email-change issue commands write the encrypted
+payload atomically and suppress queued replaced work. The separate dispatcher and
+cleanup remain unmounted pending route/link integration, worker deployment, staff
+recovery authorization and launch readiness. See ADR-088 and
+`docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`.
 
 ## Sources
 

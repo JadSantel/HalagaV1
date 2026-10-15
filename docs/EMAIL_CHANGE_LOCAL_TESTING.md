@@ -1,8 +1,10 @@
 # Unmounted email change: local synthetic testing
 
 This Slice 2 repository implements accepted ADR-087 for local synthetic data.
-No route, Server Action, UI, token transport, dispatcher or email delivery is
-mounted. Use fictional `.invalid` addresses and synthetic passwords only.
+The historical command checks below predate ADR-088's encrypted delivery payload
+and dispatcher. No route, Server Action, functional UI or worker is mounted. Use
+fictional `.invalid` addresses and synthetic passwords only. See
+`ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md` for current delivery status.
 
 ## Setup
 

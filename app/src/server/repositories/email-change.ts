@@ -1,6 +1,8 @@
 import "server-only";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
+import { accountEmailTokenRecord } from "../account-email-crypto.ts";
+import { suppressReplacedEmailWork } from "./account-email-work.ts";
 import { hasAdultEligibility } from "../account-access.ts";
 import { getPrisma } from "../prisma.ts";
 import { createAccountAuth } from "./auth.ts";
@@ -92,17 +94,25 @@ export function createEmailChangeOperations(
           const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
           const token = randomBytes(32).toString("hex");
           const id = tokenId(token);
+          const outboxEventId = randomUUID();
           const identifier = namespace + account.userId;
+          await suppressReplacedEmailWork(transaction, account.accountId,
+            "account.email-change-verification-requested", [`email-change-verification:${namespace}`], now);
           await transaction.verification.deleteMany({ where: { identifier } });
           await transaction.verification.create({
             data: { id, identifier, value: JSON.stringify({ accountId: account.accountId,
               currentEmail: account.email, proposedEmail: parsed.data.proposedEmail }),
               expiresAt, createdAt: now, updatedAt: now }, select: { id: true },
           });
+          const eventType = "account.email-change-verification-requested";
+          const deduplicationKey = `email-change-verification:${id}`;
           await transaction.outboxEvent.create({
-            data: { accountId: account.accountId, eventType: "account.email-change-verification-requested", eventVersion: 1,
-              deduplicationKey: `email-change-verification:${id}`, createdAt: now }, select: { id: true },
+            data: { id: outboxEventId, accountId: account.accountId, eventType, eventVersion: 1,
+              deduplicationKey, createdAt: now }, select: { id: true },
           });
+          await transaction.accountEmailDelivery.create({ data: accountEmailTokenRecord(token,
+            { outboxEventId, accountId: account.accountId, eventType, eventVersion: 1, deduplicationKey }, expiresAt),
+            select: { id: true }, });
           return { token, expiresAt };
         });
       } catch (error) {
@@ -142,11 +152,17 @@ export function createEmailChangeOperations(
           await transaction.userAccount.update({ where: { id: account.accountId },
             data: { emailVerifiedAt: now }, select: { id: true } });
           await transaction.session.deleteMany({ where: { userId: account.userId } });
+          const outboxEventId = randomUUID();
+          const eventType = "account.email-changed-security-notice";
+          const deduplicationKey = `email-changed-notice:${id}`;
+          const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
           await transaction.outboxEvent.create({
-            data: { accountId: account.accountId, eventType: "account.email-changed-security-notice", eventVersion: 1,
-              deduplicationKey: `email-changed-notice:${id}`, recipientEmail: binding.data.currentEmail,
-              createdAt: now }, select: { id: true },
+            data: { id: outboxEventId, accountId: account.accountId, eventType, eventVersion: 1,
+              deduplicationKey, recipientEmail: binding.data.currentEmail, createdAt: now }, select: { id: true },
           });
+          await transaction.accountEmailDelivery.create({ data: accountEmailTokenRecord("",
+            { outboxEventId, accountId: account.accountId, eventType, eventVersion: 1, deduplicationKey }, expiresAt),
+            select: { id: true }, });
           return { status: "EMAIL_CHANGED" as const };
         });
       } catch (error) {

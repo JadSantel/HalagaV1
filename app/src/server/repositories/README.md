@@ -22,14 +22,15 @@ stores at commit. Required atomic notice writes remain unimplemented; keep it un
 
 | Module | Permitted access |
 | --- | --- |
-| `src/server/repositories/account-email-intents.ts` | Trusted internal account-module synthetic inspection only. Explicit guard projections check current token-specific work and old-recipient snapshots; output is fixed status without addresses/tokens/bindings/digests. Notice branch never reads the identity/new email. No participant/staff reader, dispatch, write, cache, provider, job claim or send authorization. Inspection locks end at commit. See `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md` for unresolved decisions and tests. |
+| `src/server/repositories/account-email-intents.ts` | Trusted internal account-module inspection. Explicit guard projections check token work and old-recipient snapshots; output is fixed status without addresses/tokens/bindings/digests. Notice branch never reads the new address. It is not dispatch authorization. |
+| `src/server/repositories/account-email-dispatch.ts` | Internal dispatcher and cleanup only. Claims one job under a fenced PostgreSQL lease, rechecks account/token/binding/expiry, renders fixed templates and sends through Brevo. Fixed status output; no route, participant/staff reader or operator retry. UNKNOWN work is not retried automatically. |
 | `src/server/prisma.ts` | Construct and share the generated Prisma client using the installed PostgreSQL adapter and validated server configuration. This is infrastructure, not an authorization service. |
 | `src/server/repositories/auth.ts` | Construct the unmounted Better Auth account instance with ADR-086 policy and the infrastructure adapter. Better Auth owns private identity/session/token/counter tables; this is not a domain authorization grant or a public data reader. |
 | `src/server/repositories/accounts.ts` | Stored-session owner resolution and explicit account-private prerequisite projection; no DOB/email/token output, cache, staff access or action grant. Cookie headers remain private auth transport. |
-| `src/server/repositories/signup.ts` | Internal account-owned transaction coordinating the installed Better Auth identity/credential format, configured password hasher/limits, mapped domain account, private DOB/attestation and minimized outbox intent. No session/token, route, Server Action or email. Direct writes do not invoke library signup hooks; compatibility is tested against installed Better Auth. |
-| `src/server/repositories/email-verification.ts` | Internal account-owned, namespaced opaque-token issue/replacement with minimized outbox intent; atomic token consumption, identity/domain verification and session revocation. Explicit private guard queries lock the identity/mapping. Raw issue material is restricted to trusted internal callers; never a public response. No route, Server Action, library verification endpoint, dispatcher or delivery. |
-| `src/server/repositories/password-reset.ts` | Internal account-owned, one-hour reset-token issue/replacement with minimized outbox intent; atomic credential replacement, token consumption and session revocation. Locks identity/mapping and the existing credential; preserves both verification states and separate verification tokens. Restricted issue material is never a public response. No route, Server Action, library reset endpoint or delivery. |
-| `src/server/repositories/email-change.ts` | Internal account-owned, fresh stored-session request with 24-hour bound-token replacement and minimized verification intent; atomic proof, address switch/verification, session revocation and old-address security intent. Locks/rechecks session, identity/mapping and proof; preserves history and separate token families. Restricted issue material is never a public response. No route, UI, token transport or delivery. |
+| `src/server/repositories/signup.ts` | Internal account-owned transaction coordinating identity/credential, password limits, mapped account, private DOB/attestation, initial verification token/digest, encrypted delivery payload and minimized outbox intent. No session, route, Server Action or synchronous email. |
+| `src/server/repositories/email-verification.ts` | Internal account-owned, namespaced token issue/replacement with encrypted delivery payload and minimized intent; suppresses queued replaced work in the same transaction. Consumption atomically verifies both stores and revokes sessions. No route, Server Action or synchronous email. |
+| `src/server/repositories/password-reset.ts` | Internal account-owned, one-hour reset-token issue/replacement with encrypted delivery payload and minimized intent; suppresses queued replaced work atomically. Credential replacement, token consumption and session revocation remain atomic. No route or synchronous email. |
+| `src/server/repositories/email-change.ts` | Internal account-owned, fresh-session 24-hour bound-token replacement with encrypted delivery payload; proof atomically switches the address, revokes sessions and records an old-address notice plus seven-day delivery job. No route or synchronous email. |
 | `src/server/repositories/password-change.ts` | Internal account-owned credential replacement with stored-session owner resolution, locked mapping/credential/session rechecks and original creation age below 15 minutes. Uses configured Better Auth limits/hasher/current-password verifier. Atomic replacement/revocation preserves the initiating session exactly, verification, token families and account history. Fixed safe results/errors. Approved required notice writes remain unimplemented; command stays unmounted. |
 | `src/server/account-access.ts` | Server-only adult eligibility and publication/inquiry/proposal prerequisite rejection; restrictions, blocks and target/state authorization remain separate gates. |
 | `src/server/repositories/` | Other server-only reads belong to the owning module, after verifying the caller and selecting an explicit authorized projection. |
@@ -46,8 +47,10 @@ The plugin and safe handler adapter run only in synthetic fixtures; no API route
 Server Action or application auth instance installs them. `/account` renders disabled
 static previews without persisted data. These additions supersede older “no UI/
 endpoint integration” status statements below, while account API commands remain
-unmounted. See `docs/ACCOUNT_FLOW_INTEGRATION.md` for protected admission, real
-limiter/cookie verification and unresolved transport/notice/sign-in mounting gates.
+unmounted. See `docs/ACCOUNT_FLOW_INTEGRATION.md` for protected admission and real
+limiter/cookie verification. ADR-088 resolves account email transport and delivery
+mechanics; link-page handling,
+password-change notice writes, worker/staff deployment and sign-in races remain gates.
 
 ## Data scopes and ownership
 
@@ -121,8 +124,9 @@ Email-change request resolves the session owner and rechecks freshness under loc
 proof rechecks token/mapping/address/eligibility/deadline guards and atomically
 switches/verifies the address, revokes sessions and records old-address notice intent.
 The outbox's private old-recipient snapshot is restricted to that notice type;
-never expose it in generic event readers or log it. Token transport, dispatch/jobs,
-cookie response integration and sign-in racing account changes remain unmounted/gated.
+never expose it in generic event readers or log it. ADR-088 supplies encrypted
+transport and dispatch/recovery; routes, worker deployment, cookie response
+integration and sign-in racing account changes remain unmounted/gated.
 Password change has separate isolated transaction checks and direct manual exercises
 in `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`. Session resolution disables refresh for
 that operation to avoid pretransaction renewal writes. It preserves the initiating

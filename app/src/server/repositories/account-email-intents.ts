@@ -1,6 +1,8 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { hasAdultEligibility } from "../account-access.ts";
+import { decryptAccountEmailToken } from "../account-email-crypto.ts";
 import { getPrisma } from "../prisma.ts";
 import { emailChangeBindingSchema } from "./email-change.ts";
 
@@ -16,7 +18,7 @@ export class AccountEmailIntentRejected extends Error {
 
 export type AccountEmailIntentInspection = Readonly<{
   status: "MISSING" | "UNSUPPORTED" | "STALE" | "DISPATCH_RECORDED" |
-    "SIGNUP_TOKEN_UNBOUND" | "TOKEN_CURRENT" | "NOTICE_RECORDED";
+    "TOKEN_CURRENT" | "NOTICE_RECORDED";
 }>;
 
 const idSchema = z.uuid();
@@ -60,8 +62,8 @@ export function createAccountEmailIntentInspector(
 
         if (intent.eventType === "account.email-changed-security-notice") {
           // Deliberately never read the identity/current (new) email for this notice.
-          // This checks the recorded snapshot only; deletion/delay/recovery policy
-          // and approved message copy remain unresolved delivery gates.
+          // This checks the recorded snapshot only; ADR-088 governs delayed-send
+          // suppression and approved copy. Never fetch the current/new address.
           const snapshot = await transaction.outboxEvent.findUnique({
             where: { id: parsed.data }, select: { recipientEmail: true },
           });
@@ -89,9 +91,27 @@ export function createAccountEmailIntentInspector(
         if (intent.eventType === "account.verification-email-requested") {
           if (account.emailVerified || account.emailVerifiedAt) return { status: "STALE" };
           if (intent.deduplicationKey === `signup-verification:${intent.accountId}`) {
-            // Signup has no token-specific association. Do not silently issue or
-            // attach a later resend token to this older logical intent.
-            return { status: "SIGNUP_TOKEN_UNBOUND" };
+            const tokens = await transaction.verification.findMany({
+              where: { identifier: "halaga-email-verification:" + account.userId },
+              select: { id: true, identifier: true, value: true, createdAt: true, expiresAt: true },
+            });
+            const delivery = await transaction.accountEmailDelivery.findUnique({
+              where: { outboxEventId: parsed.data }, select: { state: true, expiresAt: true, keyId: true, ciphertext: true },
+            });
+            const now = clock();
+            let issuedTokenId: string | undefined;
+            if (delivery) {
+              try { issuedTokenId = "halaga-email-verification:" +
+                createHash("sha256").update(decryptAccountEmailToken(delivery.keyId, delivery.ciphertext, {
+                  outboxEventId: parsed.data, accountId: intent.accountId, eventType: intent.eventType,
+                  eventVersion: intent.eventVersion, deduplicationKey: intent.deduplicationKey,
+                })).digest("hex"); } catch { /* Invalid ciphertext is stale work. */ }
+            }
+            const current = tokens.length === 1 && tokens[0].value === account.email &&
+              tokens[0].createdAt <= now && tokens[0].expiresAt > now && delivery?.state === "READY" &&
+              delivery.expiresAt.getTime() === tokens[0].expiresAt.getTime() && tokens[0].identifier ===
+              "halaga-email-verification:" + account.userId && tokens[0].id === issuedTokenId;
+            return { status: current ? "TOKEN_CURRENT" : "STALE" };
           }
         }
         const prefix = kind.key + kind.namespace;

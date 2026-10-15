@@ -19,7 +19,7 @@ No production marketplace flow is implemented yet.
 | Order | Slice | Scope / completion boundary | Status |
 | --- | --- | --- | --- |
 | 1 | Application and data foundation | Configure validated runtime, PostgreSQL connection, Prisma migrations, shared server validation, module boundaries, and privacy-safe logging. Keep local/private development on synthetic data. | **Complete:** runtime configuration reports field-only validation errors; local PostgreSQL connection and reviewed migration workflow are configured; the first migration is installed and its checksum, 15 constraints, and seven triggers verify locally. Shared Zod validation, server-only/database import boundaries, guarded-command transaction behavior, and privacy-safe operational logging pass synthetic checks. Exact direct dependency pins match the lockfile; `.nvmrc` matches Node 24.21.0. Slice 1 added no persisted product reads or commands; slice 2 now provides account prerequisite reads, while other authorized projections and flow-specific safeguards belong to their owning slices. See `docs/architecture/SERVER_BOUNDARY_REVIEW.md`, `docs/architecture/PHYSICAL_SCHEMA_REVIEW.md`, `app/README.md`, and `app/src/server/repositories/README.md`. |
-| 2 | Adult account and access | Registration, 18+ attestation and private DOB, Better Auth sessions, email verification, account eligibility/restrictions, and server-enforced action gates. | **Partial, synthetic only:** ADR-086 policies plus stored-session-to-account resolution, explicit owner-only prerequisite projection, PHT-calendar adult/DOB and attestation checks, matching identity/domain email checks, and server prerequisite rejection for publication, inquiry and proposal submission. DOB/email/tokens never enter that projection or logs. Local isolated PostgreSQL tests cover ownership, missing mapping, deletion, eligibility, renewal, expiry, revocation and safe failures. ADR-087 settles onboarding, token, resend, recovery, email-change, generic-response, atomicity and session policies. Unmounted signup atomically creates Better Auth identity/credential, domain mapping, private DOB, attestation version/timestamp and durable verification-email outbox intent. Unmounted verification issues/replaces 24-hour tokens with private outbox intent and atomically consumes a token, synchronizes both verification states and revokes sessions. Unmounted reset issues/replaces one-hour tokens with private outbox intent and atomically replaces the credential, consumes the token and revokes every stored session while preserving both verification states. Unmounted email change rechecks the owner's fresh stored session under locks, leaves the existing verified address primary during bound 24-hour token issue/replacement, and atomically consumes proof, switches/verifies the address, revokes sessions and records minimized old-address security-notice intent. A narrow additive recipient-snapshot migration is necessary for that notice and replayed only in disposable schemas. Dedicated PostgreSQL checks cover freshness, conflicts, mapping/eligibility, write/commit rollback, same-token retry, expiry, replacement, reuse, concurrency, isolation and fresh sign-in compatibility. No routes/UI, email dispatch/delivery, token transport or action grants: durable transport, stale-intent suppression, sign-in racing reset/email proof, cookie-response integration, restrictions/blocks, full command authorization, cleanup and deployment readiness remain gated. See `docs/SIGNUP_LOCAL_TESTING.md`, `docs/EMAIL_VERIFICATION_LOCAL_TESTING.md`, `docs/PASSWORD_RESET_LOCAL_TESTING.md` and `docs/EMAIL_CHANGE_LOCAL_TESTING.md`. |
+| 2 | Adult account and access | Registration, 18+ attestation and private DOB, Better Auth sessions, email verification, account eligibility/restrictions, and server-enforced action gates. | **Partial, synthetic only:** ADR-086 policies plus stored-session-to-account resolution, explicit owner-only prerequisite projection, PHT-calendar adult/DOB and attestation checks, matching identity/domain email checks, and server prerequisite rejection for publication, inquiry and proposal submission. DOB/email/tokens never enter that projection or logs. Local isolated PostgreSQL tests cover ownership, missing mapping, deletion, eligibility, renewal, expiry, revocation and safe failures. ADR-087 settles onboarding, token, resend, recovery, email-change, generic-response, atomicity and session policies. Unmounted signup atomically creates Better Auth identity/credential, domain mapping, private DOB, attestation version/timestamp and durable verification-email outbox intent. Unmounted verification issues/replaces 24-hour tokens with private outbox intent and atomically consumes a token, synchronizes both verification states and revokes sessions. Unmounted reset issues/replaces one-hour tokens with private outbox intent and atomically replaces the credential, consumes the token and revokes every stored session while preserving both verification states. Unmounted email change rechecks the owner's fresh stored session under locks, leaves the existing verified address primary during bound 24-hour token issue/replacement, and atomically consumes proof, switches/verifies the address, revokes sessions and records minimized old-address security-notice intent. A narrow additive recipient-snapshot migration is necessary for that notice and replayed only in disposable schemas. Dedicated PostgreSQL checks cover freshness, conflicts, mapping/eligibility, write/commit rollback, same-token retry, expiry, replacement, reuse, concurrency, isolation and fresh sign-in compatibility. No routes/UI, account action grants or worker deployment: route/link integration, sign-in racing reset/email proof, cookie-response integration, restrictions/blocks, full command authorization, audited staff recovery, provider setup and deployment readiness remain gated. See `docs/SIGNUP_LOCAL_TESTING.md`, `docs/EMAIL_VERIFICATION_LOCAL_TESTING.md`, `docs/PASSWORD_RESET_LOCAL_TESTING.md` and `docs/EMAIL_CHANGE_LOCAL_TESTING.md`. |
 | 3 | Listing creation and publication | Convert laptop prototype into a server-validated flow; real supported CDO barangays; ownership declaration history; listing/revision lifecycle; required photos, safe image handling, publication risk checks and held-review path; private price expectation. | Prototype exists; backend not started |
 | 4 | Public marketplace discovery | Public active-listing browse/search/detail with explicit public projections, filters and sort rules, shareable noindex pages, blocking-aware signed-in views, and no demand/private-data leakage. | Not started |
 | 5 | Buyer inquiry and offer negotiation | Pre-offer inquiry, private buyer-seller conversation, structured proposals/counters, 72-hour deadlines, withdrawal/rejection/expiry, revision acknowledgement, and seller-only offer comparison. | Not started |
@@ -59,35 +59,25 @@ Server Action imports it. Preview fields/submission are disabled and collect no 
 This supersedes earlier “no UI/endpoint integration” implementation-status wording,
 not the unmounted-command boundary or any accepted product decision.
 
-**Mounting remains blocked:** digest-only tokens and generic outbox intents provide
-no durable private raw-token transport or crash-safe handoff; dispatch/stale-work
-rules and job parameters remain unresolved. Password-change notice policy is
-accepted, but its required atomic intents/recipient binding are missing. Sign-in/session creation races,
-functional client states, terms/privacy content, restrictions/blocks and readiness
-gates remain. No policy is silently chosen. Existing scripts report 106 passing
-backend tests; lint/build pass. See `docs/ACCOUNT_FLOW_INTEGRATION.md` for changed
-boundaries, exact blockers, test setup and verification limitations. Slice 2 remains
-partial and synthetic only.
+**Mounting remains blocked:** routes and worker deployment remain off. ADR-088 now
+settles encrypted token handoff, account email templates/fragment links, stale-work
+suppression, bounded dispatch/recovery and retention. Remaining gates include
+password-change notice writes, sign-in/session creation races, functional client
+states and fragment consumption, terms/privacy content, restrictions/blocks,
+audited staff recovery, provider setup and ADR-081 readiness. Slice 2 remains
+partial and synthetic only. See `docs/ACCOUNT_FLOW_INTEGRATION.md`.
 
-Slice 2 account email delivery remains **blocked, not complete** (2026-10-15 PHT).
-The independent `account-email-intents.ts` inspector checks existing token-specific
-work against current account/binding/expiry state and checks old-recipient notice
-snapshots without reading the new address. Its only output is a fixed status.
-Signup's original intent is explicitly token-unbound. This inspector neither
-mutates nor sends and its locks end at commit; it supplies no dispatch, lease,
-processed-work, retry, provider or delivery guarantee. Thirteen new synthetic tests
-and four manual exercises cover these independent boundaries. Exporting the existing
-strict email-change binding schema changes no validation policy.
-
-ADR-087 records exact unresolved choices: recoverable private transport and
-atomic handoff, approved templates/link contract, worker parameters and ambiguous-
-send recovery, restricted failed-job/operator retry, retention/deletion and cleanup.
-Existing schema cannot represent the complete private transport/job path. No
-speculative migration or operational default is added. Slice 9 execution remains
-unimplemented; fake-provider rendering/retry/recovery tests remain blocked and
-unrun. Account commands stay unmounted and static previews remain disabled.
-See `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md` for scope, sources, direct commands
-and verification limits. No new product/privacy/operations decision is accepted.
+Slice 2 account email delivery is implemented as an unmounted internal path under
+ADR-088. Signup now creates its first verification token and encrypted payload in
+the same transaction as its identity and intent. Resend/reset/email-change writes
+the same encrypted transport and suppresses queued work for the replaced token.
+The dispatcher rechecks bindings and expiry, claims with fenced PostgreSQL leases,
+sends the four approved templates through Brevo, retries explicit 429 responses
+up to five attempts, quarantines ambiguous outcomes, and recovers/cleans expired
+work. Terminal outbox and delivery rows purge after 30 days. No route or worker is
+deployed; fake-provider dispatch/recovery checks remain unrun. Provider setup,
+link-page handling, audited staff recovery and launch checks remain gates. See
+`docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`.
 
 ## Cross-slice acceptance checks
 

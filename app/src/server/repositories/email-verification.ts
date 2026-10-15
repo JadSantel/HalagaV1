@@ -1,6 +1,8 @@
 import "server-only";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
+import { accountEmailTokenRecord } from "../account-email-crypto.ts";
+import { suppressReplacedEmailWork } from "./account-email-work.ts";
 import { getPrisma } from "../prisma.ts";
 
 const namespace = "halaga-email-verification:";
@@ -62,17 +64,25 @@ export function createEmailVerificationOperations(
           const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
           const token = randomBytes(32).toString("hex");
           const id = tokenId(token);
+          const outboxEventId = randomUUID();
           const identifier = namespace + account.userId;
+          await suppressReplacedEmailWork(transaction, account.accountId, "account.verification-email-requested",
+            [`signup-verification:${account.accountId}`, `verification-email:${namespace}`], now);
           await transaction.verification.deleteMany({ where: { identifier } });
           await transaction.verification.create({
             data: { id, identifier, value: account.email, expiresAt, createdAt: now, updatedAt: now },
             select: { id: true },
           });
+          const eventType = "account.verification-email-requested";
+          const deduplicationKey = `verification-email:${id}`;
           await transaction.outboxEvent.create({
-            data: { accountId: account.accountId, eventType: "account.verification-email-requested", eventVersion: 1,
-              deduplicationKey: `verification-email:${id}`, createdAt: now },
+            data: { id: outboxEventId, accountId: account.accountId, eventType, eventVersion: 1,
+              deduplicationKey, createdAt: now },
             select: { id: true },
           });
+          await transaction.accountEmailDelivery.create({ data: accountEmailTokenRecord(token,
+            { outboxEventId, accountId: account.accountId, eventType, eventVersion: 1, deduplicationKey }, expiresAt),
+            select: { id: true }, });
           // Returned only after COMMIT. No raw token, email or DOB is copied into the outbox.
           return { token, expiresAt };
         });

@@ -5,6 +5,14 @@ ADR-086 and ADR-087 remain binding. All account HTTP commands remain unmounted.
 The public `/account` paths are static, disabled screen previews, not working
 registration, sign-in, recovery or account settings.
 
+**Status update, 2026-10-15 PHT:** ADR-088 and the internal account email dispatcher
+resolve the historical private-token transport and dispatch/recovery blockers below.
+Initial signup now has a token-bound encrypted handoff. Templates, fragment links,
+replacement suppression, leases, explicit-429 retries, ambiguous-outcome quarantine
+and cleanup are accepted and implemented. The historical blocker list records the
+state before ADR-088 and is superseded for those items. Routes, fragment consumption,
+worker deployment, staff retry/audit and provider launch setup remain blocked.
+
 ## Implemented independently
 
 - `app/src/server/repositories/account-flows.ts` composes the existing account-owned
@@ -54,7 +62,7 @@ rechecking endpoint replacement, admission identity and limiter behavior.
 These paths are internal integration contracts only. There is no external token
 transport, token URL format, callback URL, redirect contract or client submit path.
 
-## Exact mounting blockers
+## Historical mounting blockers before ADR-088
 
 1. **Durable private token transport.** ADR-087's verification/reset/email-change
    repositories commit a namespaced digest plus private binding and minimized

@@ -30,7 +30,7 @@ try {
     dateOfBirth: "2000-01-01", adultAttestationAccepted: true });
   now = new Date();
   const initial = await database.outboxEvent.findFirst({ select: { id: true } });
-  await show(initial.id, "SIGNUP_TOKEN_UNBOUND");
+  await show(initial.id, "TOKEN_CURRENT");
   const emailChange = ["email-change", "security-notice"].includes(scenario);
   let issue;
   let namespace;
