@@ -323,6 +323,39 @@ configuration/plugin/database-hook compatibility on changes. Existing durable-jo
 cleanup/retention, deployment and ADR-081 readiness gates remain. This record changes
 no accepted product behavior, notice policy, operational parameter or launch gate.
 
+## Implementation record: protected synthetic integration and screen previews (2026-10-15)
+
+An unmounted Better Auth plugin now composes the existing account-owned operations
+without duplicating transactions or accepting an account ID. Synthetic HTTP tests
+exercise the installed handler's origin/CSRF checks and endpoint/IP limiter, with
+request admission rejecting direct API calls even when supplied a Request. Fixed
+generic request responses discard restricted issuance results. A handler response
+boundary sanitizes failures and prevents caching, including early limiter returns
+that bypass plugin response hooks. Successful verification/reset/email proof clear
+configured cookies after commit; password change preserves its initiating cookie.
+
+`/account` now mounts disabled, static previews for registration, sign-in,
+verification/resend, reset request/completion and email/password changes. They
+collect no information and invoke no command. All account API routes remain
+unmounted. Integration code is used only in synthetic fixtures and is not installed
+in application auth. No runtime enable flag is provided.
+
+The token transport blocker is now explicit: digest-only private token storage
+and minimized outbox intents cannot recover raw delivery material after the trusted
+issuer returns. Signup has only an initial intent. No accepted decision specifies
+durable private transport, crash-safe handoff or stale-intent suppression, and the
+ADR-073 dispatcher/retry/recovery parameters remain unresolved. Discarding issued
+tokens in public handlers is not a working delivery mechanism. No recoverable token
+is added to generic outbox records, response, URL or log; no alternative transport,
+cleanup schedule or operational parameter is selected.
+
+The password-change notice trigger/recipient and any required atomic intent remain
+separate mounting gates. Sign-in/session creation racing account changes also
+remains unresolved; this plugin does not expose sign-in. See
+`docs/ACCOUNT_FLOW_INTEGRATION.md` for exact blockers, endpoint contracts, screens,
+the 106 reported passing backend tests, build/lint results and accessibility limits.
+This record changes no accepted policy, privacy boundary or launch gate.
+
 ## Sources
 
 - `PROJECT.md` sections 8, 26, 28, 33, and 34

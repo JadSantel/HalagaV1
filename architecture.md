@@ -415,6 +415,19 @@ remains open; this synthetic operation selects neither sending nor omission as p
 See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`; no migration/dependency or mounted flow
 is added.
 
+The 2026-10-15 Slice 2 integration adds an unmounted Better Auth plugin and handler
+response boundary over these same operations. Synthetic requests traverse the
+installed library limiter and origin/CSRF checks; only admitted requests reach the
+account commands. Direct API calls cannot bypass admission. Fixed generic request
+responses exclude issue material. Committed verification/reset/email proof clear
+cookies; password change preserves its initiating cookie. `/account` mounts static,
+disabled previews only. This supersedes earlier statements that no UI or endpoint
+integration code exists, while all account API commands remain unmounted.
+Digest-only token storage/outbox intent cannot supply durable raw delivery material;
+transport/crash recovery, stale intents, ADR-073 dispatch parameters, password-change
+notice policy and library sign-in races remain explicit mounting gates. See
+`docs/ACCOUNT_FLOW_INTEGRATION.md`; no policy or operational parameter changes.
+
 ## 6. Flow-level notification contract
 
 State changes first commit the domain record and a durable notification intent in the same transaction. Delivery occurs asynchronously.

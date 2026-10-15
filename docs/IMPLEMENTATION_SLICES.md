@@ -48,6 +48,26 @@ atomic intent, sign-in races and existing route/security/readiness gates remain.
 See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`. Routes, UI, endpoint integration and
 email delivery remain unmounted.
 
+Slice 2 now also has an **unmounted protected integration** and **mounted disabled
+screen previews** at `/account` (2026-10-15 PHT). The Better Auth plugin/handler
+composes existing operations, verifies actual endpoint/IP limits including shared
+PostgreSQL concurrency, rejects direct API bypasses, returns fixed generic request
+confirmations, sanitizes failures and handles committed revocation cookies while
+preserving the initiating password-change cookie. No application API route or
+Server Action imports it. Preview fields/submission are disabled and collect no data.
+This supersedes earlier “no UI/endpoint integration” implementation-status wording,
+not the unmounted-command boundary or any accepted product decision.
+
+**Mounting remains blocked:** digest-only tokens and generic outbox intents provide
+no durable private raw-token transport or crash-safe handoff; dispatch/stale-work
+rules and job parameters remain unresolved. Password-change notice trigger/recipient
+and any required atomic intent are undecided. Sign-in/session creation races,
+functional client states, terms/privacy content, restrictions/blocks and readiness
+gates remain. No policy is silently chosen. Existing scripts report 106 passing
+backend tests; lint/build pass. See `docs/ACCOUNT_FLOW_INTEGRATION.md` for changed
+boundaries, exact blockers, test setup and verification limitations. Slice 2 remains
+partial and synthetic only.
+
 ## Cross-slice acceptance checks
 
 - Every state-changing command checks actor, authorization, eligibility, current state, revision, and deadline as applicable; concurrency and retries preserve invariants.

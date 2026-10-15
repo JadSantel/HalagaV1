@@ -3,6 +3,7 @@ import test from "node:test";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { createAuthPolicy } from "../src/server/auth-policy.ts";
+import { createAccountFlowHandler, createAccountFlowPlugin } from "../src/server/account-flow-plugin.ts";
 
 const environment = {
   NODE_ENV: "development",
@@ -148,4 +149,118 @@ test("client requests hit explicit endpoint limits and recover after inactivity"
   const now = Date.now();
   t.mock.method(Date, "now", () => now + 901000);
   assert.notEqual((await request(auth, "/sign-up/email", { body: {} })).status, 429);
+});
+
+test("account plugin uses the real handler limiter, safe projections and request boundary", async (t) => {
+  let calls = 0;
+  let issued = true;
+  const operations = {
+    signup: async () => { calls++; return { private: "private-sentinel" }; },
+    verification: { issue: async () => { calls++; return issued ? { token: "private-sentinel", expiresAt: new Date() } : null; },
+      consume: async () => { calls++; } },
+    reset: { issue: async () => { calls++; return issued ? { token: "private-sentinel" } : null; }, consume: async () => { calls++; } },
+    emailChange: { issue: async () => { calls++; return { token: "private-sentinel" }; }, consume: async () => { calls++; } },
+    passwordChange: async () => { calls++; },
+  };
+  const policy = createAuthPolicy({ ...environment, AUTH_TRUSTED_IP_HEADER: "x-synthetic-client-ip" });
+  const auth = betterAuth({ ...policy,
+    database: memoryAdapter({ user: [], session: [], account: [], verification: [], rateLimit: [] }),
+    emailAndPassword: { enabled: true }, plugins: [createAccountFlowPlugin(() => operations)],
+  });
+  let ipIndex = 1;
+  const handler = createAccountFlowHandler(auth);
+  const send = (path, body = {}, extra = {}) => handler(new Request(`${environment.BETTER_AUTH_URL}/api/auth${path}`, {
+    method: "POST", headers: { origin: environment.BETTER_AUTH_URL, "content-type": "application/json",
+      "x-synthetic-client-ip": `198.51.100.${ipIndex}`, ...extra }, body: JSON.stringify(body),
+  }));
+
+  await t.test("all three request confirmations match for eligible/ineligible requests and discard restricted results", async () => {
+    for (const path of ["/sign-up/email", "/send-verification-email", "/request-password-reset"]) {
+      ipIndex++;
+      const body = path === "/sign-up/email" ? {} : { email: "synthetic@example.invalid" };
+      issued = true;
+      const first = await send(path, body);
+      issued = false;
+      const second = await send(path, body);
+      assert.equal(first.status, 200);
+      assert.equal(second.status, 200);
+      assert.deepEqual(await first.json(), { status: "REQUEST_RECEIVED" });
+      assert.deepEqual(await second.json(), { status: "REQUEST_RECEIVED" });
+      assert.deepEqual(first.headers.getSetCookie(), []);
+      assert.equal(first.headers.get("cache-control"), "no-store");
+    }
+  });
+
+  await t.test("each explicit endpoint limit reaches the installed plugin and recovers after inactivity", async () => {
+    for (const path of ["/sign-up/email", "/send-verification-email", "/request-password-reset"]) {
+      ipIndex++;
+      const before = calls;
+      const body = path === "/sign-up/email" ? {} : { email: "synthetic@example.invalid" };
+      const responses = await Promise.all(Array.from({ length: 9 }, () => send(path, body)));
+      assert.equal(responses.filter((response) => response.status === 200).length, 3);
+      assert.equal(calls - before, 3);
+      for (const response of responses.filter((response) => response.status === 429)) {
+        assert.deepEqual(await response.json(), { code: "RATE_LIMITED" });
+        assert.ok(Number(response.headers.get("x-retry-after")) > 0);
+        assert.equal(response.headers.get("cache-control"), "no-store");
+      }
+      const now = Date.now();
+      t.mock.method(Date, "now", () => now + 900000);
+      assert.equal((await send(path, body)).status, 200);
+      t.mock.restoreAll();
+    }
+    ipIndex++;
+    const body = { token: "a".repeat(64) };
+    const responses = await Promise.all(Array.from({ length: 65 }, () => send("/verify-email", body)));
+    assert.equal(responses.filter((response) => response.status === 200).length, 60);
+    assert.equal(responses.filter((response) => response.status === 429).length, 5);
+  });
+
+  await t.test("direct API, foreign/missing/null origins, query tokens and library alternate endpoints cannot run operations", async () => {
+    ipIndex++;
+    const before = calls;
+    const direct = await auth.api.signUpEmail({ body: {}, headers: new Headers({ origin: environment.BETTER_AUTH_URL }), asResponse: true });
+    assert.equal(direct.status, 403);
+    const fabricatedRequest = new Request(`${environment.BETTER_AUTH_URL}/api/auth/sign-up/email`, {
+      method: "POST", headers: { origin: environment.BETTER_AUTH_URL, "content-type": "application/json" }, body: "{}",
+    });
+    const suppliedRequest = await auth.api.signUpEmail({ body: {}, headers: fabricatedRequest.headers, request: fabricatedRequest, asResponse: true });
+    assert.equal(suppliedRequest.status, 403, "Supplying a Request cannot bypass handler admission/limiting");
+    for (const origin of ["https://hostile.example.invalid", "", "null"]) {
+      for (const cookie of ["", "synthetic-cookie=private-sentinel"]) {
+        ipIndex++;
+        assert.equal((await send("/sign-up/email", {}, { origin, cookie })).status, 403);
+      }
+    }
+    for (const path of ["/get-session", "/sign-in/email", "/set-password", "/update-user", "/verify-email?token=private-sentinel", "/reset-password/private-sentinel"]) {
+      assert.equal((await send(path)).status, 404);
+    }
+    const get = await handler(new Request(`${environment.BETTER_AUTH_URL}/api/auth/verify-email?token=private-sentinel`));
+    assert.equal(get.status, 404);
+    assert.equal(calls, before);
+  });
+
+  await t.test("unsafe parsing, unexpected errors and invalid ownership selectors never escape", async () => {
+    ipIndex++;
+    const invalid = await send("/request-password-reset", { email: "private-sentinel", accountId: "private-sentinel" });
+    assert.equal(invalid.status, 400);
+    assert.deepEqual(await invalid.json(), { code: "INVALID_INPUT" });
+    const previous = operations.signup;
+    operations.signup = async () => { throw new Error("private-sentinel"); };
+    const failed = await send("/sign-up/email");
+    assert.equal(failed.status, 500);
+    assert.deepEqual(await failed.json(), { code: "INTERNAL_ERROR" });
+    assert.deepEqual(failed.headers.getSetCookie(), []);
+    operations.signup = previous;
+    const malformed = await handler(new Request(`${environment.BETTER_AUTH_URL}/api/auth/sign-up/email`, {
+      method: "POST", headers: { origin: environment.BETTER_AUTH_URL, "content-type": "application/json",
+        "x-synthetic-client-ip": "198.51.100.250" }, body: '{"private-sentinel":',
+    }));
+    assert.equal(malformed.status, 400);
+    assert.deepEqual(await malformed.json(), { code: "INVALID_INPUT" });
+    const outsideFailure = await createAccountFlowHandler({ handler: async () => { throw new Error("private-sentinel"); } })(
+      new Request(`${environment.BETTER_AUTH_URL}/api/auth/sign-up/email`));
+    assert.equal(outsideFailure.status, 500);
+    assert.deepEqual(await outsideFailure.json(), { code: "INTERNAL_ERROR" });
+  });
 });

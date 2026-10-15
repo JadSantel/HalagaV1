@@ -37,6 +37,15 @@ Its security-notice contract remains unresolved; no notice policy is selected.
 | `src/server/foundation-validation.ts` and `src/domain/` | Validate inputs and derive domain values; no database access or authorization grant. |
 | `scripts/` and database verification tests | Local operator tooling with existing loopback guards, metadata checks, and rolled-back synthetic fixtures. They are not request handlers or repository APIs. |
 
+`account-flows.ts` now composes these existing operations for the unmounted
+`src/server/account-flow-plugin.ts` integration. It adds no transaction or reader.
+The plugin and safe handler adapter run only in synthetic fixtures; no API route,
+Server Action or application auth instance installs them. `/account` renders disabled
+static previews without persisted data. These additions supersede older “no UI/
+endpoint integration” status statements below, while account API commands remain
+unmounted. See `docs/ACCOUNT_FLOW_INTEGRATION.md` for protected admission, real
+limiter/cookie verification and unresolved transport/notice/sign-in mounting gates.
+
 ## Data scopes and ownership
 
 This matrix maps the accepted information scopes and module boundaries from
