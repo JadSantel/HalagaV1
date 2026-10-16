@@ -50,9 +50,9 @@ function currentTime(clock: () => Date) {
   return now;
 }
 
-/** Internal only: no route, Server Action, library reset endpoint or delivery callback.
+/** Account-owned commands; external calls use the protected email handler.
  * issue returns restricted transport material AFTER commit, never a public response.
- * Future request handlers must give the same generic confirmation for token/null and
+ * Request handlers give the same generic confirmation for token/null and
  * enforce ADR-086 protection. Direct writes deliberately bypass library reset hooks.
  */
 export function createPasswordResetOperations(

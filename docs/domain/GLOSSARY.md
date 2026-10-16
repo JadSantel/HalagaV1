@@ -26,6 +26,14 @@ The explicit, versioned signup statement that a participant is at least 18 and e
 
 A single-use credential proving control of the target email address. Signup verification and email-change tokens expire after 24 hours; a resend replaces the outstanding token. Password-reset tokens are separate and expire after one hour (ADR-087).
 
+## Account Email Delivery Job
+
+Private, per-intent durable email work with an opaque logical key, encrypted token
+transport, expiring fenced lease, bounded attempts and terminal outcome. It is
+distinct from an account token and from provider/inbox delivery. UNKNOWN means
+provider acceptance may have occurred and must not be automatically resent. Local
+run-once execution is implemented; hosted scheduling remains unresolved (ADR-088).
+
 ## Pending Email Change
 
 An email change requested with a recent sign-in but not yet verified at the proposed address. The current verified address remains primary and marketplace actions remain available until proof atomically switches the account to the new verified address. Completion revokes all sessions and records a privacy-reviewed security notice to the old address (ADR-087).

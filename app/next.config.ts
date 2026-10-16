@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  async headers() {
+    return ["/account/:path*", "/api/auth/:path*"].map((source) => ({ source, headers: [
+      { key: "Referrer-Policy", value: "no-referrer" },
+      { key: "Cache-Control", value: "no-store" },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+    ] }));
+  },
   experimental: {
     agentFeedback: true,
   },
@@ -10,7 +16,8 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   turbopack: {
     rules: {
-      "*.css": {
+      // Transform Tailwind's entry only; CSS modules must retain module exports.
+      "globals.css": {
         loaders: ["@tailwindcss/turbopack"],
         as: "*.css",
       },

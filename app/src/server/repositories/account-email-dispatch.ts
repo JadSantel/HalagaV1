@@ -18,7 +18,7 @@ const leaseMs = 120_000;
 const retentionMs = 30 * 24 * 60 * 60 * 1000;
 const emailSchema = z.email().refine((value) => value === value.toLowerCase());
 
-type DispatchResult = Readonly<{ status: "EMPTY" | "ACCEPTED" | "RETRY_SCHEDULED" | "SUPPRESSED" | "FAILED" | "UNKNOWN" }>;
+type DispatchResult = Readonly<{ status: "DISABLED" | "EMPTY" | "LEASE_LOST" | "ACCEPTED" | "RETRY_SCHEDULED" | "SUPPRESSED" | "FAILED" | "UNKNOWN" }>;
 type Job = { id: string; leaseId: string; attemptCount: number };
 
 function contextOf(event: { id: string; accountId: string; eventType: string; eventVersion: number; deduplicationKey: string }): EmailTokenContext {
@@ -74,31 +74,39 @@ export function createAccountEmailDispatcher(
       if (!delivery || !event || delivery.state !== "LEASED" || delivery.leaseId !== job.leaseId ||
           !delivery.leaseExpiresAt || delivery.leaseExpiresAt <= now) return null;
       if (delivery.expiresAt <= now || event.dispatchedAt || event.eventVersion !== 1) {
-        await tx.accountEmailDelivery.update({ where: { id: job.id }, data: {
+        await tx.accountEmailDelivery.updateMany({ where: { id: job.id, state: "LEASED", leaseId: job.leaseId }, data: {
           state: "SUPPRESSED", leaseId: null, leaseExpiresAt: null, terminalAt: now,
           lastErrorCode: "STALE_OR_EXPIRED", ciphertext: new Uint8Array(),
         } });
         return null;
       }
       if (event.eventType === "account.email-changed-security-notice") {
-        const account = await tx.userAccount.findUnique({ where: { id: event.accountId }, select: { deletedAt: true } });
+        const accounts = await tx.$queryRaw<Array<{ deletedAt: Date | null }>>`
+          SELECT "deletedAt" FROM "user_account" WHERE id = ${event.accountId}::uuid FOR UPDATE
+        `;
+        const account = accounts[0];
         if (!account || account.deletedAt || !isEmail(event.recipientEmail) ||
             !/^email-changed-notice:halaga-email-change:[a-f0-9]{64}$/.test(event.deduplicationKey)) {
-          await tx.accountEmailDelivery.update({ where: { id: job.id }, data: {
+          await tx.accountEmailDelivery.updateMany({ where: { id: job.id, state: "LEASED", leaseId: job.leaseId }, data: {
             state: "SUPPRESSED", leaseId: null, leaseExpiresAt: null, terminalAt: now,
             lastErrorCode: "STALE_NOTICE", ciphertext: new Uint8Array(),
           } });
           return null;
         }
-        await tx.accountEmailDelivery.update({ where: { id: job.id }, data: { state: "SENDING" } });
+        const started = await tx.accountEmailDelivery.updateMany({ where: {
+          id: job.id, state: "LEASED", leaseId: job.leaseId,
+          leaseExpiresAt: { gt: clock() }, expiresAt: { gt: clock() },
+        }, data: { state: "SENDING" } });
+        if (started.count !== 1) return null;
         return { kind: "EMAIL_CHANGED" as const, message: renderAccountEmail("EMAIL_CHANGED", event.recipientEmail) };
       }
 
       const config = Object.hasOwn(tokenKinds, event.eventType)
         ? tokenKinds[event.eventType as keyof typeof tokenKinds] : undefined;
-      if (!config || !event.deduplicationKey.startsWith(config.key) ||
-          !/^[a-f0-9]{64}$/.test(event.deduplicationKey.slice(config.key.length))) {
-        await tx.accountEmailDelivery.update({ where: { id: job.id }, data: {
+      const isSignup = config?.kind === "VERIFY" && event.deduplicationKey === `signup-verification:${event.accountId}`;
+      if (!config || (!isSignup && (!event.deduplicationKey.startsWith(config.key + config.namespace) ||
+          !/^[a-f0-9]{64}$/.test(event.deduplicationKey.slice((config.key + config.namespace).length))))) {
+        await tx.accountEmailDelivery.updateMany({ where: { id: job.id, state: "LEASED", leaseId: job.leaseId }, data: {
           state: "FAILED", leaseId: null, leaseExpiresAt: null, terminalAt: now,
           lastErrorCode: "UNSUPPORTED_INTENT", ciphertext: new Uint8Array(),
         } });
@@ -115,7 +123,7 @@ export function createAccountEmailDispatcher(
       `;
       const account = accountRows[0];
       if (!account || account.deletedAt || !isEmail(account.email) || event.createdAt > now) {
-        await tx.accountEmailDelivery.update({ where: { id: job.id }, data: {
+        await tx.accountEmailDelivery.updateMany({ where: { id: job.id, state: "LEASED", leaseId: job.leaseId }, data: {
           state: "SUPPRESSED", leaseId: null, leaseExpiresAt: null, terminalAt: now,
           lastErrorCode: "STALE_ACCOUNT", ciphertext: new Uint8Array(),
         } });
@@ -123,13 +131,26 @@ export function createAccountEmailDispatcher(
       }
       const token = decryptAccountEmailToken(delivery.keyId, delivery.ciphertext, contextOf(event));
       const tokenId = config.namespace + createHash("sha256").update(token).digest("hex");
-      const isSignup = config.kind === "VERIFY" && event.deduplicationKey === `signup-verification:${event.accountId}`;
       if (!isSignup && event.deduplicationKey.slice(config.key.length) !== tokenId) {
-        await tx.accountEmailDelivery.update({ where: { id: job.id }, data: {
+        await tx.accountEmailDelivery.updateMany({ where: { id: job.id, state: "LEASED", leaseId: job.leaseId }, data: {
           state: "FAILED", leaseId: null, leaseExpiresAt: null, terminalAt: now,
           lastErrorCode: "PAYLOAD_BINDING_INVALID", ciphertext: new Uint8Array(),
         } });
         return null;
+      }
+      // Match command lock order: identity/mapping, credential, then token/job.
+      if (config.kind === "RESET") {
+        const credential = await tx.$queryRaw<Array<{ accountId: string; hasPassword: boolean }>>`
+          SELECT "accountId", (password IS NOT NULL AND password <> '') AS "hasPassword" FROM "account"
+          WHERE "userId" = ${account.userId} AND "providerId" = 'credential' FOR UPDATE
+        `;
+        if (credential.length !== 1 || credential[0].accountId !== account.userId || !credential[0].hasPassword) {
+          await tx.accountEmailDelivery.updateMany({ where: { id: job.id, state: "LEASED", leaseId: job.leaseId }, data: {
+            state: "SUPPRESSED", leaseId: null, leaseExpiresAt: null, terminalAt: clock(),
+            lastErrorCode: "STALE_CREDENTIAL", ciphertext: new Uint8Array(),
+          } });
+          return null;
+        }
       }
       const tokenRows = await tx.$queryRaw<Array<{ identifier: string; value: string; createdAt: Date; expiresAt: Date }>>`
         SELECT identifier, value, "createdAt", "expiresAt" FROM "verification" WHERE id = ${tokenId} FOR UPDATE
@@ -138,7 +159,7 @@ export function createAccountEmailDispatcher(
       let recipient: string | undefined;
       if (!tokenRow || tokenRow.identifier !== config.namespace + account.userId || tokenRow.createdAt > now ||
           tokenRow.expiresAt <= now || tokenRow.expiresAt.getTime() !== delivery.expiresAt.getTime()) {
-        await tx.accountEmailDelivery.update({ where: { id: job.id }, data: {
+        await tx.accountEmailDelivery.updateMany({ where: { id: job.id, state: "LEASED", leaseId: job.leaseId }, data: {
           state: "SUPPRESSED", leaseId: null, leaseExpiresAt: null, terminalAt: now,
           lastErrorCode: "STALE_TOKEN", ciphertext: new Uint8Array(),
         } });
@@ -152,7 +173,7 @@ export function createAccountEmailDispatcher(
             !account.emailVerified || !account.emailVerifiedAt || account.emailVerifiedAt > now ||
             !hasAdultEligibility(account.dateOfBirth, account.adultAttestedAt, now) ||
             await tx.user.findUnique({ where: { email: binding.data.proposedEmail }, select: { id: true } })) {
-          await tx.accountEmailDelivery.update({ where: { id: job.id }, data: {
+          await tx.accountEmailDelivery.updateMany({ where: { id: job.id, state: "LEASED", leaseId: job.leaseId }, data: {
             state: "SUPPRESSED", leaseId: null, leaseExpiresAt: null, terminalAt: now,
             lastErrorCode: "STALE_EMAIL_CHANGE", ciphertext: new Uint8Array(),
           } });
@@ -162,36 +183,26 @@ export function createAccountEmailDispatcher(
       } else {
         if (tokenRow.value !== account.email ||
             (config.kind === "VERIFY" && (account.emailVerified || account.emailVerifiedAt !== null))) {
-          await tx.accountEmailDelivery.update({ where: { id: job.id }, data: {
+          await tx.accountEmailDelivery.updateMany({ where: { id: job.id, state: "LEASED", leaseId: job.leaseId }, data: {
             state: "SUPPRESSED", leaseId: null, leaseExpiresAt: null, terminalAt: now,
             lastErrorCode: "STALE_ADDRESS", ciphertext: new Uint8Array(),
           } });
           return null;
         }
-        if (config.kind === "RESET") {
-          const credential = await tx.$queryRaw<Array<{ hasPassword: boolean }>>`
-            SELECT (password IS NOT NULL AND password <> '') AS "hasPassword" FROM "account"
-            WHERE "userId" = ${account.userId} AND "providerId" = 'credential' FOR UPDATE
-          `;
-          if (credential.length !== 1 || !credential[0].hasPassword) {
-            await tx.accountEmailDelivery.update({ where: { id: job.id }, data: {
-              state: "SUPPRESSED", leaseId: null, leaseExpiresAt: null, terminalAt: now,
-              lastErrorCode: "STALE_CREDENTIAL", ciphertext: new Uint8Array(),
-            } });
-            return null;
-          }
-        }
         recipient = account.email;
       }
       const latest = clock();
       if (tokenRow.expiresAt <= latest || delivery.expiresAt <= latest) {
-        await tx.accountEmailDelivery.update({ where: { id: job.id }, data: {
+        await tx.accountEmailDelivery.updateMany({ where: { id: job.id, state: "LEASED", leaseId: job.leaseId }, data: {
           state: "SUPPRESSED", leaseId: null, leaseExpiresAt: null, terminalAt: latest,
           lastErrorCode: "TOKEN_EXPIRED", ciphertext: new Uint8Array(),
         } });
         return null;
       }
-      await tx.accountEmailDelivery.update({ where: { id: job.id }, data: { state: "SENDING" } });
+      const started = await tx.accountEmailDelivery.updateMany({ where: {
+        id: job.id, state: "LEASED", leaseId: job.leaseId, leaseExpiresAt: { gt: latest },
+      }, data: { state: "SENDING" } });
+      if (started.count !== 1) return null;
       const origin = process.env.HALAGA_PUBLIC_ORIGIN;
       if (!origin) throw new Error("EMAIL_ORIGIN_CONFIG");
       const actionUrl = accountEmailActionUrl(config.kind, token);
@@ -202,7 +213,7 @@ export function createAccountEmailDispatcher(
   async function finish(job: Job, state: "ACCEPTED" | "FAILED" | "UNKNOWN", code: string | null,
     messageId?: string | null) {
     const now = clock();
-    await database.$transaction(async (tx) => {
+    return database.$transaction(async (tx) => {
       const updated = await tx.accountEmailDelivery.updateMany({ where: {
         id: job.id, state: "SENDING", leaseId: job.leaseId,
       }, data: { state, leaseId: null, leaseExpiresAt: null, terminalAt: now,
@@ -213,6 +224,7 @@ export function createAccountEmailDispatcher(
         const row = await tx.accountEmailDelivery.findUnique({ where: { id: job.id }, select: { outboxEventId: true } });
         if (row) await tx.outboxEvent.update({ where: { id: row.outboxEventId }, data: { dispatchedAt: now } });
       }
+      return updated.count === 1;
     });
   }
 
@@ -227,6 +239,8 @@ export function createAccountEmailDispatcher(
 
   return {
     async dispatchOne(): Promise<DispatchResult> {
+      // A configured API key alone must never enable provider sending or consume work.
+      if (send === sendBrevoEmail && process.env.ACCOUNT_EMAIL_SENDING_ENABLED !== "true") return { status: "DISABLED" };
       const job = await claim();
       if (!job) return { status: "EMPTY" };
       let prepared: Awaited<ReturnType<typeof prepare>>;
@@ -235,11 +249,15 @@ export function createAccountEmailDispatcher(
         await markTerminal(job, "FAILED", "PREPARATION_FAILED", clock());
         return { status: "FAILED" };
       }
-      if (!prepared) return { status: "SUPPRESSED" };
+      if (!prepared) {
+        const current = await database.accountEmailDelivery.findUnique({ where: { id: job.id }, select: { state: true } });
+        const status = current?.state;
+        return { status: status === "FAILED" || status === "UNKNOWN" || status === "SUPPRESSED" ? status : "LEASE_LOST" };
+      }
       try {
         const messageId = await send(prepared.message);
-        await finish(job, "ACCEPTED", null, messageId);
-        return { status: "ACCEPTED" };
+        const recorded = await finish(job, "ACCEPTED", null, messageId);
+        return { status: recorded ? "ACCEPTED" : "UNKNOWN" };
       } catch (error) {
         if (error instanceof BrevoSendError && error.category === "RATE_LIMIT") {
           await retry(job, "RATE_LIMIT");
@@ -267,10 +285,12 @@ export function createAccountEmailDispatcher(
         await tx.accountEmailDelivery.updateMany({ where: { expiresAt: { lte: now } },
           data: { ciphertext: new Uint8Array() } });
         await tx.outboxEvent.deleteMany({ where: { emailDelivery: { is: { terminalAt: { lte: new Date(now.getTime() - retentionMs) } } } } });
-        for (const identifier of ["halaga-email-verification:", "halaga-password-reset:", "halaga-email-change:"]) {
-          await tx.verification.deleteMany({ where: { identifier: { startsWith: identifier }, expiresAt: { lte: now } } });
-        }
       });
+      // Independent retention writes must not hold job locks while waiting on tokens:
+      // dispatch holds token then job; account replacement serializes under account locks.
+      for (const identifier of ["halaga-email-verification:", "halaga-password-reset:", "halaga-email-change:"]) {
+        await database.verification.deleteMany({ where: { identifier: { startsWith: identifier }, expiresAt: { lte: now } } });
+      }
     },
   };
 }

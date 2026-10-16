@@ -19,6 +19,10 @@
 .attestation label { min-height: 44px; }
 .form button { min-height: 3rem; padding: .75rem 1rem; background: #e7f2ee; border: 1px solid var(--primary); border-radius: 6px; color: #174f42; font: inherit; font-weight: 600; }
 .form :disabled { opacity: 1; cursor: not-allowed; }
+.form button:not(:disabled) { cursor: pointer; }
+.form button:not(:disabled):hover { background: #d3e9de; }
+.form :focus-visible, .feedback:focus { outline: 3px solid #176b59; outline-offset: 3px; }
+.feedback { margin-block: 1.25rem; }
 .explanation { margin-top: 1.5rem; color: var(--muted); }
 .links { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; margin-top: 1.5rem; }
 .links a, .back, .brand { display: inline-flex; align-items: center; min-height: 44px; }

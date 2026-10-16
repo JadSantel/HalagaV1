@@ -7,7 +7,7 @@ import { createPasswordResetOperations } from "./password-reset.ts";
 import { createEmailChangeOperations } from "./email-change.ts";
 import { createPasswordChangeOperation } from "./password-change.ts";
 
-/** Composition only. Mounting is blocked on delivery, notice policy and sign-in races. */
+/** Composition only. HTTP callers restrict exposed paths; password change remains gated. */
 export function createAccountFlowOperations(
   database: ReturnType<typeof getPrisma>,
   auth: ReturnType<typeof createAccountAuth>,

@@ -40,9 +40,9 @@ function currentTime(clock: () => Date) {
   return now;
 }
 
-/** Internal only. No route, Server Action, library verification endpoint or delivery callback.
+/** Account-owned commands, reached only through the protected email handler externally.
  * issue returns restricted transport material for synthetic/trusted callers, NOT a request
- * response. Future resend handlers must return the same generic confirmation for token/null.
+ * response. Resend handlers return the same generic confirmation for token/null.
  * The namespaced opaque tokens deliberately do not use Better Auth's JWT/default lifecycle.
  */
 export function createEmailVerificationOperations(

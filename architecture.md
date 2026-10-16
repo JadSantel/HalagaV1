@@ -33,7 +33,7 @@ This document must not silently resolve an item listed under `PROJECT.md` sectio
 8. **The pilot remains operable by a small team.** The architecture should prefer a small number of well-bounded deployable components until measured scale or reliability needs justify distribution.
 9. **Start at zero recurring service cost.** Development and invite-first seeding prefer free tiers and local/open-source tools. Paid subscriptions, usage billing, and automatic paid upgrades require explicit owner approval. Free-tier constraints do not override privacy, safety, audit, backup, or retention requirements.
 
-The MVP application is a modular monolith in one repository and codebase. The accepted web runtime uses Next.js and TypeScript. Background-job responsibilities remain a distinct boundary. PostgreSQL-backed durable-job persistence, retries, idempotency, stale-lease recovery, and failed-job handling are accepted by ADR-073; a separately deployed Node.js worker from the same codebase remains proposed until deployment and operational parameters are settled. Domain modules communicate through defined application services and committed events; they do not manipulate another module's tables through ad hoc queries.
+The MVP application is a modular monolith in one repository and codebase. The accepted web runtime uses Next.js and TypeScript. Background-job responsibilities remain a distinct boundary. PostgreSQL-backed durable-job persistence, retries, idempotency, stale-lease recovery, and failed-job handling are accepted by ADR-073. A local run-once Node.js account-email entrypoint is implemented; separately deployed worker hosting and polling remain proposed until deployment and operational parameters are settled. Domain modules communicate through defined application services and committed events; they do not manipulate another module's tables through ad hoc queries.
 
 ### 2.1 Accepted stack foundation
 
@@ -439,6 +439,37 @@ and bounded retention. The dispatcher is not mounted and no worker is deployed;
 staff retry/audit and link-page integration remain gates. See
 `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`.
 
+### Current account-email integration (2026-10-16 PHT)
+
+This update supersedes the historical unmounted email-route/link statements above.
+Only six POST paths under `/api/auth` are mounted: verification resend/completion,
+reset request/completion and email-change request/proof. The shared installed
+Better Auth handler still enforces endpoint/IP limits, configured origin, CSRF,
+exact path/body validation and single-use request admission. Signup, sign-in,
+password change and every other library endpoint remain unreachable. No session
+creation path is exposed, so unresolved library sign-in races are not activated.
+Email change requires an existing fresh synthetic stored session.
+
+Account-owned commands retain their locked account/token guards, atomic completion
+and revocation. Completion clears cookies after commit. Client pages read and clear
+the fragment on hydration, hold tokens only in component memory, and POST to the
+same origin. Navigation clears the token; refresh requires reopening the email.
+Responses use no-store/no-referrer, and pages load no third-party resources.
+
+`npm.cmd run jobs:account-email` invokes recovery/cleanup followed by at most one
+fenced dispatch in the existing Node.js runtime. No persistent web background task,
+polling interval, hosted scheduler or additional queue is introduced. Provider sends
+require explicit `ACCOUNT_EMAIL_SENDING_ENABLED=true`; credentials alone do not
+enable delivery. Disabled invocations still recover/clean without claiming work.
+Before SENDING, the job checks its lease again after account/credential/token waits.
+Job recovery and expired-token cleanup commit separately to avoid holding job locks
+while waiting on token locks. Accepted/suppressed/expired payloads can be erased
+under a forward SQL constraint correction; minimal metadata retains ADR-088's period.
+
+Hosted execution, provisioning, staff reconciliation/audited retry, session/counter
+cleanup and ADR-081 real-data readiness remain open. This adds no operational
+cadence or new product policy. See `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`.
+
 ## 6. Flow-level notification contract
 
 State changes first commit the domain record and a durable notification intent in the same transaction. Delivery occurs asynchronously.
@@ -513,7 +544,7 @@ This is an architecture working draft, not an implementation-ready specification
 - The application is a modular monolith; PostgreSQL is the relational system of record (ADRs 069–070).
 - PostgreSQL-backed outbox and durable jobs, bounded retries, expiring leases, idempotency, failed-job handling, and controlled retries are accepted. A separate Node.js worker remains the proposed runtime, not a final deployment decision (ADR-073).
 - Better Auth and Brevo Free are selected for authentication and transactional email (ADRs 074–075).
-- ADR-086 sets seven-day rolling sessions with daily renewal, 15-minute sign-in freshness for sensitive changes, host-only secure production cookies, and explicit endpoint rate limits. ADR-087 sets atomic signup, adult attestation, verification, reset and email-change behavior. ADR-088 sets encrypted account-email handoff, templates/links, delivery retries/recovery and retention. Slice 2 implements these internal account transactions and dispatcher, but keeps routes and worker deployment unmounted pending link-page integration, password-change notice writes, sign-in races, staff recovery and provider/readiness setup. Restrictions and full command authorization are separate gates. See `docs/IMPLEMENTATION_SLICES.md` and `app/README.md` for implemented versus gated boundaries.
+- ADR-086 sets seven-day rolling sessions with daily renewal, 15-minute sign-in freshness for sensitive changes, host-only secure production cookies, and explicit endpoint rate limits. ADR-087 sets atomic signup, adult attestation, verification, reset and email-change behavior. ADR-088 sets encrypted account-email handoff, templates/links, delivery retries/recovery and retention. Slice 2 implements internal account transactions, six protected email-only routes, fragment forms and a local run-once Node.js dispatcher. Signup/sign-in/password change stay closed; hosted worker scheduling, password-change notice writes, sign-in races, staff recovery and provider/readiness setup remain gates. Restrictions and full command authorization are separate gates. See `docs/IMPLEMENTATION_SLICES.md` and `app/README.md` for implemented versus gated boundaries.
 - MVP search uses PostgreSQL, not a separate search service (ADR-076).
 - Prisma ORM 7 and versioned migrations follow ADR-083. ADR-084 settles the first foundation's UUIDs, exact centavo money and versioned per-question JSON diagnostic storage. The first account/listing migration enforces revision FKs, storage checks and publication history constraints; the physical review records SQL-only triggers and the native `btree_gist` availability exclusion. Marketplace commands and their authorization/audit/outbox gates remain unimplemented.
 - Public-pilot recovery targets are RPO ≤24 hours and RTO ≤24 hours; these must be demonstrated in a restore test, not assumed from a provider's marketing (ADR-082).
@@ -541,7 +572,7 @@ These decisions must be recorded rather than inferred in code. Some are needed b
 
 - Web and worker hosting/deployment, PostgreSQL hosting/connection model, backup/restore implementation, object storage and image/evidence processing providers, and observability/analytics implementation.
 - Final Node.js worker deployment, polling schedule, alert thresholds, rollout compatibility and recovery runbook. ADR-088 sets the account-email two-minute lease and bounded 429 retry policy; other job classes still need policies.
-- ADR-087 settles signup, adult attestation, verification (24-hour single-use), password reset (one-hour single-use), email change, generic account-request responses, and session-revocation behavior. ADR-088 settles encrypted private handoff, account email content/links, dispatch and terminal retention. Session, cookie, freshness and endpoint/IP limits remain as accepted in ADR-086. Account routes still require link-page integration, remaining flow protection, cookie response and sign-in race work. Session/token/counter cleanup, password-change notice writes, restricted staff reconciliation and production secret provisioning/rotation remain open. Production origin and trusted client-IP header require deployment review; no proxy/provider is assumed. Endpoint limits do not cover direct `auth.api` calls, so future external wrappers need equivalent protection. Exact dependency/runtime patches are pinned at application bootstrap; provider-supported PostgreSQL minor patch and upgrade policy are verified when hosting is selected.
+- ADR-087 settles signup, adult attestation, verification (24-hour single-use), password reset (one-hour single-use), email change, generic account-request responses, and session-revocation behavior. ADR-088 settles encrypted private handoff, account email content/links, dispatch and terminal retention. Session, cookie, freshness and endpoint/IP limits remain as accepted in ADR-086. The six email-only routes and cookie/link integration are implemented. Signup, sign-in and password-change mounting still require their remaining flow protection, notice writes and sign-in race work. Session/token/counter cleanup, password-change notice writes, restricted staff reconciliation and production secret provisioning/rotation remain open. Production origin and trusted client-IP header require deployment review; no proxy/provider is assumed. Endpoint limits do not cover direct `auth.api` calls, so future external wrappers need equivalent protection. Exact dependency/runtime patches are pinned at application bootstrap; provider-supported PostgreSQL minor patch and upgrade policy are verified when hosting is selected.
 - Early validation uses local/private environments and synthetic data. Real participant data and public-pilot deployment are gated on documented privacy, backup/restore (RPO ≤24h/RTO ≤24h), retention/deletion, worker-recovery, availability, and quota checks or an explicitly approved, costed exception (ADRs 071, 081, 082).
 
 **Validation and design completeness**

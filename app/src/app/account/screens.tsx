@@ -1,7 +1,8 @@
 import Link from "next/link";
 import styles from "./account.module.css";
+import { AccountEmailForm, type EmailFlow } from "./email-form";
 
-// Static preview content only. No account, session, token or query props are read.
+// Fixed screen copy. Only email commands have forms; gated account flows stay previews.
 export const screens = {
   register: { title: "Create your account", action: "Create account", intro:
     "One account for buying and selling. You must be at least 18 years old to participate.",
@@ -45,12 +46,13 @@ export function AccountScreen({ name }: { name: AccountScreenName }) {
   const screen = screens[name];
   const email = ["register", "sign-in", "verify-email", "forgot-password"].includes(name);
   const newPassword = ["register", "reset-password", "change-password"].includes(name);
+  const emailFlow = ["verify-email", "forgot-password", "reset-password", "change-email", "confirm-email-change"].includes(name);
   return <>
     <Link className={styles.back} href="/account">All account screens</Link>
     <p className={styles.eyebrow}>Your Halaga account</p>
     <h1>{screen.title}</h1>
     <p className={styles.intro}>{screen.intro}</p>
-    <aside id="availability" className={styles.notice} aria-label="Availability">
+    {emailFlow ? <AccountEmailForm key={name} flow={name as EmailFlow} /> : <><aside id="availability" className={styles.notice} aria-label="Availability">
       <strong>This action is not available yet.</strong>
       <p>This is a local screen preview. Fields and submission are disabled; no information is collected or email sent.</p>
     </aside>
@@ -69,7 +71,7 @@ export function AccountScreen({ name }: { name: AccountScreenName }) {
         <p className={styles.hint}>Terms and privacy information will be available before registration opens.</p>
       </>}
       <button type="submit" disabled aria-describedby="availability">{screen.action}</button>
-    </form>
+    </form></>}
     <section className={styles.explanation} aria-label="What to expect"><p>{screen.detail}</p></section>
     <nav aria-label="Related account screens" className={styles.links}>
       {name !== "sign-in" && <Link href="/account/sign-in">Sign in</Link>}

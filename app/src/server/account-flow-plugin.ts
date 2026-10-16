@@ -10,6 +10,8 @@ const emailInput = z.strictObject({ email: z.email() });
 const proofInput = z.strictObject({ token: z.string().regex(/^[a-f0-9]{64}$/) });
 const paths = ["/sign-up/email", "/send-verification-email", "/verify-email",
   "/request-password-reset", "/reset-password", "/change-email", "/confirm-email-change", "/change-password"];
+export const accountEmailPaths = ["/send-verification-email", "/verify-email", "/request-password-reset",
+  "/reset-password", "/change-email", "/confirm-email-change"] as const;
 const confirmation = { status: "REQUEST_RECEIVED" } as const;
 const failure = (status: number) => ({ code: ({ 400: "INVALID_INPUT", 401: "UNAUTHORIZED",
   403: "FORBIDDEN", 404: "NOT_FOUND", 429: "RATE_LIMITED" } as Record<number, string>)[status] ?? "INTERNAL_ERROR" });
@@ -30,11 +32,11 @@ export function createAccountFlowHandler(auth: { handler: (request: Request) => 
   };
 }
 
-/** Unmounted integration, exercised only by synthetic handlers. This is NOT token delivery.
- * Do not install in createAccountAuth or expose auth.api: see ACCOUNT_FLOW_INTEGRATION.md.
+/** Shared protected integration. Application HTTP mounts only accountEmailPaths.
+ * Do not expose the full default path set or auth.api: see ACCOUNT_FLOW_INTEGRATION.md.
  * Core endpoint keys deliberately replace library account transactions/default tokens.
  */
-export function createAccountFlowPlugin(getOperations: () => Operations) {
+export function createAccountFlowPlugin(getOperations: () => Operations, enabledPaths: readonly string[] = paths) {
   const admitted = new WeakSet<Request>();
   function endpoint(path: string, run: (operations: Operations, body: unknown, headers: Headers,
     applyHeaders: (headers: Headers) => void) => Promise<{ status: string }>, revoke = false) {
@@ -75,7 +77,7 @@ export function createAccountFlowPlugin(getOperations: () => Operations) {
       const url = new URL(request.url);
       const base = new URL(context.baseURL);
       const path = url.pathname.slice(base.pathname.replace(/\/$/, "").length);
-      if (!paths.includes(path) || url.search || request.method !== "POST") {
+      if (!enabledPaths.includes(path) || url.search || request.method !== "POST") {
         return { response: Response.json(failure(404), { status: 404 }) };
       }
       // Require the configured origin even without cookies. Do not infer proxy origins.

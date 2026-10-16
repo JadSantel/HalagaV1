@@ -207,7 +207,7 @@ test("isolated PostgreSQL password-reset transactions", async (t) => {
         const after = await state(account);
         assertUnchangedVerification(before, after);
         assert.equal(after.sessions.length, 0);
-        assert.equal(after.tokens.length, 0);
+        assert.equal(after.tokens.filter((row) => row.identifier.startsWith(namespace)).length, 0);
         await signIn(account, newPassword);
       }
     });
@@ -285,9 +285,10 @@ test("isolated PostgreSQL password-reset transactions", async (t) => {
       await signIn(account);
       const issued = await Promise.all(Array.from({ length: 4 }, () => operations.issue(account.email)));
       const before = await state(account);
-      assert.equal(before.tokens.length, 1);
+      const resetTokens = before.tokens.filter((row) => row.identifier.startsWith(namespace));
+      assert.equal(resetTokens.length, 1);
       assert.equal(before.intents.length, 5); // Signup plus four distinct committed requests.
-      const winner = issued.find((result) => tokenId(result.token) === before.tokens[0].id);
+      const winner = issued.find((result) => tokenId(result.token) === resetTokens[0].id);
       for (const result of issued.filter((result) => result !== winner)) {
         await assert.rejects(consume(result.token), rejects("INVALID_TOKEN"));
       }
@@ -297,7 +298,7 @@ test("isolated PostgreSQL password-reset transactions", async (t) => {
       for (const result of results.filter((result) => result.status === "rejected")) assert.ok(rejects("INVALID_TOKEN")(result.reason));
       const after = await state(account);
       assertUnchangedVerification(before, after);
-      assert.equal(after.tokens.length, 0);
+      assert.equal(after.tokens.filter((row) => row.identifier.startsWith(namespace)).length, 0);
       assert.equal(after.sessions.length, 0);
       await signIn(account, passwords[results.findIndex((result) => result.status === "fulfilled")]);
     });
@@ -311,8 +312,9 @@ test("isolated PostgreSQL password-reset transactions", async (t) => {
       assert.equal(replacement.status, "fulfilled");
       assert.ok(replacement.value);
       const after = await state(account);
-      assert.equal(after.tokens.length, 1);
-      assert.equal(after.tokens[0].id, tokenId(replacement.value.token));
+      const resetTokens = after.tokens.filter((row) => row.identifier.startsWith(namespace));
+      assert.equal(resetTokens.length, 1);
+      assert.equal(resetTokens[0].id, tokenId(replacement.value.token));
       if (consumed.status === "fulfilled") {
         assert.equal(after.sessions.length, 0);
         assert.notEqual(after.credentials[0].password, before.credentials[0].password);

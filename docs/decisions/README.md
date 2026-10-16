@@ -10,10 +10,11 @@ Do not silently resolve items listed in `PROJECT.md` under **Deferred Decisions*
 
 ADR-088 accepts the account-email transport, templates/link contract, bounded
 dispatch/recovery and cleanup choices at the owner's explicit request. The internal
-dispatcher is implemented but routes and worker deployment remain gated. See
+dispatcher, six email routes, fragment forms and local run-once Node.js job command
+are implemented. Hosted worker deployment and scheduling remain gated. See
 `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`.
 
-ADR-086 records MVP session, freshness, cookie, and numerical authentication rate-limit policies. ADR-087 defines signup/attestation, verification, reset, email-change, generic response, and session-revocation behavior. ADR-088 accepts private token transport, account email content/link rules, dispatch/recovery and delivery cleanup. Account routes remain unmounted pending link-page handling, remaining flow protection, cookie responses and sign-in race integration. Hosting/proxy trust, worker deployment, provider setup, restrictions, and full marketplace authorization remain open.
+ADR-086 records MVP session, freshness, cookie, and numerical authentication rate-limit policies. ADR-087 defines signup/attestation, verification, reset, email-change, generic response, and session-revocation behavior. ADR-088 accepts private token transport, account email content/link rules, dispatch/recovery and delivery cleanup. Its 2026-10-16 implementation record mounts only the six email request/completion commands for synthetic validation, with provider sending off by default. Signup, sign-in and password change stay closed. Hosting/proxy trust, worker deployment/scheduling, provider setup, sign-in races, restrictions, and full marketplace authorization remain open.
 
 ADR-087 also records synthetic unmounted authenticated password change: locked
 stored-session/mapping/credential checks and atomic credential replacement plus

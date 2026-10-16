@@ -491,6 +491,17 @@ cleanup remain unmounted pending route/link integration, worker deployment, staf
 recovery authorization and launch readiness. See ADR-088 and
 `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`.
 
+## Implementation update: bounded email-link integration (2026-10-16 PHT)
+
+The owner's next-slice request is implemented through ADR-088's latest record.
+Six email-only POST commands now reuse the protected handler and guarded consumers;
+fragment forms and the local run-once job runtime are implemented. Sending defaults
+off. This supersedes older statements that all account APIs and link pages remain
+unmounted. Registration, sign-in and authenticated password change stay closed;
+required password-change notices and library sign-in races remain gates. Production
+worker hosting/scheduling, staff retry/audit and ADR-081 readiness are not resolved.
+No product rule, notice policy or operational cadence changes.
+
 ## Sources
 
 - `PROJECT.md` sections 8, 26, 28, 33, and 34

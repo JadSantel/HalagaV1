@@ -52,6 +52,17 @@ limiter/cookie verification. ADR-088 resolves account email transport and delive
 mechanics; link-page handling,
 password-change notice writes, worker/staff deployment and sign-in races remain gates.
 
+## Current email-only integration (2026-10-16 PHT)
+
+This update supersedes historical unmounted email-route statements in this guide.
+`account-email-http.ts` composes the protected installed handler with an explicit
+six-path email allowlist. The Next.js POST route calls that boundary; pages never
+import database infrastructure. Other library/account endpoints remain closed.
+`account-email-worker.ts` runs recovery/cleanup and at most one dispatch, exposed
+by the local `jobs:account-email` command. Only fixed outcomes reach the logger;
+provider sends default off. Hosted scheduling and staff/audited retry remain gates.
+See `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md` for verification and limitations.
+
 ## Data scopes and ownership
 
 This matrix maps the accepted information scopes and module boundaries from

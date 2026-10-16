@@ -13,7 +13,18 @@ and cleanup are accepted and implemented. The historical blocker list records th
 state before ADR-088 and is superseded for those items. Routes, fragment consumption,
 worker deployment, staff retry/audit and provider launch setup remain blocked.
 
-## Implemented independently
+## Current email-only integration (2026-10-16 PHT)
+
+The owner's next-slice request now mounts only the six email request/completion
+commands and fragment forms. The local `jobs:account-email` Node.js entrypoint
+recovers/cleans then dispatches at most one job. Sending defaults off even with
+provider credentials. This supersedes historical statements below that every
+account route and link page is unmounted. Signup, sign-in and authenticated password
+change remain closed; no session-creation route is exposed. Hosted scheduling,
+staff recovery/audit and ADR-081 readiness remain unresolved. See the current
+[delivery and verification guide](ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md).
+
+## Implemented independently (original synthetic integration)
 
 - `app/src/server/repositories/account-flows.ts` composes the existing account-owned
   operations. It adds no transaction, account-ID input, identity repair or data reader.

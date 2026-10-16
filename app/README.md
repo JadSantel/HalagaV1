@@ -57,19 +57,22 @@ future hosting must support it.
 `npm.cmd run db:foundation:check` verifies the installed migration checksum,
 15 constraints and seven publication/history triggers without reading participant records.
 
-Slice 2 now provides disabled account screen previews at `/account` and a protected,
-unmounted Better Auth plugin/handler over existing account operations. It is used
-only by synthetic fixtures, not application routes or Server Actions. ADR-088 adds
-atomic encrypted email handoff and an unmounted Brevo dispatcher. Link pages, worker
-deployment, password-change notice writes, staff recovery and sign-in races still
-block account API mounting and real delivery.
+Slice 2 now mounts six protected email-only account commands and minimal fragment
+forms at `/account`. Signup, sign-in and password change stay disabled previews.
+ADR-088 supplies atomic encrypted email handoff and the fenced dispatcher.
+`npm.cmd run jobs:account-email` recovers/cleans and dispatches at most one job in
+the existing Node.js runtime. Provider sending defaults off; a key alone cannot
+enable it. `npm.cmd run test:account-email` uses an explicit dedicated loopback
+`SIGNUP_TEST_DATABASE_URL`, disposable schemas, synthetic accounts and fake delivery.
+Hosted scheduling, password-change notices, staff recovery and sign-in races remain
+gates for deployment and the closed endpoints.
 See [account integration status and exact blockers](../docs/ACCOUNT_FLOW_INTEGRATION.md).
 This is the current UI/integration status; older local-operation records below
 describe their original unmounted boundaries. `npm.cmd run test:auth` now requires
 the explicit dedicated `SIGNUP_TEST_DATABASE_URL` used by the other account suites.
 
-No authentication API routes, publication commands, audit service, or completion
-workflow are implemented. The schema-only Better Auth configuration in
+Only the six email request/completion API paths are mounted. Publication commands,
+audit service and marketplace completion remain unimplemented. The schema-only Better Auth configuration in
 `scripts/auth-schema.config.ts` must never be used by application routes.
 Signup now atomically creates an initial 24-hour verification token, digest,
 encrypted delivery payload and outbox intent; see

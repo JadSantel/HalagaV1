@@ -132,6 +132,49 @@ copy for account emails. Approve exactly these four version-1 messages:
 - Brevo click tracking must remain disabled for fragment links to survive unchanged.
   Test this against the selected sender configuration before any real delivery.
 
+## Implementation update: email routes and local job invocation (2026-10-16 PHT)
+
+The owner's next-slice request authorizes the six email commands and their link
+forms. This record supersedes historical statements that these paths are unmounted;
+it does not reopen accepted copy, recipient, deadline, retry or retention decisions.
+Signup, sign-in and authenticated password change remain closed. The latter still
+lacks its required notices; library sign-in/session races remain a separate gate.
+No real participant use or public deployment is authorized.
+
+- The protected handler mounts only verification resend/completion, reset request/
+  completion and email-change request/proof. GET, query credentials, foreign/missing
+  origins, direct API bypasses and alternate library endpoints remain rejected.
+  Existing guarded consumers atomically consume one token and change account state,
+  revoke sessions and clear response cookies after commit. They do not create sessions.
+- Minimal forms capture the fragment then immediately clear it after hydration,
+  keep the token in component memory, clear it on pagehide/success, and POST to the
+  same origin. No storage, token-bearing query/path, third-party resource, analytics
+  or raw failure output is added. Page/API responses use no-store/no-referrer.
+- The repository had no supported job entrypoint or scheduler. The local Node.js
+  `jobs:account-email` command now calls recovery/cleanup and at most one dispatch.
+  This is a bounded manually invoked runtime, not acceptance of a hosted worker,
+  polling cadence, heartbeat, alert threshold or deployment provider. Those choices
+  remain unresolved under ADR-073 and architecture §8.2; do not infer a cadence.
+- `ACCOUNT_EMAIL_SENDING_ENABLED` defaults false and is checked before default
+  dispatch claims work and again in the provider adapter. An API key alone cannot
+  send. Synthetic tests explicitly inject a fake provider; no real mail was sent.
+- Fixed existing intent parsing to accept signup keys and namespaced digest keys.
+  Before SENDING, compare-and-set verifies the current lease/state after lock waits.
+  Suppression cannot overwrite a replacement/recovered lease. Reset uses identity/
+  mapping, credential, token, then job lock order. Token cleanup runs separately
+  from job recovery to avoid the reverse token/job lock dependency.
+- A malformed successful provider response is UNKNOWN, as already required here.
+  The provider error type now runs under Node's existing TypeScript stripping mode.
+- Forward migration `20261015110000_allow_erased_email_ciphertext` corrects the
+  earlier minimum-28-byte check to permit empty ciphertext after required erasure.
+  It changes no retention rule and was replayed only in disposable synthetic schemas.
+  No persistent or shared migration was run.
+
+Fake-provider and installed-handler tests cover delivery, replay/replacement,
+old-address binding, disabled dispatch, competing claims, five-attempt backoff,
+crash recovery, lease loss after lock waits, expiry and 30-day purge. See the local
+guide for final commands/results and the remaining deployment/recovery gates.
+
 ## Sources
 
 - ADR-073, ADR-075, ADR-087

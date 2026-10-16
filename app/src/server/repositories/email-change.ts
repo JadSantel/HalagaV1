@@ -52,7 +52,7 @@ function currentTime(clock: () => Date) {
   return now;
 }
 
-/** Internal only. No route, Server Action, library change-email hook or delivery.
+/** Account-owned commands; external calls use the protected email handler.
  * issue returns restricted token transport AFTER commit, never a public response.
  * The caller supplies server request headers, never a chosen account/session ID.
  */

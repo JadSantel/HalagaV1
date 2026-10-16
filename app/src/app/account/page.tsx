@@ -7,7 +7,7 @@ export default function AccountPreviewPage() {
     <p className={styles.eyebrow}>Local screen preview</p>
     <h1>Your Halaga account</h1>
     <p className={styles.intro}>Preview account creation, email verification and sign-in help.</p>
-    <p className={styles.notice}>Account actions are not available yet. These screens collect no information.</p>
+    <p className={styles.notice}>Email verification, password reset and email confirmation are available for local testing with made-up accounts. Email sending is off by default. Registration, sign-in and password change remain previews.</p>
     <nav aria-label="Account screens" className={styles.directory}>
       {Object.entries(screens).map(([name, screen]) => <Link key={name} href={`/account/${name}`}>{screen.title}<span aria-hidden="true"> →</span></Link>)}
     </nav>

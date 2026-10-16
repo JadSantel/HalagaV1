@@ -6,13 +6,16 @@ const email = z.email();
 const apiOrigin = "https://api.brevo.com/v3/smtp/email";
 
 export class BrevoSendError extends Error {
-  constructor(readonly category: "RATE_LIMIT" | "REJECTED" | "AMBIGUOUS") {
+  readonly category: "RATE_LIMIT" | "REJECTED" | "AMBIGUOUS";
+  constructor(category: BrevoSendError["category"]) {
     super(category);
     this.name = "BrevoSendError";
+    this.category = category;
   }
 }
 
 function config() {
+  if (process.env.ACCOUNT_EMAIL_SENDING_ENABLED !== "true") throw new BrevoSendError("REJECTED");
   const key = process.env.BREVO_API_KEY;
   const sender = process.env.HALAGA_EMAIL_FROM;
   if (!key || !email.safeParse(sender).success) throw new BrevoSendError("REJECTED");
@@ -42,12 +45,12 @@ export async function sendBrevoEmail(message: AccountEmailMessage): Promise<stri
   try {
     const body: unknown = await response.json();
     if (body && typeof body === "object" && "messageId" in body &&
-        typeof body.messageId === "string" && body.messageId.length <= 200) return body.messageId;
+        typeof body.messageId === "string" && body.messageId.length > 0 && body.messageId.length <= 200) return body.messageId;
   } catch {
     // A 2xx send may have been accepted even when its response body is unreadable.
     throw new BrevoSendError("AMBIGUOUS");
   }
-  return null;
+  throw new BrevoSendError("AMBIGUOUS");
 }
 
 export function accountEmailActionUrl(kind: "VERIFY" | "RESET" | "EMAIL_CHANGE", token: string) {
