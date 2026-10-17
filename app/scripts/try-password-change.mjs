@@ -37,11 +37,13 @@ try {
   const beforeCredential = await credential();
   const beforeIntents = await database.outboxEvent.count();
   const beforeTokens = await database.verification.count();
+  const beforeNotices = await database.passwordChangeNotice.count();
   const expectFailure = async (operation, code, currentPassword = oldPassword) => {
     await assert.rejects(operation(initiating, { currentPassword, newPassword }, () => {}),
       (error) => error instanceof PasswordChangeRejected && error.code === code && error.message === code && !error.cause);
     assert.deepEqual(await stored(), beforeSessions);
     assert.deepEqual(await credential(), beforeCredential);
+    assert.equal(await database.passwordChangeNotice.count(), beforeNotices);
     console.log({ code, oldCredentialAndAllSessionsPreserved: true });
   };
   if (scenario === "freshness") {
@@ -67,13 +69,16 @@ try {
     assert.deepEqual(await change(initiating, { currentPassword: oldPassword, newPassword }, () => {}), { status: "PASSWORD_CHANGED" });
     assert.deepEqual(await stored(), beforeSessions.filter((session) => session.id === actor.session.id));
     assert.notDeepEqual(await credential(), beforeCredential);
+    assert.equal(await database.passwordChangeNotice.count(), beforeNotices + 1);
+    const notice = await database.passwordChangeNotice.findFirst({ select: { emailEligibility: true } });
+    assert.equal(notice.emailEligibility, scenario === "verified" ? "ELIGIBLE" : "INELIGIBLE");
     assert.ok(await auth.api.getSession({ headers: initiating }));
     assert.equal(await auth.api.getSession({ headers: other }), null);
     await assert.rejects(auth.api.signInEmail({ body: { email, password: oldPassword } }));
     const fresh = await auth.api.signInEmail({ body: { email, password: newPassword } });
     assert.equal(fresh.user.emailVerified, scenario === "verified");
     console.log({ status: "PASSWORD_CHANGED", retainedInitiatingSession: true, otherSessionRevoked: true,
-      oldPasswordRejected: true, newPasswordSignInSucceeded: true, verificationPreserved: true });
+      oldPasswordRejected: true, newPasswordSignInSucceeded: true, verificationPreserved: true, oneInAppNoticeRecorded: true });
   }
   assert.equal(await database.outboxEvent.count(), beforeIntents);
   assert.equal(await database.verification.count(), beforeTokens);

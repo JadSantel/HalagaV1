@@ -20,7 +20,9 @@ export function getPrisma(): PrismaClient {
 
   const { DATABASE_URL } = readRuntimeConfig(process.env);
   client = new PrismaClient({
-    adapter: new PrismaPg({ connectionString: DATABASE_URL }),
+    // The installed adapter normalizes timestamptz offsets to UTC without conversion.
+    // Pin every connection so verification/deadline instants are read correctly.
+    adapter: new PrismaPg({ connectionString: DATABASE_URL, options: "-c timezone=UTC" }),
     log: [],
   });
 

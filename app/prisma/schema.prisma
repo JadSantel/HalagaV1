@@ -81,14 +81,32 @@ model UserAccount {
   createdAt               DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt               DateTime  @updatedAt @db.Timestamptz(3)
 
-  listings          Listing[]
-  outboxEvents      OutboxEvent[]
-  authoredRevisions ListingRevision[]      @relation("RevisionAuthor")
-  declarations      OwnershipDeclaration[]
-  publicationCycles PublicationCycle[]
-  authUser          User                   @relation(fields: [authUserId], references: [id], onDelete: Restrict)
+  listings              Listing[]
+  outboxEvents          OutboxEvent[]
+  passwordChangeNotices PasswordChangeNotice[]
+  authoredRevisions     ListingRevision[]       @relation("RevisionAuthor")
+  declarations          OwnershipDeclaration[]
+  publicationCycles     PublicationCycle[]
+  authUser              User                    @relation(fields: [authUserId], references: [id], onDelete: Restrict)
 
   @@map("user_account")
+}
+
+// Owner-private, synchronously materialized in-app security event. No recipient,
+// credential, session reference, rendered copy or email work lives here.
+model PasswordChangeNotice {
+  id               String      @id @db.Uuid
+  accountId        String      @db.Uuid
+  eventType        String
+  eventVersion     Int
+  inAppWorkKey     String      @unique
+  emailEligibility String
+  createdAt        DateTime    @db.Timestamptz(3)
+  readAt           DateTime?   @db.Timestamptz(3)
+  account          UserAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, createdAt])
+  @@map("password_change_notice")
 }
 
 // Minimized account email intent. Private payload/job state lives separately.

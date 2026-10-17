@@ -411,10 +411,19 @@ guards and account-owned reset/verification/email-proof races. Library sign-in s
 does not share these locks; sign-in racing replacement remains an integration gate.
 ADR-087's owner-approved 2026-10-15 supplement now settles the notice contract:
 mandatory durable account-private in-app notice for every success, with email only
-to a primary address verified in both stores at commit. This credential/session-only
-operation lacks the required notice writes and does not satisfy that contract.
-See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`; no migration/dependency or mounted flow
-is added.
+to a primary address verified in both stores at commit. The independent in-app part
+now commits one notice and its fixed eligibility outcome with credentials/sessions.
+After acquiring identity/domain locks, a separate statement reads both verification
+stores; event time is checked after current-password verification. A random event ID
+and unique channel work key make the synchronous notice its processed-work record;
+no in-app worker or additional delivery boundary is needed. No email intent or
+recipient snapshot is created while password-change copy and ordinary recipient
+retention/cleanup remain unresolved. This remains partial compliance and unmounted.
+See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`. The additive in-app migration is replayed
+only in disposable schemas; no dependency or mounted flow is added. Prisma application
+and shared signup-sandbox connections explicitly use UTC because the installed
+adapter normalizes timestamptz offsets without conversion; PHT domain/display rules
+remain unchanged.
 
 The 2026-10-15 Slice 2 integration adds an unmounted Better Auth plugin and handler
 response boundary over these same operations. Synthetic requests traverse the
@@ -514,7 +523,16 @@ logs, analytics, caches and responses. ADR-073/075 govern duplicate suppression,
 retry/recovery and delivery failure; provider-accept/crash reconciliation remains
 unresolved. Recipient/attempt retention, cleanup, deletion propagation and final
 templates remain gates; neither transaction retention nor intent history authorizes
-indefinite recipient storage. No notice schema or implementation is added here.
+indefinite recipient storage. The independent in-app store now contains only account
+reference, opaque event/work identity, versioned event type, event time, fixed email
+eligibility and nullable read time. Its unmounted owner-only reader returns event
+identity/type/version/time/read state after a current stored-session and undeleted
+mapping check in the read statement; it excludes email eligibility/work metadata.
+No final copy, email snapshot, generic/staff reader, analytics or cache is added.
+ADR-088's four approved messages do not settle password-change copy or its ordinary
+recipient/metadata cleanup and delayed/deleted-account rules. Email intent/binding
+and dispatch coverage stay blocked on those decisions. In-app retention/deletion
+execution remains a real-data readiness gate, not indefinite retention permission.
 
 ## 7. Screen-design handoff
 
@@ -561,7 +579,7 @@ These decisions must be recorded rather than inferred in code. Some are needed b
 - Listing renewal limits, grace period, and the `Newest` timestamp behavior after renewal/material republication.
 - Whether to send appointment reminders and, if so, their timing and delivery rules (separate from ADR-063 completion reminders).
 - Handling an account discovered to be underage.
-- Password-change notice implementation: ADR-087's owner-approved supplement settles mandatory in-app notices, verified-only commit-bound email and content/privacy limits. Required atomic notice writes, password-change email copy and sign-in races remain gates before mounting. ADR-088 supplies the generic account-email transport, dispatch/recovery and terminal retention mechanics. The synthetic credential/session-only operation is incomplete for the approved contract.
+- Password-change notice implementation: ADR-087's owner-approved supplement settles mandatory in-app notices, verified-only commit-bound email and content/privacy limits. Atomic in-app persistence/eligibility recording is implemented. Final password-change email copy, ordinary recipient/metadata retention and cleanup, dependent atomic email intent/binding/delivery and sign-in races remain gates before mounting. ADR-088 supplies generic account-email transport, dispatch/recovery and terminal retention mechanics for its four supported messages; do not silently extend the unresolved event-specific rules. The unmounted operation remains partial for the approved contract.
 - Category-request waitlist behavior and diagnostic questions/safe-testing guidance for supported categories beyond the laptop prototype.
 - External emergency or law-enforcement escalation procedure.
 - Service availability, performance, browser support, PWA position, and storage-capacity targets.

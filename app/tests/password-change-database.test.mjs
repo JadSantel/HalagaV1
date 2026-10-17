@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { setTimeout } from "node:timers/promises";
 import test from "node:test";
-import { createPasswordChangeOperation, PasswordChangeRejected } from "../src/server/repositories/password-change.ts";
+import { createPasswordChangeOperation, createPasswordChangeNoticeReader, PasswordChangeRejected } from "../src/server/repositories/password-change.ts";
+import { accountEmailPaths } from "../src/server/account-flow-plugin.ts";
+import { createAccountEmailDispatcher } from "../src/server/repositories/account-email-dispatch.ts";
+import { BrevoSendError } from "../src/server/account-email-provider.ts";
 import { createPasswordResetOperations } from "../src/server/repositories/password-reset.ts";
 import { createEmailVerificationOperations } from "../src/server/repositories/email-verification.ts";
 import { createEmailChangeOperations } from "../src/server/repositories/email-change.ts";
@@ -33,8 +36,9 @@ test("password change rejects invalid shapes and maps auth failures to fixed saf
   await assert.rejects(failing(new Headers(), input, () => {}), rejects("INTERNAL_ERROR"));
 });
 
-// Remove/update this gate only with approved notice writes and remaining mounting checks.
-test("notice-incomplete password change stays unmounted with disabled previews", async () => {
+// In-app completion does not resolve the email and sign-in mounting gates.
+test("in-app-only password change stays unmounted with disabled previews", async () => {
+  for (const path of ["/change-password", "/sign-up/email", "/sign-in/email"]) assert.ok(!accountEmailPaths.includes(path));
   const appDirectory = new URL("../src/app/", import.meta.url);
   const files = (await readdir(appDirectory, { recursive: true })).filter((name) => /\.[cm]?[jt]sx?$/.test(name));
   for (const name of files) {
@@ -51,11 +55,12 @@ test("notice-incomplete password change stays unmounted with disabled previews",
   assert.doesNotMatch(screens, /onSubmit|formAction|onClick|fetch\(/);
 });
 
-test("isolated PostgreSQL credential/session-only password change (required notice writes not implemented)", async (t) => {
+test("isolated PostgreSQL password change with atomic owner-private in-app notices (email gated)", async (t) => {
   const sandbox = await openSignupSandbox();
   const { database, auth, connection } = sandbox;
   let now = new Date();
   const change = createPasswordChangeOperation(database, auth, () => now);
+  const readNotice = createPasswordChangeNoticeReader(database, auth, () => now);
   const reset = createPasswordResetOperations(database, auth, () => now);
   const verification = createEmailVerificationOperations(database, () => now);
   const emailChange = createEmailChangeOperations(database, auth, () => now);
@@ -88,9 +93,11 @@ test("isolated PostgreSQL credential/session-only password change (required noti
       id: true, identifier: true, value: true, createdAt: true, updatedAt: true, expiresAt: true } }),
     intents: await database.outboxEvent.findMany({ where: { accountId }, orderBy: { id: "asc" }, select: {
       id: true, eventType: true, eventVersion: true, deduplicationKey: true, recipientEmail: true, createdAt: true, dispatchedAt: true } }),
+    notices: await database.passwordChangeNotice.findMany({ where: { accountId }, orderBy: { id: "asc" }, select: {
+      id: true, accountId: true, eventType: true, eventVersion: true, inAppWorkKey: true, emailEligibility: true, createdAt: true, readAt: true } }),
   });
   const assertPreserved = (before, after) => {
-    // Unchanged intents describe the incomplete slice, not compliance with approved notice policy.
+    // Email remains gated, so existing email work and token families stay unchanged.
     for (const key of ["identity", "account", "tokens", "intents"]) assert.deepEqual(after[key], before[key]);
     assert.deepEqual(after.credentials.filter((row) => row.providerId !== "credential"),
       before.credentials.filter((row) => row.providerId !== "credential"));
@@ -100,10 +107,42 @@ test("isolated PostgreSQL credential/session-only password change (required noti
     assert.notEqual(newHash, oldHash);
     assert.notEqual(newHash, newPassword);
     assert.deepEqual(newCredential, oldCredential);
+    assert.equal(after.notices.length, before.notices.length + 1);
+    assert.deepEqual(after.notices.filter((row) => before.notices.some(({ id }) => id === row.id)), before.notices);
+    const [notice] = after.notices.filter((row) => !before.notices.some(({ id }) => id === row.id));
+    assert.equal(notice.accountId, before.account.id);
+    assert.equal(notice.eventType, "account.password-changed");
+    assert.equal(notice.eventVersion, 1);
+    assert.equal(notice.inAppWorkKey, `password-changed-in-app:${notice.id}`);
+    assert.equal(notice.createdAt.getTime(), now.getTime());
+    assert.equal(notice.readAt, null);
+    assert.equal(notice.emailEligibility, before.identity.emailVerified && before.account.emailVerifiedAt &&
+      before.account.emailVerifiedAt <= now ? "ELIGIBLE" : "INELIGIBLE");
   };
   const context = await auth.$context;
   const customAuth = (overrides) => ({ api: auth.api, $context: Promise.resolve({ ...context,
     password: { ...context.password, ...overrides } }) });
+  const pausePassword = (method) => {
+    const entered = Promise.withResolvers();
+    const released = Promise.withResolvers();
+    const operation = createPasswordChangeOperation(database, customAuth({ async [method](value) {
+      const result = await context.password[method](value);
+      entered.resolve();
+      await released.promise;
+      return result;
+    } }), () => now);
+    return { operation, entered: entered.promise, release: released.resolve };
+  };
+  const waitForAccountLock = async () => {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      await connection.query("SELECT pg_stat_clear_snapshot()");
+      const result = await connection.query(`SELECT 1 FROM pg_stat_activity WHERE datname = current_database()
+        AND wait_event_type = 'Lock' AND query LIKE '%FROM "user" u JOIN%' AND pid <> pg_backend_pid()`);
+      if (result.rowCount) return true;
+      await setTimeout(10);
+    }
+    return false;
+  };
   const injectFailure = async (table, timing, action, deferred, work) => {
     await connection.query(`CREATE ${deferred ? "CONSTRAINT " : ""}TRIGGER synthetic_failure ${timing} ${action} ON "${table}" ${deferred} FOR EACH ROW EXECUTE FUNCTION synthetic_password_change_failure()`);
     try { await work(); } finally { await connection.query(`DROP TRIGGER synthetic_failure ON "${table}"`); }
@@ -234,6 +273,8 @@ test("isolated PostgreSQL credential/session-only password change (required noti
         ["account", "BEFORE", "UPDATE", ""], ["session", "BEFORE", "DELETE", ""],
         ["account", "AFTER", "UPDATE", "DEFERRABLE INITIALLY DEFERRED"],
         ["session", "AFTER", "DELETE", "DEFERRABLE INITIALLY DEFERRED"],
+        ["password_change_notice", "BEFORE", "INSERT", ""],
+        ["password_change_notice", "AFTER", "INSERT", "DEFERRABLE INITIALLY DEFERRED"],
       ]) {
         const account = await fixture();
         await signIn(account);
@@ -336,6 +377,7 @@ test("isolated PostgreSQL credential/session-only password change (required noti
         const winner = results.findIndex((row) => row.status === "fulfilled");
         assert.ok(rejects(sameSession ? "INVALID_PASSWORD" : "UNAUTHORIZED")(results[1 - winner].reason));
         assert.equal((await state(account)).sessions.length, 1);
+        assert.equal((await state(account)).notices.length, 1);
         assert.ok(await auth.api.getSession({ headers: [account, second][winner].headers }));
         await signIn(account, passwords[winner]);
         await assert.rejects(signIn(account, passwords[1 - winner]));
@@ -360,6 +402,7 @@ test("isolated PostgreSQL credential/session-only password change (required noti
         assert.equal(consumed.status, "fulfilled");
         if (changed.status === "rejected") assert.ok(rejects("UNAUTHORIZED")(changed.reason));
         const after = await state(account);
+        assert.equal(after.notices.length, changed.status === "fulfilled" ? 1 : 0);
         assert.equal(after.sessions.length, 0);
         assert.equal(await auth.api.getSession({ headers: account.headers }), null);
         if (competing === "reset") await signIn(account, "synthetic-reset-race-password");
@@ -368,6 +411,201 @@ test("isolated PostgreSQL credential/session-only password change (required noti
           await signIn({ email: after.identity.email }, changed.status === "fulfilled" ? newPassword : oldPassword);
         }
       }
+    });
+
+    await t.test("all verification combinations use locked event-time eligibility, with no email intent or snapshot", async () => {
+      for (const [emailVerified, timestamp] of [[false, "none"], [true, "none"], [false, "past"],
+        [false, "future"], [true, "future"], [true, "past"], [true, "equal"]]) {
+        const account = await fixture();
+        await database.user.update({ where: { id: account.userId }, data: { emailVerified } });
+        await database.userAccount.update({ where: { id: account.accountId }, data: { emailVerifiedAt:
+          timestamp === "none" ? null : new Date(now.getTime() + (timestamp === "future" ? 1 : timestamp === "past" ? -1 : 0)) } });
+        const before = await state(account);
+        await perform(account);
+        const after = await state(account);
+        assertPreserved(before, after);
+        assert.equal(after.notices[0].emailEligibility, emailVerified && ["past", "equal"].includes(timestamp) ? "ELIGIBLE" : "INELIGIBLE");
+        assert.equal(await database.outboxEvent.count({ where: { accountId: account.accountId, recipientEmail: { not: null } } }), 0);
+      }
+    });
+
+    await t.test("eligibility rereads after actual account-lock waits and after password verification advances event time", async () => {
+      for (const verifiedAtCommit of [false, true]) {
+        const account = await fixture(!verifiedAtCommit);
+        await connection.query("BEGIN");
+        await connection.query('SELECT u.id FROM "user" u JOIN "user_account" a ON a."authUserId" = u.id WHERE a.id = $1 FOR UPDATE OF u, a', [account.accountId]);
+        const pending = perform(account);
+        let waiting = false;
+        try {
+          for (let attempt = 0; attempt < 100; attempt++) {
+            await connection.query("SELECT pg_stat_clear_snapshot()");
+            const result = await connection.query(`SELECT 1 FROM pg_stat_activity WHERE datname = current_database()
+              AND wait_event_type = 'Lock' AND query LIKE '%FROM "user" u JOIN%' AND pid <> pg_backend_pid()`);
+            if (result.rowCount) { waiting = true; break; }
+            await setTimeout(10);
+          }
+          await connection.query('UPDATE "user" SET "emailVerified" = $1 WHERE id = $2', [verifiedAtCommit, account.userId]);
+          await connection.query('UPDATE "user_account" SET "emailVerifiedAt" = $1 WHERE id = $2', [verifiedAtCommit ? now.toISOString() : null, account.accountId]);
+        } finally { await connection.query("COMMIT"); }
+        await pending;
+        assert.ok(waiting, "Observed the real account lock wait");
+        const after = await state(account);
+        assert.equal(after.identity.emailVerified, verifiedAtCommit);
+        assert.deepEqual(after.account.emailVerifiedAt, verifiedAtCommit ? now : null);
+        assert.equal(after.notices[0].emailEligibility, verifiedAtCommit ? "ELIGIBLE" : "INELIGIBLE");
+      }
+      const account = await fixture(true);
+      await database.userAccount.update({ where: { id: account.accountId }, data: { emailVerifiedAt: new Date(now.getTime() + 1) } });
+      const delayed = createPasswordChangeOperation(database, customAuth({ async verify(value) {
+        const result = await context.password.verify(value);
+        now = new Date(now.getTime() + 1);
+        return result;
+      } }), () => now);
+      await perform(account, delayed);
+      assert.equal((await state(account)).notices[0].emailEligibility, "ELIGIBLE");
+    });
+
+    await t.test("both verification lock orders never backfill; verification first rejects the resolved session and fresh change is eligible", async () => {
+      for (const first of ["password", "verification"]) {
+        const account = await fixture();
+        const token = (await verification.issue(account.email)).token;
+        if (first === "password") {
+          const paused = pausePassword("verify");
+          const pending = perform(account, paused.operation);
+          await paused.entered;
+          const consumed = verification.consume(token);
+          let waiting;
+          try { waiting = await waitForAccountLock(); } finally { paused.release(); }
+          await Promise.all([pending, consumed]);
+          assert.ok(waiting, "Verification waited on password-change locks");
+          assert.equal((await state(account)).notices[0].emailEligibility, "INELIGIBLE");
+        } else {
+          const paused = pausePassword("hash");
+          const pending = assert.rejects(perform(account, paused.operation), rejects("UNAUTHORIZED"));
+          await paused.entered; // Owner/session resolved, transaction has not locked yet.
+          try { await verification.consume(token); } finally { paused.release(); }
+          await pending;
+          assert.equal((await state(account)).notices.length, 0);
+          account.headers = cookieHeaders(await signIn(account));
+          now = new Date();
+          await perform(account);
+          assert.equal((await state(account)).notices[0].emailEligibility, "ELIGIBLE");
+        }
+        assert.equal(await database.outboxEvent.count({ where: { accountId: account.accountId, recipientEmail: { not: null } } }), 0);
+      }
+    });
+
+    await t.test("pending email changes and both email-proof lock orders preserve in-app notices without email backfill", async () => {
+      for (const first of ["password", "proof"]) {
+        const account = await fixture(true);
+        const proposedEmail = `notice-proof-${randomUUID()}@example.invalid`;
+        const issued = await emailChange.issue(account.headers, { proposedEmail }, () => {});
+        if (first === "password") {
+          const paused = pausePassword("verify");
+          const pending = perform(account, paused.operation);
+          await paused.entered;
+          const consumed = emailChange.consume(issued.token);
+          let waiting;
+          try { waiting = await waitForAccountLock(); } finally { paused.release(); }
+          await Promise.all([pending, consumed]);
+          assert.ok(waiting, "Email proof waited on password-change locks");
+          assert.equal((await state(account)).notices[0].emailEligibility, "ELIGIBLE");
+        } else {
+          const paused = pausePassword("hash");
+          const pending = assert.rejects(perform(account, paused.operation), rejects("UNAUTHORIZED"));
+          await paused.entered;
+          try { await emailChange.consume(issued.token); } finally { paused.release(); }
+          await pending;
+          assert.equal((await state(account)).notices.length, 0);
+          account.headers = cookieHeaders(await signIn({ email: proposedEmail }));
+          now = new Date();
+          await perform(account);
+          assert.equal((await state(account)).notices[0].emailEligibility, "ELIGIBLE");
+        }
+        const notices = (await state(account)).notices;
+        assert.ok(!JSON.stringify(notices).includes(account.email));
+        assert.ok(!JSON.stringify(notices).includes(proposedEmail));
+        // Only the separate email-switch warning has a snapshot; password email remains unimplemented.
+        const snapshots = await database.outboxEvent.findMany({ where: { accountId: account.accountId, recipientEmail: { not: null } },
+          select: { eventType: true, recipientEmail: true } });
+        assert.deepEqual(snapshots, [{ eventType: "account.email-changed-security-notice", recipientEmail: account.email }]);
+      }
+    });
+
+    await t.test("failed retry, successful replay and distinct changes preserve one in-app record per committed event", async () => {
+      const account = await fixture();
+      await perform(account);
+      const first = (await state(account)).notices[0];
+      await assert.rejects(perform(account), rejects("INVALID_PASSWORD"));
+      assert.deepEqual((await state(account)).notices, [first]);
+      // Duplicate materialization of the committed identity/work key cannot add a row.
+      await assert.rejects(database.passwordChangeNotice.create({ data: first, select: { id: true } }));
+      await assert.rejects(database.passwordChangeNotice.create({ data: { ...first, id: randomUUID() }, select: { id: true } }));
+      assert.deepEqual((await state(account)).notices, [first]);
+      await perform(account, change, { currentPassword: newPassword, newPassword: oldPassword });
+      const after = (await state(account)).notices;
+      assert.equal(after.length, 2);
+      assert.equal(new Set(after.map(({ id }) => id)).size, 2);
+      assert.equal(new Set(after.map(({ inAppWorkKey }) => inAppWorkKey)).size, 2);
+      assert.equal(after[0].createdAt.getTime(), after[1].createdAt.getTime());
+    });
+
+    await t.test("notice detail is owner-only, rereads stored authorization, and exposes only the approved projection without logs", async () => {
+      const account = await fixture(true);
+      const other = await fixture();
+      const lines = [];
+      const original = { error: console.error, log: console.log, warn: console.warn };
+      try {
+        console.error = console.log = console.warn = (...values) => lines.push(values);
+        assert.deepEqual(await perform(account), { status: "PASSWORD_CHANGED" });
+        const notice = (await state(account)).notices[0];
+        const projected = await readNotice(account.headers, notice.id, () => {});
+        assert.deepEqual(projected, { id: notice.id, eventType: "account.password-changed", eventVersion: 1,
+          createdAt: notice.createdAt, readAt: null });
+        for (const headers of [new Headers(), new Headers({ cookie: "better-auth.session_token=forged" }), other.headers]) {
+          assert.equal(await readNotice(headers, notice.id, () => {}), null);
+        }
+        assert.equal(await readNotice(account.headers, randomUUID(), () => {}), null);
+        await assert.rejects(readNotice(account.headers, account.email, () => {}), rejects("INVALID_INPUT"));
+        const revoking = createPasswordChangeNoticeReader(database, { api: { async getSession(options) {
+          const resolved = await auth.api.getSession(options);
+          await database.session.deleteMany({ where: { userId: account.userId } });
+          return resolved;
+        } } }, () => now);
+        assert.equal(await revoking(account.headers, notice.id, () => {}), null);
+        account.headers = cookieHeaders(await signIn(account, newPassword));
+        await database.userAccount.update({ where: { id: account.accountId }, data: { deletedAt: now } });
+        assert.equal(await readNotice(account.headers, notice.id, () => {}), null);
+        const failing = createPasswordChangeNoticeReader(database, { api: { getSession() { throw new Error(account.email); } } });
+        await assert.rejects(failing(account.headers, notice.id, () => {}), rejects("INTERNAL_ERROR"));
+      } finally { Object.assign(console, original); }
+      assert.deepEqual(lines, []);
+    });
+
+    await t.test("existing email delivery failure, duplicate dispatch and cleanup never alter committed credentials or in-app notices", async () => {
+      // Exercise an already approved signup email, not an invented password-change template.
+      await database.outboxEvent.deleteMany();
+      const account = await fixture();
+      await perform(account);
+      const before = await state(account);
+      const savedOrigin = process.env.HALAGA_PUBLIC_ORIGIN;
+      process.env.HALAGA_PUBLIC_ORIGIN = "http://127.0.0.1:3000";
+      let sends = 0;
+      const dispatcher = createAccountEmailDispatcher(database, async () => {
+        sends++;
+        throw new BrevoSendError("REJECTED");
+      }, () => now);
+      try {
+        assert.deepEqual(await dispatcher.dispatchOne(), { status: "FAILED" });
+        assert.deepEqual(await dispatcher.dispatchOne(), { status: "EMPTY" });
+        await dispatcher.recoverAndClean();
+        await dispatcher.recoverAndClean();
+      } finally {
+        if (savedOrigin === undefined) delete process.env.HALAGA_PUBLIC_ORIGIN;
+        else process.env.HALAGA_PUBLIC_ORIGIN = savedOrigin;
+      }
+      assert.equal(sends, 1);
+      assert.deepEqual(await state(account), before);
     });
   } finally { await sandbox.close(); }
 });

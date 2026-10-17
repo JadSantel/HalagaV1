@@ -76,6 +76,8 @@ The first attempt to run a pinned `auth@1.7.7` CLI failed because that independe
 
 ## Slice 2 old-address notice schema review (2026-10-14)
 
+The later password-change in-app review below leaves this recipient restriction intact.
+
 ADR-087 requires a durable security notice to the previously verified address
 when an email change commits. The signup outbox's account-reference-only shape
 cannot retain that recipient: the referenced identity now contains the new
@@ -112,4 +114,32 @@ ADR-084 records the decisions:
 - Scope the first domain migration to the account/listing foundation; add the active-reservation invariant before negotiation/reservation implementation.
 
 The first migration's alignment and SQL prerequisites are satisfied. Full lifecycle transitions, bilateral completion, server authorization, privacy projections, idempotent commands, retention execution, and audit/outbox support remain required before implementing consequential marketplace flows.
+
+## Slice 2 password-change in-app notice review (2026-10-17 PHT)
+
+`20261017090000_password_change_in_app_notice` adds one account-private table;
+it does not alter `outbox_event.recipientEmail` or its email-switch-only constraint.
+There was no existing in-app notification store to reuse. The row holds only an
+application-generated random UUID (the committed event identity), account FK,
+versioned event type, unique in-app work key, event time, fixed email-eligibility
+outcome and nullable read time. It is materialized in the credential transaction
+and doubles as the synchronous in-app processed-work record. No job is necessary
+for this atomic local write. Separate successes have separate UUIDs even at the
+same timestamp/session; duplicate event/work insertion cannot add another notice.
+
+SQL-only checks fix the event type/version, bind the channel work key to its UUID,
+restrict eligibility to ELIGIBLE/INELIGIBLE, and prevent a read time before creation.
+The account FK restricts deletion; it is not permission for indefinite retention.
+The owner-only unmounted detail projection returns ID/type/version/time/read state
+after checking the current stored session and undeleted mapping. No recipient,
+password/hash/session reference, rendered content, public/staff reader or cache is
+introduced. Nullable read storage does not mount a mark-read command or interface.
+
+Password-change email copy and ordinary recipient/metadata cleanup remain gated;
+no email intent, snapshot, dispatch branch or later backfill is implemented even for
+eligible events. In-app retention/deletion execution remains a real-data gate.
+Only disposable synthetic schemas replay this migration. Application Prisma and
+shared sandbox connections pin UTC to satisfy the installed adapter's timestamp
+normalization assumption; no database/server-wide timezone is changed. PHT domain
+and display rules remain in force. See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`.
 

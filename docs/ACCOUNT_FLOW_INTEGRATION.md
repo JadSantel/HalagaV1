@@ -101,10 +101,11 @@ transport, token URL format, callback URL, redirect contract or client submit pa
    [decision brief](PASSWORD_CHANGE_NOTICE_DECISION_BRIEF.md) on 2026-10-15 PHT.
    ADR-087 now requires in-app notice for every success and email only to the
    commit-time primary address verified in both stores. Unverified/mismatched
-   states get no email, with no later backfill or recipient retargeting. Required
-   atomic intents/recipient binding are not implemented; password-change mounting
-   stays gated. Policy approval adds no notice behavior, schema or delivery and
-   does not settle final templates, retention or worker parameters.
+   states get no email, with no later backfill or recipient retargeting. Atomic
+   in-app notice/eligibility recording is implemented as of 2026-10-17 PHT, together
+   with an unmounted owner-only detail reader. Password-change email copy and ordinary
+   recipient/metadata cleanup remain unaccepted; email intent/binding/delivery are
+   unimplemented even for eligible changes. Password-change mounting stays gated.
 4. **Sign-in/session creation races.** Existing library sign-in does not share the
    account-owned identity/mapping/credential locks. A sign-in can race reset,
    email proof or password replacement. The synthetic plugin intentionally exposes

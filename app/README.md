@@ -120,12 +120,19 @@ locks. It uses Better Auth's configured limits/hasher/current-password verifier 
 atomically replaces the existing credential while revoking every other stored
 session. The initiating session, verification, tokens and account history survive;
 write/commit failure preserves the old credential and all sessions for retry.
-No dependency or migration is added. Run `npm.cmd run test:password-change` with
+The independent in-app notice now commits with the credential/revocation writes;
+locked verification states determine a fixed eligibility outcome at event time.
+Its random event ID and unique in-app work key distinguish separate successes.
+The additive in-app migration is replayed only in disposable synthetic schemas;
+no persistent/shared migration or dependency is added. Run `npm.cmd run test:password-change` with
 the dedicated `halaga_signup_test` URL. [Local password-change testing](../docs/PASSWORD_CHANGE_LOCAL_TESTING.md)
 documents eight direct exercises, concurrency checks and remaining gates.
 ADR-087's owner-approved 2026-10-15 supplement requires an in-app notice after every
 successful password change and email only to the primary address verified in both
-stores at commit. Required atomic notice writes are not implemented. Account commands
+stores at commit. In-app persistence and an owner-only detail projection are implemented.
+Final password-change email copy and ordinary recipient/metadata cleanup remain
+unaccepted; no password-change email intent, snapshot or delivery is implemented,
+even when eligible. No later backfill is authorized. Password-change commands
 remain unmounted pending those writes and existing integration/readiness gates;
 the disabled preview is not a working password-change flow.
 

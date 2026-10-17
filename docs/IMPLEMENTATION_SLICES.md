@@ -39,15 +39,28 @@ operation under ADR-087. Stored-session ownership and original creation age belo
 Configured Better Auth limits/hasher/current-password verification apply. Credential
 replacement atomically revokes all other stored sessions and retains the initiating
 session exactly; verification, token families, account history and unrelated accounts
-survive. Thirteen reported PostgreSQL/input tests and eight direct exercises cover
+survive. Twenty-one reported PostgreSQL/input tests and eight direct exercises cover
 freshness, missing state, hash/write/commit failure, rollback/retry, cookies, isolation
-and concurrent account changes. No migration or dependency is added. The owner-
+and concurrent account changes. No dependency is added. The owner-
 approved ADR-087 supplement now requires in-app notice for every success, with
-email only to a commit-time primary address verified in both stores. Required
-atomic notice writes remain unimplemented; this credential/session-only slice is
-incomplete for mounting. Sign-in races and existing readiness gates also remain.
-See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`. Routes, UI, endpoint integration and
-email delivery remain unmounted.
+email only to a commit-time primary address verified in both stores. As of
+2026-10-17 PHT, the independent in-app portion is implemented: credential/revocation/
+notice commit atomically; both verification stores determine a fixed eligibility
+outcome under account locks; opaque event/work keys distinguish successes. Owner-only
+detail remains unmounted. The additive in-app migration is replayed only in disposable
+schemas; no recipient constraint is expanded. Final password-change email copy and
+ordinary recipient/metadata cleanup remain unaccepted, so no password-change email
+intent, snapshot or delivery is implemented, even for eligible changes. No later
+email backfill is authorized. This partial slice remains incomplete for mounting.
+Sign-in races and existing readiness gates also remain.
+See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`. Password-change command/detail routes
+and email delivery remain unmounted; its preview remains disabled.
+
+The current verification record and remaining decisions are in
+`docs/PASSWORD_CHANGE_LOCAL_TESTING.md`. Existing direct exercises now assert one
+in-app notice per success and none after a rejected/rolled-back change. The installed
+Prisma adapter requires UTC connections for accurate instants; application and shared
+sandbox connections now pin UTC, preserving the existing PHT business/display rules.
 
 Slice 2 now also has an **unmounted protected integration** and **mounted disabled
 screen previews** at `/account` (2026-10-15 PHT). The Better Auth plugin/handler

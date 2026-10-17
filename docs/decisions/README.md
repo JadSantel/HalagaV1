@@ -22,8 +22,13 @@ other-session revocation retain the initiating fresh session. The owner approved
 its password-change notice supplement on 2026-10-15 PHT: mandatory account-private
 in-app notice for every success and email only to a primary address verified in both
 stores at commit, with immutable recipient binding and no later backfill/retargeting.
-Required atomic notice writes remain unimplemented. Final templates, recipient/
-attempt retention, dispatch/recovery and integration/readiness gates remain before
-mounting. See `docs/PASSWORD_CHANGE_NOTICE_DECISION_BRIEF.md` for approval and tradeoffs.
+Atomic in-app notices and locked eligibility recording are now implemented; the
+operation and owner-only detail reader stay unmounted. Password-change email copy
+and ordinary recipient/metadata cleanup remain unaccepted; no password-change email
+intent, recipient snapshot or delivery is implemented, even for eligible changes.
+ADR-088's four supported messages do not implicitly approve these missing rules.
+Email implementation, sign-in races and integration/readiness gates remain before
+mounting. See `docs/PASSWORD_CHANGE_NOTICE_DECISION_BRIEF.md` for approval and tradeoffs
+and `docs/PASSWORD_CHANGE_LOCAL_TESTING.md` for the current implementation boundary.
 
 Recent architecture decisions: ADR-076 selects PostgreSQL for MVP marketplace search; ADR-077 sets six-month retention for private content in uncompleted inquiries/negotiations; ADR-078 extends the one-appeal process to listing moderation and verification decisions; ADR-079 restricts retention exceptions and requires periodic review; ADR-080 requires trained operator backup and pauses onboarding/publication when coverage is unavailable; ADR-081 gates real data and public pilot on hosting readiness; ADR-082 sets 24-hour pilot RPO/RTO targets; ADR-083 selects Prisma ORM 7, Zod 4, Tailwind CSS 4, and stable stack release lines, with exact patches pinned at application bootstrap; ADR-084 records centavo precision and the first physical schema review decisions; ADR-085 establishes privacy-safe operational logging; ADR-087 settles account onboarding and credential-flow policies; ADR-088 settles account email delivery and recovery.

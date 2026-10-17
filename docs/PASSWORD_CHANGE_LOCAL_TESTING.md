@@ -1,8 +1,11 @@
 # Unmounted authenticated password change: local synthetic testing
 
-This Slice 2 operation implements the credential/session part of ADR-087 using
-synthetic data. Routes, Server Actions, UI, email delivery and endpoint integration
-remain unmounted. Use fictional `.invalid` addresses and synthetic passwords only.
+This Slice 2 operation implements credential/session changes and the independently
+accepted atomic in-app notice portion of ADR-087 using synthetic data. Password-change
+routes, Server Actions, notice readers and UI remain unmounted/disabled. Protected
+endpoint integration exists for synthetic testing; the application exposes only the
+existing six email commands. Signup/sign-in remain closed. Use fictional `.invalid`
+addresses and synthetic passwords only.
 
 ## Setup and automated checks
 
@@ -22,8 +25,16 @@ npm.cmd run test:password-change
 
 Every invocation creates a random `signup_test_*` schema, replays existing migrations
 and drops that schema in `finally`. Prisma queries and raw lock queries share that
-schema. No persistent application migration is run. No dependency or migration is
-needed: the existing identity, mapping, credential and session tables suffice.
+schema. Migration `20261017090000_password_change_in_app_notice` adds the narrow
+owner-private in-app store, with unique opaque event/work identities, fixed eligibility
+and nullable read time. It does not broaden the existing email-recipient constraint.
+No persistent/shared application migration or new dependency is run/installed.
+Both raw sandbox and pooled Prisma connections use UTC. The installed adapter
+strips timestamptz offsets rather than converting them, so an implicit PHT database
+connection can shift a raw timestamp eight hours. Application Prisma connections now
+also pin UTC; event instants remain UTC and existing PHT business/display rules apply.
+No existing persistent timestamp is repaired or rewritten; recreate disposable
+fixtures rather than treating this slice as a data-conversion migration.
 Do not print or commit database credentials. The existing Node
 `MODULE_TYPELESS_PACKAGE_JSON` warning does not indicate a failed check.
 
@@ -38,6 +49,16 @@ password verification; unrelated-account/provider isolation; all three token fam
 concurrent same-session/different-session changes; and reset/verification/email-proof
 races. Better Auth confirms the initiating cookie survives, other cookies fail,
 the old password fails and the new password signs in.
+
+Notice checks add all boolean/timestamp eligibility combinations (including equality
+and future timestamps), post-lock rereads after actual waits, event time after password
+verification, deterministic overlapping verification/email-proof in both lock orders,
+pending email changes, notice-insert and deferred-commit failure/retry, successful replay
+rejection, distinct successes at one instant in one session, duplicate event/work
+constraints, safe owner-only projections, revoked/deleted/unrelated readers, fixed
+errors and log silence. Failure and repeated execution of an existing signup-email
+job leave committed credentials and in-app notices intact. This is delivery isolation
+coverage, not password-change email delivery or recipient-binding coverage.
 
 ## Direct manual exercises
 
@@ -70,9 +91,11 @@ inside the synthetic process. Each invocation removes its schema and sends no em
 | `failure` | A PostgreSQL trigger rejects other-session deletion after the credential update. `INTERNAL_ERROR`; the old credential and both sessions survive. Removing the trigger permits same-session retry. |
 | `commit-failure` | A deferred trigger rejects commit after the credential write. Every effect rolls back; removing the trigger permits same-session retry. |
 
-All exercises assert unchanged token and outbox counts. They create no
-password-change notice intent. They verify only the credential/session slice;
-the approved required notice writes remain unimplemented and block mounting.
+All exercises assert unchanged token and email-outbox counts. Successful changes
+add exactly one in-app notice, with ELIGIBLE only for the verified exercise; rejected
+or rolled-back attempts add none. Retry after rollback leaves exactly one committed
+notice. No password-change email intent or recipient snapshot is created, including
+for eligible events. These exercises do not establish full ADR-087 mounting readiness.
 
 ## Operation and privacy boundary
 
@@ -91,9 +114,27 @@ credential and exact initiating session in that order. It rejects a changed mapp
 deleted account, ambiguous/misbound/missing password credential, revoked/changed
 session, or invalid original creation age/expiry. The current password is verified
 against the locked current hash with Better Auth's verifier. Freshness is checked
-again after verification. It updates only the existing credential and deletes all
+again after verification. It records event time and determines email eligibility from
+both stores reread after acquiring the identity/domain locks. It updates only the existing credential and deletes all
 other stored sessions, including expired ones, in one transaction. It creates no
 replacement session and never changes the initiating session's creation time.
+
+The same transaction synchronously creates `password_change_notice`: random UUID,
+account reference, fixed `account.password-changed` version 1, unique
+`password-changed-in-app:<UUID>` work key, event time, fixed ELIGIBLE/INELIGIBLE
+outcome and nullable read time. No key derives from password/session/address or time.
+The row is both the durable notice and the in-app processed-work record; no async
+materializer/job can add another logical notice for that committed identity. Failed
+insertion or commit rolls back credentials and revocations too. Separate successful
+changes retain separate identities even in one session at the same instant.
+
+`createPasswordChangeNoticeReader(database, auth, clock)` is also unmounted. It
+accepts request headers and an opaque notice ID, never an owner ID. Its read statement
+rechecks the exact stored session, ownership and undeleted mapping; returns only
+ID/type/version/event time/read time or null. Email eligibility and work metadata do
+not enter this projection. No rendered copy, final template, public/staff reader,
+mark-read endpoint, analytics or cache is added. Durable read-state storage is present;
+participant presentation and read-state commands remain outside this bounded slice.
 
 Successful output is only `{ status: "PASSWORD_CHANGED" }`. Rejections expose only
 `INVALID_INPUT`, `UNAUTHORIZED`, `INVALID_STATE`, `INVALID_PASSWORD` or `INTERNAL_ERROR`,
@@ -116,14 +157,36 @@ or marketplace access. Later verification does not backfill an email. Bind requi
 intents and the eligible immutable recipient atomically with credential/session
 writes; later email changes cannot retarget the warning. The ADR records content,
 race, retry/failure and retention limits. Final templates and operational retention/
-cleanup remain unresolved. This resolves the policy gap, not the implementation.
+cleanup for this event remain unresolved. This resolves the policy gap, not the
+remaining email implementation gates.
 
-The current operation still creates no notice intent. Unchanged-outbox assertions
-are deliberate tests of this incomplete credential/session slice, not full ADR-087
-compliance. The mounting-boundary regression checks disabled previews and absence
-of password-change command wiring while required notice writes are missing.
+Completed: atomic in-app notice, fixed locked eligibility and the safe owner detail
+repository. Unchanged email-outbox assertions now describe the explicit gated email
+boundary. The mounting regression checks the six-path email allowlist excludes
+password change/signup/sign-in, disabled previews, and no application password-change
+command/reader wiring. Partial implementation is not a policy exception permitting
+public password changes without their mandatory eligible email work.
 
-Before mounting, implement the approved required atomic notice writes;
+Remaining decisions, checked against current ADR-087/088 and PROJECT on 2026-10-17 PHT:
+
+1. Approve the final password-change email subject, text and HTML/template contract
+   within ADR-087's accepted content limits. ADR-088 approves exactly four other
+   messages; neither its email-switch template nor a reset message is a substitute.
+2. Explicitly settle ordinary password-change recipient-snapshot and minimal
+   delivery-metadata retention/cleanup, delivery-window and delayed/deleted-account
+   handling, including the applicability of ADR-088 mechanics. Provider/backup
+   deletion propagation remains a readiness check. Do not infer this event's rule
+   from transaction/negotiation periods or ADR-079 exception reviews.
+
+Until then, no password-change email intent, recipient snapshot, template, worker
+branch, send or later backfill is implemented for any eligibility outcome. The
+existing outbox recipient check remains exclusive to the email-switch warning.
+No recipient is retained speculatively. In-app retention/deletion execution also
+requires readiness review before real data; no ordinary period or schedule is invented.
+
+Before mounting, resolve those email decisions and implement/test atomic eligible
+email intent/commit-time recipient binding, immutable addressing across later email
+switches, required-write rollback and password-change-specific delivery/recovery;
 review direct credential-write compatibility on library/schema/password configuration,
 plugin or database-hook changes; integrate safe errors and response cookies with
 origin/CSRF and ADR-086 endpoint/IP protection. The direct operation does not invoke
@@ -139,6 +202,9 @@ marketplace authorization and ADR-081 real-data/launch gates remain. No operatio
 schedule, retry allowance, provider, paid service or participant data is added.
 
 ## Verification record (2026-10-15)
+
+Historical credential/session-only record; the current record below supersedes
+its route inventory and statements about missing in-app writes.
 
 `npm.cmd run test:password-change` passed all 13 reported tests (11 database
 subchecks plus the database parent and input check). The first run failed the
@@ -156,6 +222,8 @@ the launcher. Test URLs were supplied explicitly to subprocesses using the
 dedicated local database; no connection material was printed.
 
 ## Owner-approved policy update verification (2026-10-15 PHT)
+
+Historical policy-only record; current in-app implementation is described above.
 
 The notice contract is now accepted; required notice writes are still unimplemented.
 The existing database assertions continue to describe only the credential/session
@@ -182,3 +250,63 @@ No database, full build or delivery tests were run for this
 policy/documentation and static-boundary update. Actual notice-intent, recipient,
 rollback, duplicate/recovery and provider-failure coverage remains required when
 the approved contract is implemented; existing independent delivery gates remain.
+
+## Current verification record (2026-10-17 PHT)
+
+Initial working tree was clean. Read the repository instructions, current accepted
+ADR-086/087/088, PROJECT, relevant architecture/design/glossary sections, slice and
+notice/testing guides, affected schema/repositories/handler/worker/templates, local
+sandbox and package scripts before editing. No accepted policy was reopened.
+
+Commands ran from `app` using the inspected existing scripts. A local stdin wrapper
+loaded the existing development database configuration without printing it, changed
+only the database name to the dedicated `halaga_signup_test`, and supplied explicit
+test environment variables to subprocesses. All database fixtures used disposable
+schemas or temporary tables; no persistent/shared migration ran. The sandbox itself
+still requires an explicit test URL and never falls back to application configuration.
+
+| Command | Final result |
+| --- | --- |
+| `npm.cmd run db:generate` | Passed; regenerated the ignored Prisma client. |
+| `npm.cmd run test:password-change` | 21 passed, including the parent database check and two non-database checks. |
+| `npm.cmd run test:auth` | 21 passed. |
+| `npm.cmd run test:signup` | 7 passed. |
+| `npm.cmd run test:verification` | 11 passed. |
+| `npm.cmd run test:reset` | 12 passed. |
+| `npm.cmd run test:email-change` | 16 passed. |
+| `npm.cmd run test:account-email-intents` | 13 passed. |
+| `npm.cmd run test:account-email` | 20 passed, including mounted-email handler and fake-provider checks. |
+| `npm.cmd run test:foundation` | 21 passed. |
+| `npm.cmd run test:logging` | 5 passed. |
+| `node --conditions=react-server scripts/try-password-change.mjs <scenario>` | All eight documented scenarios passed; each removed its disposable schema. |
+| `npm.cmd run lint` | Passed. |
+| `npm.cmd run build` | Passed compilation, TypeScript and page generation; no password-change command/detail route was added. |
+| `git diff --check` (repository root) | Passed; Git reported LF/CRLF conversion notices. |
+
+The combined ten test scripts reported 147 passing tests, zero failures/skips.
+Four initial password-change runs failed the new raw-SQL lock-wait fixture's timestamp
+assertion/eligibility expectation: PostgreSQL rendered an explicit UTC instant in
+the connection timezone, while the installed Prisma adapter replaced the offset
+without conversion. ISO parameter formatting alone did not fix it. Pinning application
+Prisma and both shared-sandbox connection types to UTC fixed the mismatch; final
+lock-wait checks compare the actual stored verification state/time. All checks then
+passed, including deterministic overlapping verification/email proof in both orders.
+The existing Node `MODULE_TYPELESS_PACKAGE_JSON` warning appeared. The temporary
+npm subprocess launcher also reported `DEP0190` for static shell arguments; no
+credentials or user input were included in those arguments. No dependency/module
+configuration was changed to suppress warnings.
+
+Changed implementation files: `app/prisma/schema.prisma`, the additive
+`app/prisma/migrations/20261017090000_password_change_in_app_notice/migration.sql`,
+`app/src/server/repositories/password-change.ts`, `app/src/server/prisma.ts`,
+`app/tests/password-change-database.test.mjs`, `app/tests/helpers/signup-sandbox.mjs`
+and `app/scripts/try-password-change.mjs`. Documentation synchronizes PROJECT,
+architecture, glossary, ADR-087 and decision index, slice tracker, notice brief,
+this guide, integration guide, app/repository READMEs and physical schema review.
+
+No password-change email send/binding/cleanup test is claimed: dependent behavior
+remains unimplemented. No browser/manual accessibility check was needed for these
+backend-only changes; no UI was enabled or changed. Sign-in/session-race handling,
+hosted scheduling, staff recovery, provider/real-data setup and other launch gates
+remain outside this slice. Fake-provider failure uses an already approved signup
+email and only demonstrates independence of committed in-app/password state.

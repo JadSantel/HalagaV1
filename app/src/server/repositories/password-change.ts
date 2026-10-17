@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getPrisma } from "../prisma.ts";
 import { createAccountAuth } from "./auth.ts";
@@ -27,7 +28,7 @@ function requireFreshSession(session: { createdAt: Date; expiresAt: Date } | und
 /** Internal only: no route, Server Action, library change-password endpoint or email.
  * Request headers resolve the owner; no caller-selected account/session ID is accepted.
  * Direct writes bypass library hooks. ADR-087 notice policy is accepted, but required
- * atomic notice writes are missing: this credential/session-only slice must stay unmounted.
+ * email copy/recipient retention remain gated: this in-app-only slice stays unmounted.
  */
 export function createPasswordChangeOperation(
   database: ReturnType<typeof getPrisma>,
@@ -58,11 +59,14 @@ export function createPasswordChangeOperation(
       const hash = await password.hash(parsed.data.newPassword);
       return await database.$transaction(async (transaction) => {
         // Share identity/domain -> credential -> session lock order with reset/verification.
-        const accounts = await transaction.$queryRaw<Array<{ id: string; deletedAt: Date | null }>>`
-          SELECT a.id, a."deletedAt" FROM "user" u JOIN "user_account" a ON a."authUserId" = u.id
+        await transaction.$queryRaw<Array<{ id: string }>>`
+          SELECT a.id
+          FROM "user" u JOIN "user_account" a ON a."authUserId" = u.id
           WHERE u.id = ${actor.user.id} FOR UPDATE OF u, a
         `;
-        const account = accounts[0];
+        // Read both verification stores in a new statement after acquiring both locks.
+        const account = await transaction.userAccount.findUnique({ where: { authUserId: actor.user.id },
+          select: { id: true, deletedAt: true, emailVerifiedAt: true, authUser: { select: { emailVerified: true } } } });
         if (!account || account.id !== owner.id || account.deletedAt) throw new PasswordChangeRejected("INVALID_STATE");
         const credentials = await transaction.$queryRaw<Array<{ id: string; accountId: string; password: string | null }>>`
           SELECT id, "accountId", password FROM "account"
@@ -82,15 +86,64 @@ export function createPasswordChangeOperation(
         if (!await password.verify({ hash: credential.password, password: parsed.data.currentPassword })) {
           throw new PasswordChangeRejected("INVALID_PASSWORD");
         }
-        requireFreshSession(sessions[0], clock); // Verification can cross the freshness/expiry boundary.
+        const eventTime = clock();
+        // Verification can cross the freshness/expiry boundary.
+        requireFreshSession(sessions[0], () => eventTime);
+        const emailEligible = account.authUser.emailVerified && account.emailVerifiedAt !== null && account.emailVerifiedAt <= eventTime;
+        // Opaque event identity: never derive work keys from passwords, sessions or addresses.
+        const changeId = randomUUID();
         await transaction.account.update({ where: { id: credential.id }, data: { password: hash }, select: { id: true } });
         await transaction.session.deleteMany({ where: { userId: actor.user.id, id: { not: actor.session.id } } });
+        // The unique row is both the in-app notice and its processed-work record.
+        // No asynchronous materializer can duplicate it. Rollback removes all effects.
+        await transaction.passwordChangeNotice.create({ data: {
+          id: changeId, accountId: account.id, eventType: "account.password-changed", eventVersion: 1,
+          inAppWorkKey: `password-changed-in-app:${changeId}`, createdAt: eventTime,
+          emailEligibility: emailEligible ? "ELIGIBLE" : "INELIGIBLE",
+        }, select: { id: true } });
+        // Deliberately no email intent/snapshot, including eligible changes: final
+        // password-change copy and recipient cleanup are not accepted. No backfill.
         // Preserve current session exactly, verification, tokens and account history.
         return { status: "PASSWORD_CHANGED" as const };
       });
     } catch (error) {
       if (error instanceof PasswordChangeRejected) throw error;
       // No raw database/library failure, password, hash, session or cause escapes.
+      throw new PasswordChangeRejected("INTERNAL_ERROR");
+    }
+  };
+}
+
+export type PasswordChangeNoticeDetail = Readonly<{
+  id: string; eventType: string; eventVersion: number; createdAt: Date; readAt: Date | null;
+}>;
+
+/** Unmounted owner-only detail. No generic/staff reader, cache, rendered copy or email status. */
+export function createPasswordChangeNoticeReader(
+  database: ReturnType<typeof getPrisma>,
+  auth: Pick<ReturnType<typeof createAccountAuth>, "api">,
+  clock: () => Date = () => new Date(),
+) {
+  return async (headers: Headers, noticeId: unknown, applySessionHeaders: (headers: Headers) => void):
+    Promise<PasswordChangeNoticeDetail | null> => {
+    const parsed = z.uuid().safeParse(noticeId);
+    if (!parsed.success) throw new PasswordChangeRejected("INVALID_INPUT");
+    try {
+      const resolved = await auth.api.getSession({ headers, returnHeaders: true,
+        query: { disableCookieCache: true, disableRefresh: true } });
+      applySessionHeaders(resolved.headers);
+      const actor = resolved.response;
+      if (!actor || actor.session.userId !== actor.user.id) return null;
+      const now = clock();
+      if (!Number.isFinite(now.getTime())) throw new PasswordChangeRejected("INTERNAL_ERROR");
+      // One statement rechecks ownership/deletion and the exact stored session;
+      // the earlier auth snapshot alone cannot authorize reading this event.
+      return await database.passwordChangeNotice.findFirst({ where: {
+        id: parsed.data, account: { authUserId: actor.user.id, deletedAt: null,
+          authUser: { sessions: { some: { id: actor.session.id, userId: actor.user.id,
+            token: actor.session.token, expiresAt: { gt: now }, createdAt: { lte: now } } } } },
+      }, select: { id: true, eventType: true, eventVersion: true, createdAt: true, readAt: true } });
+    } catch {
       throw new PasswordChangeRejected("INTERNAL_ERROR");
     }
   };

@@ -50,7 +50,11 @@ both Better Auth and the domain at commit, with the domain timestamp no later th
 the event. Unverified or mismatched states receive no email intent or snapshot;
 later verification does not backfill email. Required intents commit atomically with
 credential replacement and other-session revocation. This policy is accepted under
-ADR-087's owner-approved 2026-10-15 supplement; notice writes remain unimplemented.
+ADR-087's owner-approved 2026-10-15 supplement. The independent in-app notice and
+fixed locked email-eligibility outcome are implemented synchronously and atomically;
+email intent/snapshot/delivery remain unimplemented pending password-change copy
+and ordinary recipient-retention/cleanup decisions. The operation and owner-only
+detail reader remain unmounted. No later email backfill is authorized.
 It does not define password-reset notices or replace the email-switch notice.
 
 ## Password-Change Notice Recipient

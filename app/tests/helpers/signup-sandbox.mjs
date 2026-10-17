@@ -30,6 +30,7 @@ export async function openSignupSandbox() {
     }
   };
   try {
+    await connection.query("SET TIME ZONE 'UTC'");
     await connection.query(`CREATE SCHEMA "${schema}"`);
     await connection.query(`SET search_path TO "${schema}", public`);
     const migrations = new URL("../../prisma/migrations/", import.meta.url);
@@ -39,7 +40,7 @@ export async function openSignupSandbox() {
     // Prisma qualifies model queries, but raw locking queries use PostgreSQL's search_path.
     // Apply the random synthetic schema to every pooled connection, including transactions.
     database = new PrismaClient({ adapter: new PrismaPg({ connectionString: DATABASE_URL,
-      options: `-c search_path=${schema},public` }, { schema }), log: [] });
+      options: `-c search_path=${schema},public -c timezone=UTC` }, { schema }), log: [] });
     const auth = betterAuth({
       ...createAuthPolicy({ NODE_ENV: "development", BETTER_AUTH_URL: "http://127.0.0.1:3000",
         BETTER_AUTH_SECRET: "synthetic-signup-secret-for-local-tests-only" }),

@@ -141,8 +141,9 @@ unverified users. In-app notices cannot reliably reach an owner locked out by an
 attacker, and verified email cannot protect a compromised mailbox or guarantee
 prompt delivery. Existing password/session controls remain necessary.
 
-Acceptance is not implementation. The existing credential/session-only operation
-does not satisfy the required notice writes and must remain unmounted. The current
+Acceptance is not full implementation. The independent in-app notice writes are now
+implemented, but email intent/binding/delivery remain blocked and the operation must
+remain unmounted (see the 2026-10-17 implementation record below). The current
 SQL recipient constraint permits only the email-switch notice; no schema expansion,
 provider credentials, delivery or participant data is introduced by this supplement.
 Separate job, template, retention, sign-in race and launch-readiness gates remain.
@@ -501,6 +502,44 @@ unmounted. Registration, sign-in and authenticated password change stay closed;
 required password-change notices and library sign-in races remain gates. Production
 worker hosting/scheduling, staff retry/audit and ADR-081 readiness are not resolved.
 No product rule, notice policy or operational cadence changes.
+
+## Implementation record: independent password-change in-app notices (2026-10-17 PHT)
+
+This record implements existing policy without changing its trigger or recipient.
+ADR-088 approves exactly four version-1 email messages, none for password change.
+Its retention rule covers those supported deliveries. PROJECT §§8.5/25/34 and this
+ADR's specific password-change supplement still require final copy review and an
+approved ordinary recipient/metadata cleanup rule, including delayed/deleted-account
+handling. The newer generic mechanics do not silently settle that specific scope.
+No password-change email intent, snapshot, template, send or email backfill is added,
+even when the recorded eligibility outcome is ELIGIBLE. This is partial implementation,
+not an accepted policy exception; password change stays unmounted.
+
+The existing locked credential operation now atomically materializes one owner-private
+`password_change_notice` row per successful change. The account's two verification
+states are read after identity/domain locks and checked against event time after
+password verification. Required notice-write/commit failure rolls back credentials,
+all revocations and the notice. A random change UUID and unique in-app work key
+identify the event independently of password, session, address or time; the row is
+also its synchronous processed-work record. No async in-app materializer is added.
+Distinct successes in one session at the same instant remain distinct. Rejected
+commands create no notice; rollback/retry leaves one committed record.
+
+An unmounted owner-only detail reader selects only event identity/type/version,
+event time and nullable read time. Its read statement rechecks the exact stored
+session and undeleted owner mapping. No recipient, rendered copy, generic/staff
+reader, new logging or cache is added. The SQL recipient constraint remains limited
+to the separate email-switch warning. The additive in-app migration is replayed
+only in disposable synthetic schemas. No persistent/shared migration is run.
+UTC is explicit on application Prisma and shared sandbox connections to avoid the
+installed adapter's offset-stripping timestamp conversion; PHT rules are preserved.
+
+Synthetic tests cover eligibility combinations/future timestamps, actual lock waits,
+both verification/email-proof orders, pending changes, write/deferred-commit rollback,
+retry, distinct and duplicate work, owner isolation, safe outputs/log silence and
+independence from failure/repeated execution of already supported email work. This
+does not test password-change email delivery or recipient binding; those remain
+unimplemented. See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md` for results and gates.
 
 ## Sources
 

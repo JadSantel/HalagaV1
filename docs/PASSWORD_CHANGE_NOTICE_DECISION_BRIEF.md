@@ -4,8 +4,9 @@ Date: 2026-10-15 PHT. **Accepted by the project owner on 2026-10-15 PHT.** The o
 answered “Yes” to approval of the recommendation and contract. Binding requirements
 are recorded in [ADR-087](decisions/ADR-087-account-onboarding-and-email-credential-flows.md#password-change-security-notices-owner-approved-2026-10-15).
 Acceptance is not implementation: the password-change command remains unmounted;
-its disabled preview is not a working flow. No notice behavior, schema, credentials
-or delivery is added here. Scope: authenticated password change, not password reset.
+its disabled preview is not a working flow. This brief records policy; the current
+independent in-app implementation is described below and in the local testing guide.
+Scope: authenticated password change, not password reset.
 
 ## Evidence and finding before approval
 
@@ -124,13 +125,31 @@ commit-time recipient binding without retargeting. ADR-087, PROJECT, architectur
 the glossary and implementation/testing records now distinguish accepted policy
 from incomplete notice implementation.
 
-Future notice implementation must add synthetic coverage for verified/unverified/both mismatch directions,
+The 2026-10-17 independent implementation adds synthetic in-app coverage for verified/unverified/both mismatch directions,
 future verification timestamps, verification before/after the change, both email-
 proof lock orders and pending changes, intent/write/deferred-commit rollback and
 retry, distinct changes versus duplicate work, safe projections/content and logs,
-and delivery failure without credential rollback. Review a narrow schema change:
+and supported email delivery failure without credential/in-app rollback. Password-change
+email delivery, snapshot binding and snapshot retention are not implemented or tested.
+The new in-app-only table does not broaden recipient storage:
 the SQL constraint permits `recipientEmail` **only** for
 `account.email-changed-security-notice`. This policy update does not broaden it.
 Dispatch/recovery tests require their separate contracts. Approval does not
 authorize mounting, credentials, delivery or participant data; sign-in race,
 job, retention, deployment and ADR-081 gates remain.
+
+## Implementation boundary checked 2026-10-17 PHT
+
+ADR-088's newer template table approves exactly four messages, excluding password
+change. Its supported-message cleanup contract does not expressly settle this
+brief's ordinary password-change recipient/metadata period or delayed/deleted-account
+handling. PROJECT's instruction to reuse those generic mechanics does not approve
+missing password-change copy or silently extend the specific recipient-retention scope.
+These are remaining decisions, not a reason to reopen the accepted trigger/recipient.
+
+Completed: atomic owner-private in-app record and fixed commit-time eligibility,
+opaque unique event/work identity, safe unmounted owner detail, rollback/retry and
+synthetic race/privacy checks. No rendered notice copy is stored. Dependent email
+intent/snapshot/delivery remains unimplemented for all changes, including eligible
+ones; no later email backfill is authorized. The command, preview and reader remain
+unmounted/disabled. See [current local testing](PASSWORD_CHANGE_LOCAL_TESTING.md).

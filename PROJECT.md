@@ -163,7 +163,7 @@ Session, cookie, freshness, and endpoint-rate-limit policies are accepted under 
 
 ADR-087 sets verification and email-change tokens to 24 hours and password-reset tokens to one hour; all are single-use and replaced by a newer request. Verification synchronizes the Better Auth identity and domain timestamp atomically, then requires a fresh sign-in. A successful password reset atomically changes the password and revokes every session; an authenticated password change requires recent sign-in and revokes other sessions while keeping the current one. Email changes require recent sign-in; the old verified address remains active until the new address is proved, then the switch is atomic, all sessions are revoked, and the old address receives a privacy-reviewed notice. Signup, verification resend, and reset request responses do not disclose email/account status. ADR-088 defines encrypted delivery transport, approved account-email templates and fragment links, stale-intent suppression, dispatch/recovery, and bounded cleanup. The six email request/completion endpoints and fragment forms are implemented for local synthetic validation. Registration, sign-in and authenticated password change remain closed pending their integration gates; ADR-081 still gates real participant use.
 
-The synthetic-only slice 2 foundation checks adult and email prerequisites against stored sessions and existing account mappings. Its unmounted signup atomically writes identity/credential records, domain account, private eligibility data, initial verification token digest, encrypted private delivery payload and email intent. Verification resend, reset and email-change proof issuance atomically replace their own token family and suppress queued work for the replaced token. ADR-088 supplies token/binding/expiry rechecks, a two-minute fenced lease, bounded 429 retries, ambiguous-send quarantine and 30-day terminal cleanup. The old-address security notice uses only its immutable recipient snapshot. `jobs:account-email` now runs recovery/cleanup and at most one dispatch through the Node.js runtime. Sending defaults off, even with provider credentials; synthetic tests inject a fake provider. No hosted worker or polling schedule is selected. Password-change notice writes, sign-in/session races, staff retry/audit and ADR-081 readiness remain gates. See ADR-088 and `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`.
+The synthetic-only slice 2 foundation checks adult and email prerequisites against stored sessions and existing account mappings. Its unmounted signup atomically writes identity/credential records, domain account, private eligibility data, initial verification token digest, encrypted private delivery payload and email intent. Verification resend, reset and email-change proof issuance atomically replace their own token family and suppress queued work for the replaced token. ADR-088 supplies token/binding/expiry rechecks, a two-minute fenced lease, bounded 429 retries, ambiguous-send quarantine and 30-day terminal cleanup. The old-address security notice uses only its immutable recipient snapshot. `jobs:account-email` now runs recovery/cleanup and at most one dispatch through the Node.js runtime. Sending defaults off, even with provider credentials; synthetic tests inject a fake provider. No hosted worker or polling schedule is selected. Password-change email decisions/implementation, sign-in/session races, staff retry/audit and ADR-081 readiness remain gates. See ADR-088 and `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`.
 
 Slice 2 also has an unmounted authenticated password-change operation. It resolves
 the stored-session owner, checks original creation age below 15 minutes and rechecks
@@ -172,8 +172,7 @@ Auth's configured limits, hasher and current-password verifier apply. Credential
 replacement and removal of every other stored session commit atomically; the
 initiating session, verification states, tokens and account history survive.
 Synthetic PostgreSQL checks cover boundaries, failures, retry and concurrent
-account operations; see `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`. No migration or
-dependency is needed for this credential/session-only operation. The owner-approved
+account operations; see `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`. The owner-approved
 2026-10-15 ADR-087 supplement requires a durable account-private in-app security
 notice for every successful authenticated password change. Email is mandatory only
 to the primary address verified in both Better Auth and the domain at commit, with
@@ -183,9 +182,17 @@ changing verification. Later verification does not backfill email. Bind the reci
 under the same locks and atomically persist all required notice intents with the
 credential/session change. Later address changes cannot retarget or suppress the
 historical warning merely because primary changed. ADR-087 defines content limits,
-race ordering, deduplication, failure and recipient privacy. These notice writes are
-not implemented; password change stays unmounted pending them, sign-in race
-integration and existing template/job/retention/deployment/readiness gates.
+race ordering, deduplication, failure and recipient privacy. The independent in-app
+portion is implemented: each success atomically materializes one owner-private
+notice with an opaque event/work identity and fixed locked email-eligibility outcome.
+Email intent, recipient snapshot and password-change delivery remain unimplemented,
+including for eligible events. Final password-change email copy and the ordinary
+recipient/metadata retention, cleanup and delayed/deleted-account rules remain
+unaccepted; ADR-088's four-message contract does not implicitly extend them to this
+event. No later email backfill is implemented or authorized. Password change and
+its notice reader stay unmounted pending these gates, sign-in race integration and
+existing deployment/readiness gates. The additive in-app migration is replayed only
+in disposable synthetic schemas; it does not expand recipient storage.
 
 Independent Slice 2 account-email intent inspection and a separate internal
 dispatcher are implemented. Inspection returns fixed statuses; dispatch rechecks
@@ -663,9 +670,12 @@ to security facts, PHT event time and approved recovery guidance, without creden
 tokens, IP/device/location, DOB, display name, addresses in subject/body or marketplace
 content. Recipient snapshots are purpose-limited private delivery data. ADR-088
 sets encrypted handoff, dispatch/recovery and 30-day terminal metadata cleanup for
-account email; the password-change email copy, atomic notice writes and sign-in
-race integration remain gated. The approved password-change notice policy is not
-yet implemented.
+its four supported account messages. Password-change in-app persistence and locked
+eligibility recording are implemented, with an unmounted owner-only detail projection.
+Password-change email copy, ordinary recipient/metadata retention and cleanup,
+atomic email intent/recipient binding, delivery and sign-in race integration remain
+gated. The accepted notice policy is only partially implemented; no account operation
+is made mountable by this independent work.
 
 SMS, browser push, and native push are out of scope.
 
@@ -946,7 +956,7 @@ These items are intentionally not invented in this specification. They require a
 - The exact timestamp behavior for `Newest` after renewal or material republication.
 - Provider-specific backup purge timing and deletion propagation.
 - Treatment of an account later found to be underage.
-- Password-change notice implementation readiness: ADR-087's owner-approved 2026-10-15 supplement settles trigger, recipient, content limits and atomic binding. Required notice writes, password-change email copy and sign-in races remain gates before mounting; use ADR-088's accepted transport, dispatch/recovery and retention mechanics. Do not reopen the accepted trigger/recipient policy or infer operational defaults.
+- Password-change notice implementation readiness: ADR-087's owner-approved 2026-10-15 supplement settles trigger, recipient, content limits and atomic binding. Atomic in-app persistence/eligibility recording is implemented. Final password-change email copy, ordinary recipient/metadata retention and cleanup, dependent email intent/binding/delivery and sign-in races remain gates before mounting. Reuse ADR-088's accepted generic transport/dispatch mechanisms after the event-specific decisions; its four-message scope does not silently approve the missing rules. Do not reopen the accepted trigger/recipient policy or infer operational defaults.
 - External emergency or law-enforcement escalation procedure.
 - IMEI or device-identifier blocklist integrations.
 - Availability, performance, browser-support, PWA, and storage-capacity targets.

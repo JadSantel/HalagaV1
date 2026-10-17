@@ -16,7 +16,9 @@ credential and original session freshness under locks, then atomically replaces 
 credential and revokes other sessions while retaining the initiating session exactly.
 Its security-notice contract is accepted under ADR-087's owner-approved supplement:
 in-app notice for every success, email only to the primary address verified in both
-stores at commit. Required atomic notice writes remain unimplemented; keep it unmounted.
+stores at commit. Atomic in-app notices and fixed locked eligibility are implemented;
+email intent/snapshot/delivery stay gated on password-change copy and ordinary
+recipient/metadata cleanup decisions. Keep the operation and owner detail unmounted.
 
 ## Module access
 
@@ -31,7 +33,7 @@ stores at commit. Required atomic notice writes remain unimplemented; keep it un
 | `src/server/repositories/email-verification.ts` | Internal account-owned, namespaced token issue/replacement with encrypted delivery payload and minimized intent; suppresses queued replaced work in the same transaction. Consumption atomically verifies both stores and revokes sessions. No route, Server Action or synchronous email. |
 | `src/server/repositories/password-reset.ts` | Internal account-owned, one-hour reset-token issue/replacement with encrypted delivery payload and minimized intent; suppresses queued replaced work atomically. Credential replacement, token consumption and session revocation remain atomic. No route or synchronous email. |
 | `src/server/repositories/email-change.ts` | Internal account-owned, fresh-session 24-hour bound-token replacement with encrypted delivery payload; proof atomically switches the address, revokes sessions and records an old-address notice plus seven-day delivery job. No route or synchronous email. |
-| `src/server/repositories/password-change.ts` | Internal account-owned credential replacement with stored-session owner resolution, locked mapping/credential/session rechecks and original creation age below 15 minutes. Uses configured Better Auth limits/hasher/current-password verifier. Atomic replacement/revocation preserves the initiating session exactly, verification, token families and account history. Fixed safe results/errors. Approved required notice writes remain unimplemented; command stays unmounted. |
+| `src/server/repositories/password-change.ts` | Internal credential replacement with stored-session owner resolution, locked mapping/credential/session rechecks and original creation age below 15 minutes. Atomic credential/revocation/in-app-notice writes preserve the initiating session, verification and tokens. Fixed eligibility reads both verification stores after account locks; no email intent/snapshot. Separate unmounted owner-only detail rechecks the exact stored session and undeleted mapping and selects only ID/type/version/event/read time. No generic/staff reader, cache or log. Email and mounting remain gated. |
 | `src/server/account-access.ts` | Server-only adult eligibility and publication/inquiry/proposal prerequisite rejection; restrictions, blocks and target/state authorization remain separate gates. |
 | `src/server/repositories/` | Other server-only reads belong to the owning module, after verifying the caller and selecting an explicit authorized projection. |
 | `src/app/` and other application modules | Consume scoped repository methods when they exist. No direct Prisma, generated database client, or PostgreSQL driver imports. Current pages read no persisted records. |
@@ -141,8 +143,9 @@ integration and sign-in racing account changes remain unmounted/gated.
 Password change has separate isolated transaction checks and direct manual exercises
 in `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`. Session resolution disables refresh for
 that operation to avoid pretransaction renewal writes. It preserves the initiating
-session exactly. The owner-approved notice contract is accepted, but its required
-atomic intents/recipient binding are not implemented; password change stays unmounted.
+session exactly. The accepted contract's required in-app write is implemented,
+while email intents/recipient binding are not; password
+change stays unmounted pending final email copy/recipient cleanup and other gates.
 Atomicity alone does not enforce retry idempotency,
 concurrency, revision/deadline policy, history, or audit/outbox requirements.
 Those remain mandatory before implementing the affected flow. See `app/README.md`
