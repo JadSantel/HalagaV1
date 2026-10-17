@@ -7,9 +7,12 @@ response/headers return after commit; fixed errors contain no causes or raw
 library output. The transaction adapter factory stays in `server/prisma.ts`.
 The operation adds no public/domain reader, route or authorization grant.
 Raw `auth.api.signInEmail` and the library handler do not acquire these locks;
-future HTTP integration must use the operation with reviewed limiter/origin/CSRF
-and response handling. See [the trace and tests](../../../../docs/SIGN_IN_LOCAL_TESTING.md).
-This supersedes internal sign-in race-status statements below for this operation.
+`sign-in-http.ts` now supplies an unmounted protected handler using that operation,
+the installed limiter/origin/first-login CSRF checks and a fixed success/session-cookie
+projection. The operation explicitly binds the installed ambient adapter context to
+the transaction adapter even inside another handler. Failures expose no cookies.
+See [the trace and tests](../../../../docs/SIGN_IN_LOCAL_TESTING.md).
+This supersedes internal sign-in race and HTTP-integration status below for this path.
 Signup/sign-in/password-change mounting and password-change email remain gated.
 
 The laptop practice draft stays in browser memory. Slice 2 adds an unmounted

@@ -17,7 +17,7 @@
     "test:reset": "node --conditions=react-server --test tests/password-reset-database.test.mjs",
     "test:email-change": "node --conditions=react-server --test tests/email-change-database.test.mjs",
     "test:password-change": "node --conditions=react-server --test tests/password-change-database.test.mjs",
-    "test:sign-in": "node --conditions=react-server --test tests/sign-in-database.test.mjs",
+    "test:sign-in": "node --conditions=react-server --test tests/sign-in-database.test.mjs tests/sign-in-http-database.test.mjs",
     "test:account-email-intents": "node --conditions=react-server --test tests/account-email-intents-database.test.mjs",
     "test:account-email": "node --conditions=react-server --test tests/account-email-delivery-database.test.mjs tests/account-email-http-database.test.mjs tests/account-email-link.test.mjs",
     "jobs:account-email": "node --conditions=react-server scripts/account-email-worker.mjs",

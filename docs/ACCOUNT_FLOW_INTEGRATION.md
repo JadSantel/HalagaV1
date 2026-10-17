@@ -33,9 +33,25 @@ Results/cookies return only after commit. PostgreSQL tests prove both orders and
 actual waits against account changes, rollback/retry and unrelated-account isolation.
 See [SIGN_IN_LOCAL_TESTING.md](SIGN_IN_LOCAL_TESTING.md). This resolves the internal
 operation's race, superseding blocker 4 below for that operation. Raw library
-sign-in remains unserialized. No plugin endpoint, route or preview is enabled.
-Future HTTP sign-in still needs endpoint/IP limits, origin/CSRF protection, safe
-response/cookie integration and functional client states. Password-change email
+sign-in remains unserialized. The protected sign-in plugin endpoint and handler
+are now implemented and tested, with explicit path opt-in only in the unmounted
+`createAccountSignInHandler` factory. Neither default plugin paths nor mounted
+`accountEmailPaths` admit sign-in. No route or preview is enabled.
+
+The endpoint replaces the core `signInEmail` key, calls only `account-flows.signIn`,
+and retains the installed handler's endpoint/IP limiter plus configured-origin
+admission and the installed `formCsrfMiddleware`. The latter is endpoint-specific
+and must be supplied explicitly when replacing the library endpoint. The operation
+binds core `runWithAdapter` to its transaction adapter so the surrounding HTTP
+handler's ambient adapter cannot override it. Responses after commit contain only
+`{"status":"SIGNED_IN"}` and the configured host-only session cookie; auxiliary
+cookies, token/user JSON, callbacks and redirects are excluded. Failed commands
+return fixed safe errors without cookies. Tests cover both revocation orders and
+actual database waits, rollback/retry, origin/CSRF, shared PostgreSQL limits,
+cookie attributes, log silence and unchanged application wiring.
+
+This completes protected HTTP integration only. Functional clients, mounting,
+and existing readiness gates remain incomplete. Password-change email
 and the other readiness gates remain unchanged.
 
 ## Implemented independently (original synthetic integration)
@@ -51,7 +67,9 @@ and the other readiness gates remain unchanged.
   origin and an exact allowlisted path without a query string. A private WeakSet
   admits each request once after the limiter; direct `auth.api` calls are rejected,
   including calls supplied with a fabricated Request. Unrelated library endpoints,
-  including sign-in and public session reads, are not exposed by this integration.
+  including public session reads, are not exposed. Sign-in requires the separate
+  unmounted handler's explicit path opt-in; the generic/default and email-only
+  handlers continue to reject it.
 - Signup, verification-resend and reset requests return exactly
   `{"status":"REQUEST_RECEIVED"}` on success. Neither repository results nor raw
   issuance material are returned. Unknown, duplicate and verified states are tested.

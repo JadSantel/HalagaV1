@@ -25,9 +25,16 @@ change, reset, verification, email proof and verification-state maintenance.
 Unverified sign-in, fresh-sign-in requirements, rollback/retry, unrelated-account
 isolation and safe errors/logs are preserved. See
 [SIGN_IN_LOCAL_TESTING.md](SIGN_IN_LOCAL_TESTING.md) for trace, results and limits.
-This supersedes older race-status wording below only for the new internal operation.
-Raw library sign-in remains unsafe to expose. HTTP sign-in/limiter/cookie/client
-integration remains gated; signup, sign-in and password-change routes stay closed.
+The protected HTTP integration now calls that operation through the installed
+handler with shared endpoint/IP counters, configured-origin admission and the
+installed first-login CSRF middleware. Explicit ambient adapter binding preserves
+the operation's transaction inside the HTTP handler. Success returns only
+`{"status":"SIGNED_IN"}` and its host-only session cookie after commit; failure
+returns a fixed safe code without cookies. Tests use disposable synthetic schemas
+and cover both revocation orders and rollback/retry. This supersedes older race
+and HTTP-integration status wording below only for this protected integration.
+Raw library sign-in remains unsafe to expose. Functional client and mounting
+remain gated; signup, sign-in and password-change routes stay closed.
 Password-change email work and all existing launch gates remain incomplete.
 
 ## To implement

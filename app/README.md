@@ -4,8 +4,12 @@ Slice 2 update (2026-10-17 PHT): internal `account-flows.signIn` now serializes
 the installed Better Auth API from locked credential/state reads through session
 commit. `npm.cmd run test:sign-in` verifies both orders with actual PostgreSQL waits,
 rollback/retry and safe failures. See [the sign-in guide](../docs/SIGN_IN_LOCAL_TESTING.md).
-Raw library sign-in remains unserialized. Signup/sign-in/password-change routes
-and their previews stay closed/disabled; HTTP sign-in and existing notice/readiness
+Protected HTTP sign-in is also implemented and tested through the installed handler,
+shared rate limits, origin/CSRF checks and fixed response/session-cookie projection.
+Explicit ambient adapter binding keeps session creation inside the locked transaction.
+This is test-only handler coverage. Raw library sign-in remains unserialized.
+Signup/sign-in/password-change routes and their previews stay closed/disabled;
+functional sign-in client, mounting and existing notice/readiness
 gates remain. No password-change email work or persistent migration is added.
 
 The English prototype now covers Q1–Q13 and their follow-ups from

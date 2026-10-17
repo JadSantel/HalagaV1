@@ -1,5 +1,6 @@
 import "server-only";
 import { betterAuth } from "better-auth";
+import { runWithAdapter } from "@better-auth/core/context";
 import { z } from "zod";
 import { getTransactionAuthDatabase, type getPrisma } from "../prisma.ts";
 import type { createAccountAuth } from "./auth.ts";
@@ -59,7 +60,13 @@ export function createAccountSignInOperation(
           ...auth.options,
           database: getTransactionAuthDatabase(transaction),
         });
-        return await transactionalAuth.api.signInEmail({ headers, body: parsed.data, returnHeaders: true });
+        // HTTP handlers install an ambient adapter which otherwise wins over the
+        // internal adapter's fallback, even for a separately constructed auth instance.
+        // Explicitly scope the installed core context to this transaction adapter.
+        const { adapter } = await transactionalAuth.$context;
+        return await runWithAdapter(adapter, () => transactionalAuth.api.signInEmail({
+          headers, body: parsed.data, returnHeaders: true,
+        }));
       });
       // Response/cookies remain local until the transaction has committed.
     } catch (error) {

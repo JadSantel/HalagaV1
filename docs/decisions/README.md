@@ -8,6 +8,15 @@ Use the ADRs to understand why a rule exists and what tradeoffs were accepted. A
 
 Do not silently resolve items listed in `PROJECT.md` under **Deferred Decisions**.
 
+Current sign-in implementation (2026-10-17 PHT): the protected HTTP handler is
+tested but unmounted. It calls the serialized sign-in operation under ADR-086
+limiter/origin/CSRF protection and emits only fixed success plus the required
+session cookie after commit. Explicit ambient adapter binding preserves the
+transaction inside Better Auth's HTTP context. Signup/sign-in/password change
+stay closed, their previews disabled, and password-change email/readiness gates
+remain. This supersedes older HTTP-integration status below; raw library sign-in
+remains unsafe to expose. See `docs/SIGN_IN_LOCAL_TESTING.md` and ADR-087's record.
+
 ADR-088 accepts the account-email transport, templates/link contract, bounded
 dispatch/recovery and cleanup choices at the owner's explicit request. The internal
 dispatcher, six email routes, fragment forms and local run-once Node.js job command

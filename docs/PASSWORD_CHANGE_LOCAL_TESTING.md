@@ -5,7 +5,8 @@ Better Auth credential/state reads through session commit with password change,
 reset, verification and email proof. Both lock orders and real PostgreSQL waits
 are verified in [SIGN_IN_LOCAL_TESTING.md](SIGN_IN_LOCAL_TESTING.md). This supersedes
 the internal race-gate statements below for that operation; raw library sign-in
-remains unserialized. HTTP sign-in, password-change email and other mounting gates
+remains unserialized. The protected HTTP sign-in integration is now tested but
+unmounted; password-change email and other mounting gates
 remain. No password-change route, preview or email path is enabled.
 
 This Slice 2 operation implements credential/session changes and the independently

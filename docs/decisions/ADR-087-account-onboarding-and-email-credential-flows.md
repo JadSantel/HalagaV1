@@ -564,6 +564,28 @@ closed. Password-change email, retention and other readiness gates remain unchan
 See [SIGN_IN_LOCAL_TESTING.md](../SIGN_IN_LOCAL_TESTING.md) for installed-source
 trace, verification results and upgrade/configuration review requirements.
 
+## Implementation record: protected unmounted HTTP sign-in (2026-10-17 PHT)
+
+The protected plugin now replaces `signInEmail` and invokes only the serialized
+`createAccountSignInOperation`, preserving ADR-086's configured origin, endpoint/IP
+limiter and the installed first-login `formCsrfMiddleware`. Installed HTTP handling
+sets an ambient adapter; the operation now explicitly scopes `runWithAdapter` to
+its transaction adapter so nested API calls cannot escape the account transaction.
+Success emits only `{"status":"SIGNED_IN"}` and the configured host-only session
+cookie after commit. No auxiliary cookie, token/user body, redirect or private
+account field is returned. Fixed safe failures emit no cookies or raw logs.
+
+Disposable synthetic PostgreSQL handler tests cover unverified access, shared
+five-per-minute counters across instances, origin/CSRF, safe errors, cookie
+attributes, insert/commit rollback and retry, and both revocation lock orders.
+Verification/proof still creates no session, revokes earlier sessions and requires
+a new sign-in. This supersedes the preceding record's HTTP-integration gate only.
+The sign-in factory is used only in tests: application wiring remains email-only;
+signup/sign-in/password change stay unmounted and their previews disabled.
+Functional clients, password-change email and existing operational/readiness gates
+remain incomplete. No product policy, dependency, migration, service or schedule
+changes. See [SIGN_IN_LOCAL_TESTING.md](../SIGN_IN_LOCAL_TESTING.md) for results.
+
 ## Sources
 
 - `PROJECT.md` sections 8, 26, 28, 33, and 34

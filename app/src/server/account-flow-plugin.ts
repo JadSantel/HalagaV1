@@ -1,6 +1,6 @@
 import "server-only";
 import type { BetterAuthPlugin } from "better-auth";
-import { createAuthEndpoint } from "better-auth/api";
+import { createAuthEndpoint, formCsrfMiddleware } from "better-auth/api";
 import { deleteSessionCookie, parseSetCookieHeader, toCookieOptions } from "better-auth/cookies";
 import { z } from "zod";
 import type { createAccountFlowOperations } from "./repositories/account-flows.ts";
@@ -40,7 +40,10 @@ export function createAccountFlowPlugin(getOperations: () => Operations, enabled
   const admitted = new WeakSet<Request>();
   function endpoint(path: string, run: (operations: Operations, body: unknown, headers: Headers,
     applyHeaders: (headers: Headers) => void) => Promise<{ status: string }>, revoke = false) {
-    return createAuthEndpoint(path, { method: "POST", body: z.unknown(), requireHeaders: true }, async (context) => {
+    return createAuthEndpoint(path, { method: "POST", body: z.unknown(), requireHeaders: true,
+      // Replacing signInEmail also replaces its endpoint-specific first-login CSRF middleware.
+      use: path === "/sign-in/email" ? [formCsrfMiddleware] : [],
+    }, async (context) => {
       // Direct auth.api calls skip the handler limiter; reject even valid bodies/headers.
       if (!context.request || !admitted.delete(context.request)) {
         context.setStatus(403);
@@ -53,6 +56,8 @@ export function createAccountFlowPlugin(getOperations: () => Operations, enabled
         else if (path !== "/change-password") {
           for (const headers of sessionHeaders) for (const cookie of headers.getSetCookie()) {
             parseSetCookieHeader(cookie).forEach((attributes, name) => {
+              // Sign-in publishes only the configured session cookie, never library auxiliary cookies.
+              if (path === "/sign-in/email" && name !== context.context.authCookies.sessionToken.name) return;
               context.setCookie(name, attributes.value, toCookieOptions(attributes));
             });
           }
@@ -61,7 +66,7 @@ export function createAccountFlowPlugin(getOperations: () => Operations, enabled
       } catch (error) {
         // Never serialize input, Zod issues, library/database errors or causes.
         const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
-        const status = code === "UNAUTHORIZED" ? 401 :
+        const status = code === "UNAUTHORIZED" || code === "INVALID_CREDENTIALS" ? 401 :
           ["INVALID_INPUT", "INVALID_TOKEN", "INVALID_STATE", "INVALID_PASSWORD", "ADULT_ELIGIBILITY_REQUIRED"].includes(String(code)) ||
             error instanceof z.ZodError ? 400 : 500;
         context.setStatus(status);
@@ -87,6 +92,12 @@ export function createAccountFlowPlugin(getOperations: () => Operations, enabled
       admitted.add(request);
     },
     endpoints: {
+      // Deliberately absent from both default paths and accountEmailPaths. Explicit test-only opt-in.
+      signInEmail: endpoint("/sign-in/email", async (operations, body, headers, applyHeaders) => {
+        const result = await operations.signIn(headers, body);
+        applyHeaders(result.headers); // The serialized operation returns only after commit.
+        return { status: "SIGNED_IN" }; // Never serialize result.response (token and private user).
+      }),
       signUpEmail: endpoint("/sign-up/email", async (operations, body) => {
         await operations.signup(body);
         return confirmation;

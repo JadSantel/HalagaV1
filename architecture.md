@@ -461,9 +461,17 @@ boundary through the installed adapter. Both command lock orders, rollback/retry
 verification state, stored sessions and unrelated-account isolation are checked.
 
 This supersedes earlier internal race-gate wording in this document for the new
-operation. Raw library sign-in remains unserialized. Future HTTP sign-in must use
-the operation with ADR-086 endpoint/IP limits, origin/CSRF checks and safe response/
-cookie/client integration. Signup, sign-in and password-change routes remain closed.
+operation. The unmounted protected HTTP integration now uses this operation with
+ADR-086 endpoint/IP limits, configured-origin admission, Better Auth's first-login
+CSRF middleware and fixed safe response/cookie handling. `auth/base.mjs` installs
+an ambient adapter for HTTP requests; the operation must explicitly use core
+`runWithAdapter` to bind its transaction adapter, because `getCurrentAdapter`
+otherwise overrides the new auth instance's fallback adapter. Only fixed success
+status and the configured session cookie leave after commit; failures emit no
+cookies. PostgreSQL handler tests cover shared counters, both revocation orders,
+rollback/retry and commit visibility. This is test-only handler coverage; no
+sign-in route or functional client is mounted. Raw library sign-in remains
+unserialized. Signup, sign-in and password-change routes remain closed.
 Unverified users retain sign-in access; verification/proof never creates a session
 and revokes sessions committed before it. See `docs/SIGN_IN_LOCAL_TESTING.md` for
 the trace, tests and configuration/upgrade limits. No accepted policy, glossary
