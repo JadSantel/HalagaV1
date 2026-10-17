@@ -1,5 +1,17 @@
 # Server repository boundary
 
+Current sign-in boundary (2026-10-17 PHT): `sign-in.ts`, composed as
+`account-flows.signIn`, uses the installed Better Auth API with an adapter bound
+to the identity/mapping/credential-locking Prisma transaction. Its private
+response/headers return after commit; fixed errors contain no causes or raw
+library output. The transaction adapter factory stays in `server/prisma.ts`.
+The operation adds no public/domain reader, route or authorization grant.
+Raw `auth.api.signInEmail` and the library handler do not acquire these locks;
+future HTTP integration must use the operation with reviewed limiter/origin/CSRF
+and response handling. See [the trace and tests](../../../../docs/SIGN_IN_LOCAL_TESTING.md).
+This supersedes internal sign-in race-status statements below for this operation.
+Signup/sign-in/password-change mounting and password-change email remain gated.
+
 The laptop practice draft stays in browser memory. Slice 2 adds an unmounted
 account-private prerequisite reader for existing synthetic account mappings.
 No public, staff or marketplace workflow reader is implemented. An unmounted signup

@@ -24,6 +24,20 @@ change remain closed; no session-creation route is exposed. Hosted scheduling,
 staff recovery/audit and ADR-081 readiness remain unresolved. See the current
 [delivery and verification guide](ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md).
 
+## Serialized internal sign-in (2026-10-17 PHT)
+
+`account-flows.signIn` now composes `createAccountSignInOperation`. A private
+Better Auth instance uses an adapter bound to the account-locking transaction;
+the installed sign-in API rereads credentials/state and inserts its session there.
+Results/cookies return only after commit. PostgreSQL tests prove both orders and
+actual waits against account changes, rollback/retry and unrelated-account isolation.
+See [SIGN_IN_LOCAL_TESTING.md](SIGN_IN_LOCAL_TESTING.md). This resolves the internal
+operation's race, superseding blocker 4 below for that operation. Raw library
+sign-in remains unserialized. No plugin endpoint, route or preview is enabled.
+Future HTTP sign-in still needs endpoint/IP limits, origin/CSRF protection, safe
+response/cookie integration and functional client states. Password-change email
+and the other readiness gates remain unchanged.
+
 ## Implemented independently (original synthetic integration)
 
 - `app/src/server/repositories/account-flows.ts` composes the existing account-owned

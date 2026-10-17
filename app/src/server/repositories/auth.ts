@@ -3,7 +3,8 @@ import { betterAuth } from "better-auth";
 import { createAuthPolicy } from "../auth-policy.ts";
 import { getAuthDatabase } from "../prisma.ts";
 
-// No routes consume this yet. Domain prerequisites and durable email remain separate concerns.
+// Internal session/hasher source. Raw library sign-in does not share account locks;
+// use the unmounted sign-in.ts operation for serialized credential authentication.
 export function createAccountAuth() {
   const policy = createAuthPolicy(process.env);
   return betterAuth({

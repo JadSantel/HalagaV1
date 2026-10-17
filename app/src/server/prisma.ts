@@ -1,7 +1,7 @@
 import "server-only";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { prismaAdapter } from "@better-auth/prisma-adapter";
-import { PrismaClient } from "../generated/prisma/client.ts";
+import { PrismaClient, type Prisma } from "../generated/prisma/client.ts";
 import { readRuntimeConfig } from "./runtime-config.ts";
 
 const developmentGlobal = globalThis as typeof globalThis & {
@@ -34,4 +34,9 @@ export function getPrisma(): PrismaClient {
 /** Better Auth owns its private tables; expose its adapter only to the account repository. */
 export function getAuthDatabase() {
   return prismaAdapter(getPrisma(), { provider: "postgresql", transaction: true });
+}
+
+/** Account sign-in only: all adapter operations use the caller's open transaction. */
+export function getTransactionAuthDatabase(transaction: Prisma.TransactionClient) {
+  return prismaAdapter(transaction, { provider: "postgresql", transaction: false });
 }

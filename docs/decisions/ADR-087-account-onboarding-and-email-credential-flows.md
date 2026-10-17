@@ -541,6 +541,29 @@ independence from failure/repeated execution of already supported email work. Th
 does not test password-change email delivery or recipient binding; those remain
 unimplemented. See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md` for results and gates.
 
+## Implementation record: serialized internal sign-in (2026-10-17 PHT)
+
+`createAccountSignInOperation`, composed as `account-flows.signIn`, now invokes
+the unchanged installed Better Auth 1.7.7 sign-in API with a Prisma adapter bound
+to an outer account-locking transaction. Identity/mapping and credential locks
+precede library credential/state reads and remain through session commit. Empty
+lock results cannot authenticate an identity appearing afterward. Response/cookies
+return only after commit; failures expose fixed codes without raw errors or logs.
+
+PostgreSQL tests verify both orders and observed waits for password change, reset,
+verification, email proof and synthetic verification clearing, including actual
+stored state, rollback/retry, backend/transaction identity and unrelated-account
+isolation. Unverified users may still sign in. Verification/proof creates no
+session and revokes sign-ins committed earlier; a waiting sign-in authenticates
+only against the state reread after proof. This implements existing policy.
+
+This supersedes earlier internal sign-in race limitations only for this operation.
+Raw library sign-in remains unserialized; HTTP limiter/origin/CSRF/cookie/client
+integration is still required. Signup, sign-in and password-change routes remain
+closed. Password-change email, retention and other readiness gates remain unchanged.
+See [SIGN_IN_LOCAL_TESTING.md](../SIGN_IN_LOCAL_TESTING.md) for installed-source
+trace, verification results and upgrade/configuration review requirements.
+
 ## Sources
 
 - `PROJECT.md` sections 8, 26, 28, 33, and 34

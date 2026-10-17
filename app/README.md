@@ -1,5 +1,13 @@
 # Halaga local laptop listing prototype
 
+Slice 2 update (2026-10-17 PHT): internal `account-flows.signIn` now serializes
+the installed Better Auth API from locked credential/state reads through session
+commit. `npm.cmd run test:sign-in` verifies both orders with actual PostgreSQL waits,
+rollback/retry and safe failures. See [the sign-in guide](../docs/SIGN_IN_LOCAL_TESTING.md).
+Raw library sign-in remains unserialized. Signup/sign-in/password-change routes
+and their previews stay closed/disabled; HTTP sign-in and existing notice/readiness
+gates remain. No password-change email work or persistent migration is added.
+
 The English prototype now covers Q1–Q13 and their follow-ups from
 `../docs/design/LAPTOP_DIAGNOSTICS.md` (ADR-068). It calculates the four accepted
 conditions, explains the source answers, and shows battery safety, battery

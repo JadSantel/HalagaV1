@@ -14,6 +14,22 @@ This tracker maps the approved MVP to implementation work. Product behavior come
 
 No production marketplace flow is implemented yet.
 
+### Current Slice 2 sign-in boundary (2026-10-17 PHT)
+
+`account-flows.signIn` now calls the installed Better Auth 1.7.7 sign-in API
+inside a transaction-bound Prisma adapter after identity/mapping and credential
+locks. Credential/state reads, password verification and session insertion share
+that transaction; cookies/results return after commit. Synthetic PostgreSQL tests
+prove both lock orders with observed backend-specific waits against password
+change, reset, verification, email proof and verification-state maintenance.
+Unverified sign-in, fresh-sign-in requirements, rollback/retry, unrelated-account
+isolation and safe errors/logs are preserved. See
+[SIGN_IN_LOCAL_TESTING.md](SIGN_IN_LOCAL_TESTING.md) for trace, results and limits.
+This supersedes older race-status wording below only for the new internal operation.
+Raw library sign-in remains unsafe to expose. HTTP sign-in/limiter/cookie/client
+integration remains gated; signup, sign-in and password-change routes stay closed.
+Password-change email work and all existing launch gates remain incomplete.
+
 ## To implement
 
 | Order | Slice | Scope / completion boundary | Status |

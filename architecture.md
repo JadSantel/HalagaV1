@@ -448,6 +448,27 @@ and bounded retention. The dispatcher is not mounted and no worker is deployed;
 staff retry/audit and link-page integration remain gates. See
 `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`.
 
+### Serialized internal sign-in (2026-10-17 PHT)
+
+`account-flows.signIn` now coordinates the unchanged Better Auth 1.7.7 sign-in API
+with account-owned commands. An outer Prisma transaction locks identity/mapping
+and credential rows; an adapter bound to that transaction client handles all library
+credential/state reads and session insertion. An empty lock lookup fails generically
+rather than authenticating an identity that appears later. Response/cookies return
+only after commit. No hook or adapter `transaction: true` flag alone spans this flow.
+Backend/transaction tracing and PostgreSQL blocking-backend observations prove the
+boundary through the installed adapter. Both command lock orders, rollback/retry,
+verification state, stored sessions and unrelated-account isolation are checked.
+
+This supersedes earlier internal race-gate wording in this document for the new
+operation. Raw library sign-in remains unserialized. Future HTTP sign-in must use
+the operation with ADR-086 endpoint/IP limits, origin/CSRF checks and safe response/
+cookie/client integration. Signup, sign-in and password-change routes remain closed.
+Unverified users retain sign-in access; verification/proof never creates a session
+and revokes sessions committed before it. See `docs/SIGN_IN_LOCAL_TESTING.md` for
+the trace, tests and configuration/upgrade limits. No accepted policy, glossary
+meaning, scheduler, delivery rule or deployment choice changes.
+
 ### Current account-email integration (2026-10-16 PHT)
 
 This update supersedes the historical unmounted email-route/link statements above.

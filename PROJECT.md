@@ -203,6 +203,20 @@ seven-day notice delivery, and 30-day terminal retention. Email routes and fragm
 consumption are implemented; hosted worker scheduling, staff recovery and provider launch setup remain gated; see
 `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`.
 
+Slice 2 now also provides an unmounted serialized sign-in operation (2026-10-17
+PHT). A transaction-bound adapter runs Better Auth's existing sign-in API after
+identity/mapping and credential locks, keeping credential/state reads and session
+persistence inside the same transaction. Results/cookies return only after commit.
+Synthetic PostgreSQL tests cover both lock orders and actual waits against password
+change, reset, email proof and verification changes, plus rollback/retry and unrelated
+accounts. This completes the internal operation's race boundary, superseding earlier
+sign-in-race implementation-status wording above and in section 34 for that operation.
+Raw library sign-in remains unserialized; HTTP limiter/origin/CSRF/cookie/client
+integration remains gated. Unverified users may still sign in; verification itself
+creates no session and revokes earlier sessions. Signup, sign-in and password-change
+routes remain closed. See `docs/SIGN_IN_LOCAL_TESTING.md`; password-change email
+and all existing readiness gates remain unchanged.
+
 ## 9. Supported Inventory
 
 ### 9.1 Top-level categories
