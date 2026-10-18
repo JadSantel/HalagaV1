@@ -3,7 +3,7 @@
 - Status: In discovery
 - Scope: Invite-first seeding and eight-week public pilot
 - Launch market: Cagayan de Oro City, Philippines
-- Last updated: 2026-10-12
+- Last updated: 2026-10-18
 
 ## 1. Purpose and authority
 
@@ -587,6 +587,20 @@ The flow map implies the following first mobile-first screen set:
 Each screen must be tested for narrow mobile widths, desktop layouts, keyboard-only use, visible focus, semantic reading order, screen-reader announcements, 200% and 400% zoom/reflow, non-color state cues, accessible validation, image alternatives, and text alternatives to maps.
 
 ## 8. Decision and readiness status
+
+Latest local signup implementation record (2026-10-18 PHT): the catch-all now
+dispatches exact POST `/api/auth/sign-up/email` to `signup-http.ts`, alongside
+protected sign-in and the six email commands. Its one-path plugin allowlist calls
+the existing atomic signup operation; raw library signup remains unexposed.
+Configured-origin, installed first-login CSRF, endpoint/IP limits, fixed safe
+responses and no-store/no-referrer apply. No session or private response projection
+is introduced. Private DOB/attestation and identity/credential/token/encrypted
+delivery-intent writes remain one transaction. The registration form is functional
+for local synthetic data only. Email sending stays disabled; tests inject a fake
+provider. This supersedes earlier signup closure/client statements, not accepted
+policy or the open decisions in §8.2. Password-change mounting, terms/privacy,
+restrictions, staff recovery, hosted operations and ADR-081 readiness remain gated.
+See `docs/SIGNUP_LOCAL_TESTING.md` for the verified boundary and limitations.
 
 This is an architecture working draft, not an implementation-ready specification. Product and architecture decisions are authoritative in `PROJECT.md` and accepted ADRs; this section tracks what is settled and what still blocks implementation or pilot readiness.
 

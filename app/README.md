@@ -1,5 +1,16 @@
 # Halaga local laptop listing prototype
 
+Latest Slice 2 signup update (2026-10-18 PHT, after sign-in): protected POST
+`/api/auth/sign-up/email` and the accessible form at `/account/register` now work
+for local synthetic data only. Signup retains atomic private eligibility/token/
+encrypted delivery-intent writes, generic responses, origin/CSRF/endpoint limits
+and no session creation. Email sending stays disabled. This supersedes older signup
+closure/preview status below. Password change, terms/privacy, restrictions and all
+real-data/public-launch gates remain incomplete. Run `npm.cmd run test:sign-in-app`
+for the expanded actual signup/sign-in route harness (disposable schema, port 3102).
+An installed browser can optionally exercise the client; setup, results and limits
+are in [the signup guide](../docs/SIGNUP_LOCAL_TESTING.md).
+
 Slice 2 update (2026-10-18 PHT): internal `account-flows.signIn` now serializes
 the installed Better Auth API from locked credential/state reads through session
 commit. `npm.cmd run test:sign-in` verifies both orders with actual PostgreSQL waits,

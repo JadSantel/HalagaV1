@@ -2,8 +2,9 @@ import Link from "next/link";
 import styles from "./account.module.css";
 import { AccountEmailForm, type EmailFlow } from "./email-form";
 import { AccountSignInForm } from "./sign-in-form";
+import { AccountSignupForm } from "./signup-form";
 
-// Fixed screen copy. Sign-in and email commands have forms; gated flows stay previews.
+// Fixed screen copy. Signup, sign-in and email commands have local synthetic forms.
 export const screens = {
   register: { title: "Create your account", action: "Create account", intro:
     "One account for buying and selling. You must be at least 18 years old to participate.",
@@ -45,32 +46,19 @@ function Field({ name, label, type, autoComplete, description }: {
 
 export function AccountScreen({ name }: { name: AccountScreenName }) {
   const screen = screens[name];
-  const email = ["register", "sign-in", "verify-email", "forgot-password"].includes(name);
-  const newPassword = ["register", "reset-password", "change-password"].includes(name);
   const emailFlow = ["verify-email", "forgot-password", "reset-password", "change-email", "confirm-email-change"].includes(name);
   return <>
     <Link className={styles.back} href="/account">All account screens</Link>
     <p className={styles.eyebrow}>Your Halaga account</p>
     <h1>{screen.title}</h1>
     <p className={styles.intro}>{screen.intro}</p>
-    {name === "sign-in" ? <AccountSignInForm /> : emailFlow ? <AccountEmailForm key={name} flow={name as EmailFlow} /> : <><aside id="availability" className={styles.notice} aria-label="Availability">
+    {name === "register" ? <AccountSignupForm /> : name === "sign-in" ? <AccountSignInForm /> : emailFlow ? <AccountEmailForm key={name} flow={name as EmailFlow} /> : <><aside id="availability" className={styles.notice} aria-label="Availability">
       <strong>This action is not available yet.</strong>
       <p>This is a local screen preview. Fields and submission are disabled; no information is collected or email sent.</p>
     </aside>
     <form method="post" aria-describedby="availability" className={styles.form}>
-      {name === "register" && <Field name="displayName" label="Display name" type="text" autoComplete="nickname" />}
-      {email && <Field name="email" label="Email" type="email" autoComplete="email" />}
-      {name === "change-email" && <Field name="proposedEmail" label="New email" type="email" autoComplete="email" />}
-      {["sign-in", "change-password"].includes(name) && <Field name="currentPassword" label="Current password" type="password" autoComplete="current-password" />}
-      {newPassword && <Field name={name === "register" ? "password" : "newPassword"} label={name === "register" ? "Password" : "New password"} type="password" autoComplete="new-password" description="You can paste a password or use your password manager." />}
-      {name === "register" && <>
-        <Field name="dateOfBirth" label="Date of birth" type="date" autoComplete="bday" description="Private. Used to check that you are at least 18 years old." />
-        <div className={styles.attestation}>
-          <input id="adultAttestationAccepted" name="adultAttestationAccepted" type="checkbox" required disabled />
-          <label htmlFor="adultAttestationAccepted">I confirm that I am at least 18 years old and eligible to participate in Halaga.</label>
-        </div>
-        <p className={styles.hint}>Terms and privacy information will be available before registration opens.</p>
-      </>}
+      <Field name="currentPassword" label="Current password" type="password" autoComplete="current-password" />
+      <Field name="newPassword" label="New password" type="password" autoComplete="new-password" description="You can paste a password or use your password manager." />
       <button type="submit" disabled aria-describedby="availability">{screen.action}</button>
     </form></>}
     <section className={styles.explanation} aria-label="What to expect"><p>{screen.detail}</p></section>

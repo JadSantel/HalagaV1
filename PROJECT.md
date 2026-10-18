@@ -226,6 +226,22 @@ routes remain closed. This record supersedes earlier sign-in mounting/client
 status above and in section 34 only. See `docs/SIGN_IN_LOCAL_TESTING.md`; password-change email
 and all existing readiness gates remain unchanged.
 
+Current local synthetic signup record (2026-10-18 PHT, after the sign-in record):
+the owner's explicit local-only authorization mounts POST `/api/auth/sign-up/email`
+through the existing protected plugin and atomic signup operation. The accessible
+`/account/register` form captures the five approved inputs and unchecked ADR-087
+attestation. Its version and timestamp are server-owned. Origin/first-login CSRF
+and ADR-086 endpoint/IP limits remain enforced. New, duplicate and already-verified
+addresses receive the same fixed confirmation without account data or cookies.
+Signup creates no session; a new account stays unverified until separate proof.
+The initial token, encrypted handoff and delivery intent remain atomic with the
+identity/credential/domain/eligibility writes. Sending stays disabled; tests use
+fake delivery and disposable synthetic schemas. This supersedes earlier signup
+mounting/client status only, including the older blanket closure in §8.5.
+Password change remains closed. Terms/privacy content, restrictions, operational
+readiness and every ADR-081 real-data/public-launch gate remain incomplete.
+See `docs/SIGNUP_LOCAL_TESTING.md`. No product policy or glossary meaning changes.
+
 ## 9. Supported Inventory
 
 ### 9.1 Top-level categories

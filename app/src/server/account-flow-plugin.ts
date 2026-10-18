@@ -32,7 +32,7 @@ export function createAccountFlowHandler(auth: { handler: (request: Request) => 
   };
 }
 
-/** Shared protected integration. Application HTTP mounts accountEmailPaths plus explicit sign-in.
+/** Shared protected integration. Application HTTP mounts accountEmailPaths plus explicit sign-in/signup.
  * Do not expose the full default path set or auth.api: see ACCOUNT_FLOW_INTEGRATION.md.
  * Core endpoint keys deliberately replace library account transactions/default tokens.
  */
@@ -41,8 +41,8 @@ export function createAccountFlowPlugin(getOperations: () => Operations, enabled
   function endpoint(path: string, run: (operations: Operations, body: unknown, headers: Headers,
     applyHeaders: (headers: Headers) => void) => Promise<{ status: string }>, revoke = false) {
     return createAuthEndpoint(path, { method: "POST", body: z.unknown(), requireHeaders: true,
-      // Replacing signInEmail also replaces its endpoint-specific first-login CSRF middleware.
-      use: path === "/sign-in/email" ? [formCsrfMiddleware] : [],
+      // Replacing either library entry endpoint must preserve its first-login CSRF middleware.
+      use: ["/sign-in/email", "/sign-up/email"].includes(path) ? [formCsrfMiddleware] : [],
     }, async (context) => {
       // Direct auth.api calls skip the handler limiter; reject even valid bodies/headers.
       if (!context.request || !admitted.delete(context.request)) {

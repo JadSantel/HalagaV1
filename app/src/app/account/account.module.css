@@ -9,7 +9,7 @@
 .intro { font-size: 1.125rem; margin-bottom: 1.5rem; }
 .notice { padding: 1rem; background: #fff3d6; color: #614000; border-left: 3px solid #855600; margin: 1.5rem 0; }
 .notice p { margin-top: .5rem; }
-.form { display: grid; gap: 1.25rem; }
+.form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
 .field label { display: block; font-weight: 600; margin-bottom: .5rem; }
 .field label span { font-weight: 400; color: var(--muted); font-size: .875rem; }
 .hint { font-size: .875rem; color: var(--muted); margin-bottom: .5rem; }

@@ -14,6 +14,23 @@ This tracker maps the approved MVP to implementation work. Product behavior come
 
 No production marketplace flow is implemented yet.
 
+### Latest Slice 2 signup boundary (2026-10-18 PHT, after sign-in)
+
+Local synthetic signup is now mounted at POST `/api/auth/sign-up/email`, using
+the existing atomic operation and protected HTTP integration. The accessible
+`/account/register` form replaces its disabled preview. It uses the exact unchecked
+ADR-087 attestation; version/timestamp remain server-owned. Fixed generic responses
+hide new/duplicate/verified address state. Signup creates no session and sends no
+email. Origin/CSRF and the three-per-15-minute endpoint/IP limit remain enforced.
+Actual Next-route tests replay migrations in disposable synthetic schemas with
+finally cleanup, inject write/commit failures, retry, and verify no underage writes,
+session behavior, fake-delivery verification and closed unrelated routes. An
+optional installed-browser check exercises keyboard, focus, pending/results,
+errors and reflow. See [SIGNUP_LOCAL_TESTING.md](SIGNUP_LOCAL_TESTING.md).
+This supersedes earlier signup mounting/client status below. Slice 2 stays partial;
+password change, terms/privacy, restrictions, staff recovery, hosted operations,
+provider setup and every real-data/public-launch gate remain incomplete.
+
 ### Current Slice 2 sign-in boundary (updated 2026-10-18 PHT)
 
 `account-flows.signIn` now calls the installed Better Auth 1.7.7 sign-in API

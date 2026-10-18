@@ -1,5 +1,15 @@
 # Server repository boundary
 
+Latest signup boundary (2026-10-18 PHT, after sign-in): `signup-http.ts` exposes
+only protected POST `/sign-up/email`; application dispatch adds that exact pathname
+alongside sign-in and six email commands. The existing atomic signup operation
+owns identity/credential/mapping/private DOB/attestation/token/encrypted delivery
+intent writes. Configured-origin, first-login CSRF, endpoint/IP limits, generic
+response and no-session behavior remain enforced. No account/private response
+reader or synchronous send is added. This supersedes prior signup route/client
+closure below only; password change and launch gates remain closed. See
+`docs/SIGNUP_LOCAL_TESTING.md`.
+
 Current sign-in boundary (2026-10-18 PHT): `sign-in.ts`, composed as
 `account-flows.signIn`, uses the installed Better Auth API with an adapter bound
 to the identity/mapping/credential-locking Prisma transaction. Its private

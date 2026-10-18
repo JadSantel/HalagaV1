@@ -8,6 +8,15 @@ Use the ADRs to understand why a rule exists and what tradeoffs were accepted. A
 
 Do not silently resolve items listed in `PROJECT.md` under **Deferred Decisions**.
 
+Latest signup implementation (2026-10-18 PHT, after sign-in mounting): the owner
+authorizes local synthetic signup only. Protected POST `/api/auth/sign-up/email`
+and the accessible registration form now call the existing atomic operation with
+origin/first-login CSRF/rate protection, fixed generic responses and no session.
+Actual-route rollback/retry and fake-delivery verification use disposable schemas.
+This supersedes older signup mounting/client status below. Password-change and
+terms/privacy/ADR-081 launch gates remain incomplete; email sending stays disabled.
+See [SIGNUP_LOCAL_TESTING.md](../SIGNUP_LOCAL_TESTING.md) and ADR-087's latest record.
+
 Current sign-in implementation (2026-10-18 PHT): the protected HTTP handler and
 accessible form are mounted for local synthetic testing only. It calls the serialized sign-in operation under ADR-086
 limiter/origin/CSRF protection and emits only fixed success plus the required

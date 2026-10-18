@@ -1,5 +1,12 @@
 # Protected sign-in: local synthetic verification
 
+Later signup record (2026-10-18 PHT): local synthetic signup is now mounted too.
+Its form replaces the registration preview. The same `test:sign-in-app` script
+now covers both entry routes and fake-delivery verification. See
+[SIGNUP_LOCAL_TESTING.md](SIGNUP_LOCAL_TESTING.md) for current results and limits.
+This supersedes earlier signup closure wording here; password change and all
+real-data/public-launch gates remain incomplete.
+
 Updated 2026-10-18 PHT, Slice 2. POST `/api/auth/sign-in/email` now uses the
 existing protected HTTP handler and serialized operation. Its accessible form is
 available at `/account/sign-in` for local synthetic testing only. Success remains

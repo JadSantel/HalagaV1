@@ -31,7 +31,7 @@ class IdentityConflict extends Error {}
 
 /** Internal command only: not a Server Action or an HTTP/auth.api wrapper.
  * This account-owned integration writes the installed Better Auth credential schema
- * inside the same Prisma transaction as domain state. No session/token is issued.
+ * inside the same Prisma transaction as domain state. No session or response token is issued.
  */
 export function createSignupOperation(
   database: ReturnType<typeof getPrisma>,
@@ -117,7 +117,7 @@ export function createSignupOperation(
   };
 }
 
-/** No route imports this operation. Future external callers need reviewed rate limits. */
+/** Internal convenience command. HTTP uses signup-http.ts for protected admission. */
 export async function signup(input: unknown) {
   try {
     return await createSignupOperation(getPrisma(), createAccountAuth())(input);

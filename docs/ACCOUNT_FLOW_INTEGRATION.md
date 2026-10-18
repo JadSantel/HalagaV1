@@ -1,5 +1,17 @@
 # Slice 2 account integration: synthetic, unmounted commands
 
+Latest signup record (2026-10-18 PHT, after sign-in mounting): local synthetic
+POST `/api/auth/sign-up/email` and `/account/register` now use the protected
+handler/atomic operation and an accessible form. The one-path signup handler
+preserves configured origin, installed first-login CSRF and ADR-086 limits.
+All eligible request outcomes use `REQUEST_RECEIVED`, with no session/cookie or
+private response data. Initial verification/token/encrypted delivery intent remain
+atomic with signup. Sending stays disabled and tests use fake delivery. This
+supersedes older signup closure and disabled-client wording below only. The
+historical terms/privacy readiness blocker is not satisfied or treated as a
+default: the owner authorizes local synthetic signup only. Password change and all
+real-data/public-launch gates remain closed. See [SIGNUP_LOCAL_TESTING.md](SIGNUP_LOCAL_TESTING.md).
+
 Implementation record, 2026-10-15 PHT. This document changes no accepted policy.
 ADR-086 and ADR-087 remain binding. All account HTTP commands remain unmounted.
 The public `/account` paths are static, disabled screen previews, not working

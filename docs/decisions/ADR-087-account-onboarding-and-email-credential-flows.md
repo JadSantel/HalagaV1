@@ -610,6 +610,31 @@ change remain closed. Password-change copy/recipient retention/cleanup, staff
 recovery and all ADR-081 launch gates remain unresolved or incomplete. No new
 policy, dependency, migration, real mail, service or deployment is introduced.
 
+## Implementation record: mounted local synthetic signup (2026-10-18 PHT)
+
+After local sign-in mounting, the owner explicitly authorizes local synthetic
+signup only. POST `/api/auth/sign-up/email` now uses a one-path protected handler
+over the existing plugin and `createSignupOperation`. The installed library's
+first-login `formCsrfMiddleware` is preserved when replacing signup, alongside
+configured-origin admission and ADR-086 limits. Raw library signup remains closed.
+The exact unchecked attestation is shown in the accessible registration form;
+`adult-eligibility-en-v1` and acceptance time are stored only by the server.
+
+The existing atomic identity/credential/mapping/eligibility/token/encrypted delivery
+intent transaction remains unchanged. Underage DOB is rejected before persistence.
+New, duplicate and already-verified email requests receive the same fixed
+`REQUEST_RECEIVED`, without private data, session creation or signup cookies.
+Verification remains separate, revokes prior sessions and requires sign-in again.
+Sending stays disabled. Actual application-route and optional installed-browser
+checks use disposable synthetic schemas; delivery is faked. See
+[SIGNUP_LOCAL_TESTING.md](../SIGNUP_LOCAL_TESTING.md) for results and limits.
+
+This implements existing policy and supersedes prior signup mounting/client status
+only. It does not approve terms/privacy copy, real participant use, public deployment,
+password-change mounting or email delivery changes. Password-change event-specific
+email decisions/implementation and all existing ADR-081 readiness gates remain.
+No dependency, migration, service, worker schedule or glossary change is introduced.
+
 ## Sources
 
 - `PROJECT.md` sections 8, 26, 28, 33, and 34
