@@ -32,7 +32,7 @@ export function createAccountFlowHandler(auth: { handler: (request: Request) => 
   };
 }
 
-/** Shared protected integration. Application HTTP mounts only accountEmailPaths.
+/** Shared protected integration. Application HTTP mounts accountEmailPaths plus explicit sign-in.
  * Do not expose the full default path set or auth.api: see ACCOUNT_FLOW_INTEGRATION.md.
  * Core endpoint keys deliberately replace library account transactions/default tokens.
  */
@@ -92,7 +92,7 @@ export function createAccountFlowPlugin(getOperations: () => Operations, enabled
       admitted.add(request);
     },
     endpoints: {
-      // Deliberately absent from both default paths and accountEmailPaths. Explicit test-only opt-in.
+      // Absent from generic defaults and accountEmailPaths; the sign-in handler explicitly opts in.
       signInEmail: endpoint("/sign-in/email", async (operations, body, headers, applyHeaders) => {
         const result = await operations.signIn(headers, body);
         applyHeaders(result.headers); // The serialized operation returns only after commit.

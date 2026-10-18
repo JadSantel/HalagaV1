@@ -26,6 +26,14 @@ staff recovery/audit and ADR-081 readiness remain unresolved. See the current
 
 ## Serialized internal sign-in (2026-10-17 PHT)
 
+**Later mounting record, 2026-10-18 PHT:** POST `/api/auth/sign-in/email` and an
+accessible email/password form now use the protected serialized handler for local
+synthetic testing only. Success stays on the same screen. This supersedes historical
+unmounted sign-in/client statements below; signup and password change stay closed.
+The six email commands keep their existing handlers and protection. No public
+session reader, redirect contract, marketplace grant or launch approval is added.
+See [SIGN_IN_LOCAL_TESTING.md](SIGN_IN_LOCAL_TESTING.md) for current checks.
+
 `account-flows.signIn` now composes `createAccountSignInOperation`. A private
 Better Auth instance uses an adapter bound to the account-locking transaction;
 the installed sign-in API rereads credentials/state and inserts its session there.

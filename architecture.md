@@ -448,7 +448,7 @@ and bounded retention. The dispatcher is not mounted and no worker is deployed;
 staff retry/audit and link-page integration remain gates. See
 `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`.
 
-### Serialized internal sign-in (2026-10-17 PHT)
+### Serialized sign-in and local mounting (updated 2026-10-18 PHT)
 
 `account-flows.signIn` now coordinates the unchanged Better Auth 1.7.7 sign-in API
 with account-owned commands. An outer Prisma transaction locks identity/mapping
@@ -461,7 +461,7 @@ boundary through the installed adapter. Both command lock orders, rollback/retry
 verification state, stored sessions and unrelated-account isolation are checked.
 
 This supersedes earlier internal race-gate wording in this document for the new
-operation. The unmounted protected HTTP integration now uses this operation with
+operation. The protected HTTP integration now uses this operation with
 ADR-086 endpoint/IP limits, configured-origin admission, Better Auth's first-login
 CSRF middleware and fixed safe response/cookie handling. `auth/base.mjs` installs
 an ambient adapter for HTTP requests; the operation must explicitly use core
@@ -469,9 +469,14 @@ an ambient adapter for HTTP requests; the operation must explicitly use core
 otherwise overrides the new auth instance's fallback adapter. Only fixed success
 status and the configured session cookie leave after commit; failures emit no
 cookies. PostgreSQL handler tests cover shared counters, both revocation orders,
-rollback/retry and commit visibility. This is test-only handler coverage; no
-sign-in route or functional client is mounted. Raw library sign-in remains
-unserialized. Signup, sign-in and password-change routes remain closed.
+rollback/retry and commit visibility. POST `/api/auth/sign-in/email` and its
+accessible email/password form are now mounted for local synthetic testing only,
+in addition to the unchanged six email commands. Exact route dispatch opts into
+the protected sign-in handler; generic plugin defaults still exclude sign-in.
+Success remains on-screen. No dashboard, redirect, session reader or marketplace
+authorization is added. This supersedes earlier mounting/client status and the
+sign-in mounting gate in section 8.2 only. Raw library sign-in remains
+unserialized. Signup and password-change routes remain closed.
 Unverified users retain sign-in access; verification/proof never creates a session
 and revokes sessions committed before it. See `docs/SIGN_IN_LOCAL_TESTING.md` for
 the trace, tests and configuration/upgrade limits. No accepted policy, glossary

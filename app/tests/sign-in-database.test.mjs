@@ -59,7 +59,7 @@ function observe(database, { trace = [], sessionGate, commitGate, lockGate } = {
   } });
 }
 
-test("sign-in input and mounting boundary stay private", async () => {
+test("sign-in input and raw-operation boundary stay private", async () => {
   const operation = createAccountSignInOperation({ $transaction() { assert.fail("No database access"); } }, {});
   for (const input of [null, {}, { email: "bad", password }, { email: "adult@example.invalid", password: "" },
     { email: "adult@example.invalid", password, userId: randomUUID() },
@@ -68,7 +68,8 @@ test("sign-in input and mounting boundary stay private", async () => {
   }
   for (const path of ["/sign-in/email", "/sign-up/email", "/change-password"]) assert.ok(!accountEmailPaths.includes(path));
   const route = await readFile(new URL("../src/app/api/auth/[...all]/route.ts", import.meta.url), "utf8");
-  assert.doesNotMatch(route, /sign-in|createAccountSignInOperation|createAccountAuth/);
+  assert.match(route, /handleAccountSignInRequest/);
+  assert.doesNotMatch(route, /createAccountSignInOperation|createAccountAuth|auth\.handler/);
 });
 
 test("synthetic PostgreSQL serializes installed Better Auth credential reads through session commit", async (t) => {

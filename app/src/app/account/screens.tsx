@@ -1,8 +1,9 @@
 import Link from "next/link";
 import styles from "./account.module.css";
 import { AccountEmailForm, type EmailFlow } from "./email-form";
+import { AccountSignInForm } from "./sign-in-form";
 
-// Fixed screen copy. Only email commands have forms; gated account flows stay previews.
+// Fixed screen copy. Sign-in and email commands have forms; gated flows stay previews.
 export const screens = {
   register: { title: "Create your account", action: "Create account", intro:
     "One account for buying and selling. You must be at least 18 years old to participate.",
@@ -52,7 +53,7 @@ export function AccountScreen({ name }: { name: AccountScreenName }) {
     <p className={styles.eyebrow}>Your Halaga account</p>
     <h1>{screen.title}</h1>
     <p className={styles.intro}>{screen.intro}</p>
-    {emailFlow ? <AccountEmailForm key={name} flow={name as EmailFlow} /> : <><aside id="availability" className={styles.notice} aria-label="Availability">
+    {name === "sign-in" ? <AccountSignInForm /> : emailFlow ? <AccountEmailForm key={name} flow={name as EmailFlow} /> : <><aside id="availability" className={styles.notice} aria-label="Availability">
       <strong>This action is not available yet.</strong>
       <p>This is a local screen preview. Fields and submission are disabled; no information is collected or email sent.</p>
     </aside>

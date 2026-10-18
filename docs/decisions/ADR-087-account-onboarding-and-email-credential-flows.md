@@ -586,6 +586,30 @@ Functional clients, password-change email and existing operational/readiness gat
 remain incomplete. No product policy, dependency, migration, service or schedule
 changes. See [SIGN_IN_LOCAL_TESTING.md](../SIGN_IN_LOCAL_TESTING.md) for results.
 
+## Implementation record: mounted local synthetic sign-in (2026-10-18 PHT)
+
+The owner authorized local sign-in integration only. POST `/api/auth/sign-in/email`
+now dispatches to the existing protected handler and serialized operation, alongside
+the unchanged six email commands. The handler singleton uses the existing ADR-086
+configuration. Generic plugin defaults and email-only paths still exclude sign-in;
+raw Better Auth handlers/APIs remain unexposed. Fixed JSON, commit-before-cookie,
+origin/CSRF, shared limits and cookie/header policies are preserved.
+
+An accessible email/password form replaces the sign-in preview using existing
+account styles. It provides pending, linked field errors, authentication failure,
+rate-limit, uncertain/network and persistent success feedback with appropriate
+focus/live regions. Success stays on-screen. No dashboard, redirect contract,
+session endpoint, eligibility repair or marketplace grant is added. Unverified
+sign-in remains permitted; adult/verified marketplace prerequisites remain intact.
+
+Actual Next route checks and browser-to-route-to-database verification use a
+disposable synthetic schema. Existing race/rollback tests remain passing. See
+[SIGN_IN_LOCAL_TESTING.md](../SIGN_IN_LOCAL_TESTING.md) for commands and limitations.
+This supersedes earlier sign-in mounting/client status only. Signup and password
+change remain closed. Password-change copy/recipient retention/cleanup, staff
+recovery and all ADR-081 launch gates remain unresolved or incomplete. No new
+policy, dependency, migration, real mail, service or deployment is introduced.
+
 ## Sources
 
 - `PROJECT.md` sections 8, 26, 28, 33, and 34

@@ -1,16 +1,18 @@
 # Halaga local laptop listing prototype
 
-Slice 2 update (2026-10-17 PHT): internal `account-flows.signIn` now serializes
+Slice 2 update (2026-10-18 PHT): internal `account-flows.signIn` now serializes
 the installed Better Auth API from locked credential/state reads through session
 commit. `npm.cmd run test:sign-in` verifies both orders with actual PostgreSQL waits,
 rollback/retry and safe failures. See [the sign-in guide](../docs/SIGN_IN_LOCAL_TESTING.md).
 Protected HTTP sign-in is also implemented and tested through the installed handler,
 shared rate limits, origin/CSRF checks and fixed response/session-cookie projection.
 Explicit ambient adapter binding keeps session creation inside the locked transaction.
-This is test-only handler coverage. Raw library sign-in remains unserialized.
-Signup/sign-in/password-change routes and their previews stay closed/disabled;
-functional sign-in client, mounting and existing notice/readiness
-gates remain. No password-change email work or persistent migration is added.
+POST `/api/auth/sign-in/email` and its accessible form now work for local synthetic
+testing only, alongside the six email commands. Success stays on-screen. Raw
+library sign-in remains unserialized and unexposed. Signup/password-change routes
+and previews stay closed/disabled; existing notice/readiness gates remain.
+`npm.cmd run test:sign-in-app` verifies the actual Next route in a disposable
+schema (port 3102 must be free). No password-change email work or persistent migration is added.
 
 The English prototype now covers Q1–Q13 and their follow-ups from
 `../docs/design/LAPTOP_DIAGNOSTICS.md` (ADR-068). It calculates the four accepted
@@ -70,7 +72,7 @@ future hosting must support it.
 15 constraints and seven publication/history triggers without reading participant records.
 
 Slice 2 now mounts six protected email-only account commands and minimal fragment
-forms at `/account`. Signup, sign-in and password change stay disabled previews.
+forms at `/account`, plus the protected sign-in form/route. Signup and password change stay disabled previews.
 ADR-088 supplies atomic encrypted email handoff and the fenced dispatcher.
 `npm.cmd run jobs:account-email` recovers/cleans and dispatches at most one job in
 the existing Node.js runtime. Provider sending defaults off; a key alone cannot

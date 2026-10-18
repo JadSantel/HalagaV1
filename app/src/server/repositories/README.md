@@ -1,19 +1,21 @@
 # Server repository boundary
 
-Current sign-in boundary (2026-10-17 PHT): `sign-in.ts`, composed as
+Current sign-in boundary (2026-10-18 PHT): `sign-in.ts`, composed as
 `account-flows.signIn`, uses the installed Better Auth API with an adapter bound
 to the identity/mapping/credential-locking Prisma transaction. Its private
 response/headers return after commit; fixed errors contain no causes or raw
 library output. The transaction adapter factory stays in `server/prisma.ts`.
 The operation adds no public/domain reader, route or authorization grant.
 Raw `auth.api.signInEmail` and the library handler do not acquire these locks;
-`sign-in-http.ts` now supplies an unmounted protected handler using that operation,
+`sign-in-http.ts` now supplies the mounted protected POST sign-in handler using that operation,
 the installed limiter/origin/first-login CSRF checks and a fixed success/session-cookie
 projection. The operation explicitly binds the installed ambient adapter context to
 the transaction adapter even inside another handler. Failures expose no cookies.
 See [the trace and tests](../../../../docs/SIGN_IN_LOCAL_TESTING.md).
 This supersedes internal sign-in race and HTTP-integration status below for this path.
-Signup/sign-in/password-change mounting and password-change email remain gated.
+The route and accessible form are local synthetic testing only; success stays
+on-screen. Signup/password-change mounting and password-change email remain gated.
+This later record also supersedes historical all-routes-unmounted statements below.
 
 The laptop practice draft stays in browser memory. Slice 2 adds an unmounted
 account-private prerequisite reader for existing synthetic account mappings.

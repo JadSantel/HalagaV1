@@ -23,6 +23,7 @@
 .form button:not(:disabled):hover { background: #d3e9de; }
 .form :focus-visible, .feedback:focus { outline: 3px solid #176b59; outline-offset: 3px; }
 .feedback { margin-block: 1.25rem; }
+.feedback a { display: inline-flex; align-items: center; min-height: 44px; color: var(--primary); text-decoration: underline; text-underline-offset: .2em; }
 .explanation { margin-top: 1.5rem; color: var(--muted); }
 .links { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; margin-top: 1.5rem; }
 .links a, .back, .brand { display: inline-flex; align-items: center; min-height: 44px; }

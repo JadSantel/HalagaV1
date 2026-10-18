@@ -21,7 +21,7 @@ export class SignInRejected extends Error {
   }
 }
 
-/** Unmounted, trusted-server operation. Direct auth.api calls have no HTTP limiter.
+/** Trusted-server operation behind sign-in-http.ts. Direct auth.api calls have no HTTP limiter.
  * The account auth configuration has no secondary storage, plugins or email callbacks.
  * Recheck this boundary on library/adapter/configuration/hook changes.
  */

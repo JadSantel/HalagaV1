@@ -49,7 +49,7 @@ async function read(response, status, body) {
   return response;
 }
 
-test("test-only protected sign-in HTTP integration with disposable synthetic PostgreSQL", async (t) => {
+test("protected sign-in HTTP integration with disposable synthetic PostgreSQL", async (t) => {
   const sandbox = await openSignupSandbox();
   const { database, auth, connection } = sandbox;
   const operations = createAccountFlowOperations(database, auth);
@@ -300,11 +300,13 @@ test("test-only protected sign-in HTTP integration with disposable synthetic Pos
       });
     }
 
-    await t.test("application email-only wiring and generic plugin defaults leave signup/sign-in/password change unmounted", async () => {
+    await t.test("application opts in only to protected sign-in; email-only and generic defaults still exclude it", async () => {
       assert.ok(!accountEmailPaths.includes("/sign-in/email"));
       const route = await readFile(new URL("../src/app/api/auth/[...all]/route.ts", import.meta.url), "utf8");
-      assert.match(route, /export const POST = handleAccountEmailRequest/);
-      assert.doesNotMatch(route, /sign-in-http|SignInHandler|auth\.handler/);
+      assert.match(route, /pathname === "\/api\/auth\/sign-in\/email"/);
+      assert.match(route, /handleAccountSignInRequest\(request\)/);
+      assert.match(route, /handleAccountEmailRequest\(request\)/);
+      assert.doesNotMatch(route, /createAccountSignInOperation|createAccountAuth|auth\.handler/);
       const emailHandler = createAccountEmailHandler(database, auth, configuration());
       const defaultHandler = createAccountFlowHandler(betterAuth({ ...configuration(),
         plugins: [createAccountFlowPlugin(() => operations)] }));

@@ -14,7 +14,7 @@ This tracker maps the approved MVP to implementation work. Product behavior come
 
 No production marketplace flow is implemented yet.
 
-### Current Slice 2 sign-in boundary (2026-10-17 PHT)
+### Current Slice 2 sign-in boundary (updated 2026-10-18 PHT)
 
 `account-flows.signIn` now calls the installed Better Auth 1.7.7 sign-in API
 inside a transaction-bound Prisma adapter after identity/mapping and credential
@@ -33,8 +33,13 @@ the operation's transaction inside the HTTP handler. Success returns only
 returns a fixed safe code without cookies. Tests use disposable synthetic schemas
 and cover both revocation orders and rollback/retry. This supersedes older race
 and HTTP-integration status wording below only for this protected integration.
-Raw library sign-in remains unsafe to expose. Functional client and mounting
-remain gated; signup, sign-in and password-change routes stay closed.
+Raw library sign-in remains unsafe to expose. POST `/api/auth/sign-in/email`
+and its accessible email/password form now work for local synthetic testing.
+Only that protected handler is added to the six existing email commands. Success
+stays on-screen, with no session reader or marketplace grant. Application-route
+tests use the existing development client-reuse seam with a disposable schema;
+browser sign-in persisted a session there. Signup and password change stay closed.
+This supersedes historical mounting/client status below for sign-in only.
 Password-change email work and all existing launch gates remain incomplete.
 
 ## To implement

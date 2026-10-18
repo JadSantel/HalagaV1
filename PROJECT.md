@@ -203,7 +203,7 @@ seven-day notice delivery, and 30-day terminal retention. Email routes and fragm
 consumption are implemented; hosted worker scheduling, staff recovery and provider launch setup remain gated; see
 `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`.
 
-Slice 2 now also provides an unmounted serialized sign-in operation (2026-10-17
+Slice 2 now also provides a serialized sign-in operation (updated 2026-10-18
 PHT). A transaction-bound adapter runs Better Auth's existing sign-in API after
 identity/mapping and credential locks, keeping credential/state reads and session
 persistence inside the same transaction. Results/cookies return only after commit.
@@ -211,16 +211,19 @@ Synthetic PostgreSQL tests cover both lock orders and actual waits against passw
 change, reset, email proof and verification changes, plus rollback/retry and unrelated
 accounts. This completes the internal operation's race boundary, superseding earlier
 sign-in-race implementation-status wording above and in section 34 for that operation.
-The protected HTTP integration is now implemented and tested without mounting a
-route. It uses this operation, the installed handler's shared endpoint/IP limiter,
+The protected HTTP integration now mounts only POST `/api/auth/sign-in/email`
+alongside the six existing email commands for local synthetic testing. It uses
+this operation, the installed handler's shared endpoint/IP limiter,
 configured-origin admission and first-login CSRF middleware. The operation explicitly
 binds Better Auth's ambient adapter context to its transaction adapter. Only fixed
 success status and the required host-only session cookie leave after commit;
 failures return fixed safe errors without cookies. Raw library sign-in remains
-unserialized and must not be exposed. Functional sign-in clients and mounting
-remain gated. Unverified users may still sign in; verification itself
-creates no session and revokes earlier sessions. Signup, sign-in and password-change
-routes remain closed. See `docs/SIGN_IN_LOCAL_TESTING.md`; password-change email
+unserialized and must not be exposed. The accessible email/password form stays on
+the sign-in screen after success and adds no session reader or marketplace grant.
+Unverified users may still sign in; verification itself
+creates no session and revokes earlier sessions. Signup and password-change
+routes remain closed. This record supersedes earlier sign-in mounting/client
+status above and in section 34 only. See `docs/SIGN_IN_LOCAL_TESTING.md`; password-change email
 and all existing readiness gates remain unchanged.
 
 ## 9. Supported Inventory

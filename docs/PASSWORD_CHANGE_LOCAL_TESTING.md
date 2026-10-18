@@ -1,19 +1,19 @@
 # Unmounted authenticated password change: local synthetic testing
 
-Update 2026-10-17 PHT: the new unmounted account sign-in operation serializes
+Update 2026-10-18 PHT: the account sign-in operation serializes
 Better Auth credential/state reads through session commit with password change,
 reset, verification and email proof. Both lock orders and real PostgreSQL waits
 are verified in [SIGN_IN_LOCAL_TESTING.md](SIGN_IN_LOCAL_TESTING.md). This supersedes
 the internal race-gate statements below for that operation; raw library sign-in
-remains unserialized. The protected HTTP sign-in integration is now tested but
-unmounted; password-change email and other mounting gates
+remains unserialized. Protected POST sign-in and its accessible form are now
+mounted for local synthetic testing only; password-change email and other mounting gates
 remain. No password-change route, preview or email path is enabled.
 
 This Slice 2 operation implements credential/session changes and the independently
 accepted atomic in-app notice portion of ADR-087 using synthetic data. Password-change
 routes, Server Actions, notice readers and UI remain unmounted/disabled. Protected
 endpoint integration exists for synthetic testing; the application exposes only the
-existing six email commands. Signup/sign-in remain closed. Use fictional `.invalid`
+existing six email commands plus protected serialized sign-in. Signup remains closed. Use fictional `.invalid`
 addresses and synthetic passwords only.
 
 ## Setup and automated checks

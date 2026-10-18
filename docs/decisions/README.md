@@ -8,11 +8,13 @@ Use the ADRs to understand why a rule exists and what tradeoffs were accepted. A
 
 Do not silently resolve items listed in `PROJECT.md` under **Deferred Decisions**.
 
-Current sign-in implementation (2026-10-17 PHT): the protected HTTP handler is
-tested but unmounted. It calls the serialized sign-in operation under ADR-086
+Current sign-in implementation (2026-10-18 PHT): the protected HTTP handler and
+accessible form are mounted for local synthetic testing only. It calls the serialized sign-in operation under ADR-086
 limiter/origin/CSRF protection and emits only fixed success plus the required
 session cookie after commit. Explicit ambient adapter binding preserves the
-transaction inside Better Auth's HTTP context. Signup/sign-in/password change
+transaction inside Better Auth's HTTP context. Only POST `/api/auth/sign-in/email`
+is added to the existing six email commands. Success stays on-screen without a
+session reader or marketplace grant. Signup/password change
 stay closed, their previews disabled, and password-change email/readiness gates
 remain. This supersedes older HTTP-integration status below; raw library sign-in
 remains unsafe to expose. See `docs/SIGN_IN_LOCAL_TESTING.md` and ADR-087's record.

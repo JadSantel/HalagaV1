@@ -1,10 +1,115 @@
-# Protected unmounted sign-in: local synthetic verification
+# Protected sign-in: local synthetic verification
 
-Implemented 2026-10-17 PHT, Slice 2. This implements ADR-086/087 without
-changing policy. Signup, sign-in and password-change routes remain closed;
-registration/sign-in/password-change previews remain disabled. Protected HTTP
-integration is implemented and tested only; no sign-in route is mounted.
-No password-change email path is added.
+Updated 2026-10-18 PHT, Slice 2. POST `/api/auth/sign-in/email` now uses the
+existing protected HTTP handler and serialized operation. Its accessible form is
+available at `/account/sign-in` for local synthetic testing only. Success remains
+on that screen. Signup and password change stay closed, with disabled previews.
+The existing six email commands retain their handlers and protection. No dashboard,
+redirect contract, public session reader, marketplace grant, password-change email
+path, participant data or deployment is added. This implements ADR-086/087 without
+changing policy or completing any launch gate.
+
+## Current mounting and verification record (2026-10-18 PHT)
+
+This record supersedes historical unmounted/client statements in the trace and
+dated records below. Repository instructions, PROJECT, architecture, design,
+glossary, ADR-086/087/088, applicable unresolved decisions, current working tree,
+installed library/Next documentation, scripts, account screens, routes, operations
+and HTTP tests were inspected before editing. The initial working tree was clean.
+Later serialized-operation and protected-handler records resolve historical race
+blockers for this path. No unresolved policy blocks local synthetic sign-in;
+password-change email and launch/readiness gates remain separate.
+
+The catch-all dispatches only the exact sign-in pathname to
+`handleAccountSignInRequest`; all other POSTs retain the six-path email handler.
+The sign-in singleton constructs the existing handler with the existing policy
+and adapter. Query input is rejected inside that protected handler. Generic plugin
+defaults and the email-only factory still exclude sign-in; raw Better Auth is not
+mounted. Request bodies contain email/password only. Sessions remain private HTTP
+cookie transport; no new account, session, staff, public or marketplace reader is
+added. Account-private data stays inside the transaction/library operation. Stored
+session revocation, verified-adult prerequisites and unverified sign-in are unchanged.
+
+The client uses existing styles, visible labels and username/current-password
+autocomplete. Pending feedback and a synchronous submission guard prevent duplicate
+requests. Inline validation is associated with fields and linked from a focused
+summary. Fixed authentication, rate-limit, rejected-request and uncertain/network
+feedback is announced and focused. A missing/unrecognized success body is uncertain,
+never inferred success. Credentials are not copied into state, storage, URLs,
+metadata or logs; the password input clears after every submitted result and both
+inputs clear after confirmed success. No client parses or displays private response
+details. Success is persistent on-screen. Account URL-data rendering now sits behind
+Suspense as required by the installed Next.js partial-prefetch navigation contract.
+
+From `app`, privately supply the dedicated loopback `SIGNUP_TEST_DATABASE_URL`
+for `halaga_signup_test` before account checks. The new live-route check is:
+
+```powershell
+npm.cmd run test:sign-in-app
+```
+
+Port 3102 must be free. The test starts Next programmatically in development mode
+and supplies the sandbox's Prisma client through the existing development reuse
+global. No application schema option, test endpoint, persistent migration, or
+production injection seam is added. The trusted fixture loader bypasses only the
+server-only marker so Next retains its normal React environment; application
+bundles retain their server boundary. Existing migrations replay inside the random
+schema only. The test restores environment, drops the schema in finally, closes
+Next and uses Node's test-force-exit for remaining development-worker handles.
+Run it separately from other Next dev/build processes sharing `.next`.
+
+| Check (from `app`, except Git) | Result |
+| --- | --- |
+| `npm.cmd run test:sign-in` / its exact Node script | 34 passed: serialized operation and protected HTTP, including commit visibility, rollback/retry, both race orders, shared PostgreSQL limits, cookies and log silence. |
+| `npm.cmd run test:sign-in-app` / its exact Node script | 6 passed: actual Next pages/routes, stored cookie session, unverified access, six-command admission, configured origin/first-login CSRF and closed-route regressions. |
+| Exact Node test definitions from `test:auth`, `test:signup`, `test:verification`, `test:reset`, `test:email-change`, `test:password-change`, `test:account-email`, `test:foundation`, `test:logging`, batched in one invocation | 141 passed; zero failures/skips. Fake delivery only. |
+| `npm.cmd run lint` | Passed. |
+| `npx.cmd tsc --noEmit` | Passed. |
+| `npm.cmd run build` | Passed compilation, TypeScript and page generation. |
+| `git diff --check` | Passed; existing LF/CRLF conversion notices only. |
+
+A temporary launcher privately derived the dedicated test URL from existing local
+configuration without printing connection material. Installed cached agent-browser
+and local headless Chrome exercised the actual Next page against a disposable
+schema. Empty-field summary links and keyboard Enter/Tab navigation worked;
+authentication failure focused the alert. A gated real request showed pending text,
+read-only inputs and a disabled submit, with one request despite repeated submits.
+Releasing it produced fixed success, cleared inputs and focused status while staying
+on `/account/sign-in`. A separate database check confirmed one browser-created
+session in that schema. The cookie was unavailable to document.cookie.
+
+Browser-only fetch substitutions tested network failure and unrecognized successful
+JSON; fixed uncertain feedback appeared without raw failure text. Real repeated
+wrong-password requests produced 401 then 429, and the form showed rate-limit
+feedback. Axe-core 4.12.1 reported zero violations/incomplete checks across error,
+success and mobile rate-limit states (WCAG 2 A/AA, 2.1 AA and 2.2 AA tags). Desktop
+and 375px screenshots were inspected. 320/375px, 200% text resizing and a CSS 400%
+zoom simulation had no horizontal overflow. The browser reported no uncaught page
+errors. These checks do not establish human screen-reader or native browser-zoom
+conformance; those checks and wider browser coverage remain outstanding.
+
+Initial live-route assertions incorrectly expected malformed unauthenticated email
+change to return 400 instead of its existing 401, and Node fetch overwrote the
+synthetic Sec-Fetch-Mode header. Assertions were corrected and raw node:http now
+preserves the CSRF test headers. Existing account navigation flagged URL data outside
+Suspense; the narrow boundary fixed it. One early lint invocation ran at repository
+root and failed because no root package exists; the app invocation passed. Two CLI
+evaluation probes initially lost quoting in PowerShell; stdin probes passed. A
+temporary interactive browser hold could not receive stdin through Node's test
+worker; it was removed after verification, its process stopped and its exact
+synthetic schema explicitly dropped. Final automated checks use only finally-based
+cleanup. Temporary launcher/screenshots were removed. A final read-only database
+check found no leftover test schemas. Existing MODULE_TYPELESS_PACKAGE_JSON warnings
+remain; the temporary npm launcher also emitted DEP0190 for fixed script arguments
+with shell=true (no credentials or request input in arguments). No dependency or
+configuration change hides these warnings.
+
+Remaining gates include signup, password-change email copy/recipient and metadata
+retention/cleanup, atomic eligible email work, terms/privacy, restrictions/full
+marketplace authorization, audited staff recovery, session/token/counter cleanup,
+provider/secrets/proxy setup and ADR-081 readiness. Sending stayed disabled; no real
+mail, participant data, persistent/shared migration, worker, schedule or deployment
+was introduced. The glossary and accepted product policies are unchanged.
 
 ## Installed-library trace and boundary
 
