@@ -114,6 +114,42 @@ Final verification on 2026-10-16 PHT:
 - Initial loopback/browser sandbox denials were retried with approval. No real
   email, paid service, deployment or shared/persistent migration was performed.
 
+## Focused dispatcher verification (2026-10-18 PHT)
+
+This local, synthetic-only follow-up changes tests and this guide. The existing
+dispatcher required no runtime fix; no accepted policy, route, provider configuration,
+migration, worker schedule or retention period changed. ADR-088's later integration
+record governs the six email routes over historical unmounted-route notes. Signup,
+sign-in and password-change routes remain closed, as the existing handler tests verify.
+
+Seven added database checks cover leased replacement with token-family isolation,
+successful 429 retry with the same work/link, expiry during backoff, FAILED/UNKNOWN
+ciphertext erasure, the exact seven-day notice deadline, all four terminal outcomes'
+30-day snapshot/cascaded-job purge, and cleanup isolation from other verification
+purposes, sessions and rate counters. The disabled-runtime check now starts with
+an expired lease. Fake fetch also checks 429, definite rejection, 5xx, malformed
+success, network/timeout ambiguity and acceptance without provider network access.
+
+An stdin launcher privately loaded local development connection configuration,
+changed only the database name to `halaga_signup_test`, and supplied the explicit
+test URL. Sending was disabled and provider credentials blank in subprocesses;
+the adapter test enables only its in-process fake fetch. Synthetic `.invalid`
+accounts and migration replays stayed in disposable schemas. Read-only catalog
+checks found zero `signup_test_*` schemas before and after every run, including
+the failed run. No persistent/shared migration or real email was sent.
+
+| Command/check | Result |
+| --- | --- |
+| `npm.cmd run test:account-email` | Baseline: 20 passed. Expanded suite: 27 passed, zero failures/skips. The first expanded run reported 25 passed/two failures (one child assertion plus its parent) because a new notice fixture's clock preceded database job availability; correcting the fixture clock resolved it. Existing module-type warnings remain non-failing. |
+| `npm.cmd run lint -- tests/account-email-delivery-database.test.mjs` | Passed. |
+| `git diff --check` | Passed. |
+
+Build, deployment and unrelated suites were not run for this test/documentation-only
+change. This verifies fake-provider behavior, not real-provider or inbox delivery.
+Password-change email subject/body, ordinary recipient/metadata retention and cleanup,
+including delayed/deleted-account handling, remain unresolved under ADR-087 and
+PROJECT §§8.5/25/34. ADR-088's four-message rules do not settle those decisions.
+
 ## Remaining blockers
 
 - Hosted worker/scheduler selection, invocation cadence, rollout compatibility,

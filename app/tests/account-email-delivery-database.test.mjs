@@ -15,7 +15,7 @@ const password = "synthetic-delivery-password-only";
 const cookieHeaders = (result) => new Headers({ cookie: result.headers.getSetCookie().map((value) => value.split(";")[0]).join("; ") });
 const actionToken = (message) => new URL(message.text.match(/https?:\/\/\S+#token=[a-f0-9]+/)[0]).hash.slice(7);
 
-test("provider is disabled even with credentials and malformed success is ambiguous (fake fetch only)", async () => {
+test("provider is disabled even with credentials and classifies responses with fake fetch only", async () => {
   const saved = { ...process.env };
   const originalFetch = globalThis.fetch;
   try {
@@ -28,8 +28,21 @@ test("provider is disabled even with credentials and malformed success is ambigu
     await assert.rejects(sendBrevoEmail(message), (error) => error.category === "REJECTED");
     assert.equal(calls, 0);
     process.env.ACCOUNT_EMAIL_SENDING_ENABLED = "true";
-    await assert.rejects(sendBrevoEmail(message), (error) => error.category === "AMBIGUOUS");
-    assert.equal(calls, 1);
+    for (const [respond, category] of [
+      [() => new Response(null, { status: 429 }), "RATE_LIMIT"],
+      [() => new Response(null, { status: 400 }), "REJECTED"],
+      [() => new Response(null, { status: 503 }), "AMBIGUOUS"],
+      [() => Response.json({}), "AMBIGUOUS"],
+      [() => new Response("not-json", { status: 201 }), "AMBIGUOUS"],
+      [() => { throw new TypeError("synthetic-network-failure"); }, "AMBIGUOUS"],
+      [() => { throw new DOMException("synthetic-timeout", "TimeoutError"); }, "AMBIGUOUS"],
+    ]) {
+      globalThis.fetch = async () => { calls++; return respond(); };
+      await assert.rejects(sendBrevoEmail(message), (error) => error instanceof BrevoSendError && error.category === category);
+    }
+    globalThis.fetch = async () => { calls++; return Response.json({ messageId: "synthetic-accept" }, { status: 201 }); };
+    assert.equal(await sendBrevoEmail(message), "synthetic-accept");
+    assert.equal(calls, 8);
   } finally { process.env = saved; globalThis.fetch = originalFetch; }
 });
 
@@ -62,6 +75,17 @@ test("durable account-email runtime with synthetic accounts and a fake provider"
     return { email, userId: user.id, accountId: account.id, eventId: event.id };
   };
   const job = () => database.accountEmailDelivery.findFirst({ orderBy: { createdAt: "desc" } });
+  const noticeFixture = async () => {
+    const owner = await fixture(true);
+    const session = await auth.api.signInEmail({ body: { email: owner.email, password }, returnHeaders: true });
+    now = new Date();
+    const issued = await change.issue(cookieHeaders(session), { proposedEmail: `new-${randomUUID()}@example.invalid` }, () => {});
+    await change.consume(issued.token);
+    await database.outboxEvent.deleteMany({ where: { accountId: owner.accountId,
+      eventType: { not: "account.email-changed-security-notice" } } });
+    now = new Date(); // Delivery availability uses the database clock during creation.
+    return owner;
+  };
   const run = (name, check) => t.test(name, async () => {
     await database.outboxEvent.deleteMany();
     messages.length = 0;
@@ -106,16 +130,47 @@ test("durable account-email runtime with synthetic accounts and a fake provider"
 
     await run("default sending-disabled runtime still recovers leases without consuming READY work", async () => {
       await fixture();
+      const original = await job();
+      await database.accountEmailDelivery.update({ where: { id: original.id }, data: {
+        state: "LEASED", leaseId: randomUUID(), leaseExpiresAt: new Date(now.getTime() - 1), attemptCount: 1,
+      } });
       const saved = process.env.ACCOUNT_EMAIL_SENDING_ENABLED;
       delete process.env.ACCOUNT_EMAIL_SENDING_ENABLED;
       try {
         assert.deepEqual(await runAccountEmailJob(createAccountEmailDispatcher(database, undefined, () => now)), { status: "DISABLED" });
         assert.equal((await job()).state, "READY");
-        assert.equal((await job()).attemptCount, 0);
+        assert.equal((await job()).attemptCount, 1);
+        assert.equal((await job()).leaseId, null);
+        assert.equal((await job()).leaseExpiresAt, null);
+        assert.deepEqual((await job()).expiresAt, original.expiresAt);
+        assert.equal(messages.length, 0);
       } finally {
         if (saved === undefined) delete process.env.ACCOUNT_EMAIL_SENDING_ENABLED;
         else process.env.ACCOUNT_EMAIL_SENDING_ENABLED = saved;
       }
+    });
+
+    await run("replacement erases a leased verification job while preserving reset work for the same account", async () => {
+      const owner = await fixture();
+      const original = await job();
+      await database.accountEmailDelivery.update({ where: { id: original.id }, data: {
+        state: "LEASED", leaseId: randomUUID(), leaseExpiresAt: new Date(now.getTime() + 120_000), attemptCount: 1,
+      } });
+      await reset.issue(owner.email);
+      const resetJob = await job();
+      await verification.issue(owner.email);
+      now = new Date();
+      const suppressed = await database.accountEmailDelivery.findUnique({ where: { id: original.id } });
+      assert.equal(suppressed.state, "SUPPRESSED");
+      assert.equal(suppressed.ciphertext.length, 0);
+      assert.equal(suppressed.leaseId, null);
+      assert.equal(suppressed.leaseExpiresAt, null);
+      assert.deepEqual(await database.accountEmailDelivery.findUnique({ where: { id: resetJob.id } }), resetJob);
+      assert.deepEqual(await runAccountEmailJob(dispatcher), { status: "ACCEPTED" });
+      assert.deepEqual(await runAccountEmailJob(dispatcher), { status: "ACCEPTED" });
+      assert.deepEqual(messages.map((message) => message.subject).sort(), ["Reset your Halaga password", "Verify your Halaga email"]);
+      assert.ok(messages.every((message) => message.to === owner.email));
+      assert.deepEqual(await runAccountEmailJob(dispatcher), { status: "EMPTY" });
     });
 
     await run("replacement suppresses its token family and consumed/deleted/address-stale work never sends", async () => {
@@ -166,6 +221,49 @@ test("durable account-email runtime with synthetic accounts and a fake provider"
       assert.equal(attempts, 5);
     });
 
+    await run("429 recovery accepts the same logical work and link once when the provider recovers", async () => {
+      await fixture();
+      const original = await job();
+      const retrying = createAccountEmailDispatcher(database, async (message) => {
+        messages.push(message);
+        if (messages.length === 1) throw new BrevoSendError("RATE_LIMIT");
+        return "synthetic-retry-accept";
+      }, () => now);
+      assert.deepEqual(await runAccountEmailJob(retrying), { status: "RETRY_SCHEDULED" });
+      now = new Date((await job()).availableAt.getTime() - 1);
+      assert.deepEqual(await runAccountEmailJob(retrying), { status: "EMPTY" });
+      now = new Date(now.getTime() + 1);
+      assert.deepEqual(await runAccountEmailJob(retrying), { status: "ACCEPTED" });
+      assert.deepEqual(messages[1], messages[0]);
+      const accepted = await job();
+      assert.equal(accepted.id, original.id);
+      assert.deepEqual(accepted.expiresAt, original.expiresAt);
+      assert.equal(accepted.attemptCount, 2);
+      assert.equal(accepted.ciphertext.length, 0);
+      assert.deepEqual(accepted.acceptedAt, now);
+      assert.deepEqual((await database.outboxEvent.findUnique({ where: { id: original.outboxEventId } })).dispatchedAt, now);
+      assert.deepEqual(await runAccountEmailJob(retrying), { status: "EMPTY" });
+      assert.equal(messages.length, 2);
+    });
+
+    await run("429 backoff cannot extend the original token expiry or send an expired retry", async () => {
+      await fixture();
+      const original = await job();
+      now = new Date(original.expiresAt.getTime() - 1);
+      let attempts = 0;
+      const limited = createAccountEmailDispatcher(database, async () => { attempts++; throw new BrevoSendError("RATE_LIMIT"); }, () => now);
+      assert.deepEqual(await runAccountEmailJob(limited), { status: "RETRY_SCHEDULED" });
+      assert.ok((await job()).availableAt > original.expiresAt);
+      now = original.expiresAt;
+      assert.deepEqual(await runAccountEmailJob(limited), { status: "EMPTY" });
+      assert.equal((await job()).state, "SUPPRESSED");
+      assert.equal((await job()).ciphertext.length, 0);
+      assert.deepEqual((await job()).expiresAt, original.expiresAt);
+      now = new Date(now.getTime() + 30_000);
+      assert.deepEqual(await runAccountEmailJob(limited), { status: "EMPTY" });
+      assert.equal(attempts, 1);
+    });
+
     await run("expired LEASED work recovers, exhausted leases fail, expired SENDING is quarantined without resend", async () => {
       await fixture();
       let current = await job();
@@ -214,6 +312,95 @@ test("durable account-email runtime with synthetic accounts and a fake provider"
       await dispatcher.recoverAndClean();
       assert.equal(await database.outboxEvent.count(), 0);
       assert.equal(await database.accountEmailDelivery.count(), 0);
+      assert.equal(messages.length, 0);
+    });
+
+    await run("FAILED and UNKNOWN retain ciphertext only until the original token expiry", async () => {
+      for (const category of ["REJECTED", "AMBIGUOUS"]) {
+        await database.outboxEvent.deleteMany();
+        await fixture();
+        const failing = createAccountEmailDispatcher(database, async () => { throw new BrevoSendError(category); }, () => now);
+        const state = category === "REJECTED" ? "FAILED" : "UNKNOWN";
+        assert.deepEqual(await failing.dispatchOne(), { status: state });
+        const terminal = await job();
+        now = new Date(terminal.expiresAt.getTime() - 1);
+        await dispatcher.recoverAndClean();
+        assert.deepEqual((await job()).ciphertext, terminal.ciphertext);
+        assert.ok(terminal.ciphertext.length > 0);
+        now = terminal.expiresAt;
+        await dispatcher.recoverAndClean();
+        assert.equal((await job()).ciphertext.length, 0);
+        assert.equal((await job()).state, state);
+        assert.deepEqual((await job()).terminalAt, terminal.terminalAt);
+        assert.equal(await database.outboxEvent.count({ where: { id: terminal.outboxEventId } }), 1);
+      }
+    });
+
+    await run("old-address notices deliver before seven days and suppress at the exact deadline", async () => {
+      for (const expired of [false, true]) {
+        await database.outboxEvent.deleteMany();
+        const owner = await noticeFixture();
+        const notice = await job();
+        const event = await database.outboxEvent.findUnique({ where: { id: notice.outboxEventId } });
+        assert.equal(notice.expiresAt.getTime() - event.createdAt.getTime(), 7 * 24 * 60 * 60 * 1000);
+        now = new Date(notice.expiresAt.getTime() - (expired ? 0 : 1));
+        const before = messages.length;
+        assert.deepEqual(await runAccountEmailJob(dispatcher), { status: expired ? "EMPTY" : "ACCEPTED" });
+        assert.equal((await job()).state, expired ? "SUPPRESSED" : "ACCEPTED");
+        assert.equal((await job()).ciphertext.length, 0);
+        assert.equal(messages.length - before, expired ? 0 : 1);
+        if (!expired) assert.equal(messages.at(-1).to, owner.email);
+      }
+    });
+
+    await run("every terminal outcome purges its old-address snapshot and cascaded job exactly after 30 days", async () => {
+      for (const state of ["ACCEPTED", "FAILED", "UNKNOWN", "SUPPRESSED"]) {
+        await database.outboxEvent.deleteMany();
+        const owner = await noticeFixture();
+        if (state === "SUPPRESSED") await database.userAccount.update({ where: { id: owner.accountId }, data: { deletedAt: now } });
+        const terminalDispatcher = createAccountEmailDispatcher(database, async () => {
+          if (state !== "ACCEPTED") throw new BrevoSendError(state === "FAILED" ? "REJECTED" : "AMBIGUOUS");
+          return "synthetic-notice-accept";
+        }, () => now);
+        assert.deepEqual(await terminalDispatcher.dispatchOne(), { status: state });
+        const terminal = await job();
+        const cutoff = new Date(terminal.terminalAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+        now = new Date(cutoff.getTime() - 1);
+        await dispatcher.recoverAndClean();
+        assert.equal((await job()).id, terminal.id);
+        assert.deepEqual((await job()).terminalAt, terminal.terminalAt);
+        assert.equal((await database.outboxEvent.findUnique({ where: { id: terminal.outboxEventId } })).recipientEmail, owner.email);
+        now = cutoff;
+        await dispatcher.recoverAndClean();
+        assert.equal(await database.outboxEvent.count(), 0);
+        assert.equal(await database.accountEmailDelivery.count(), 0);
+        await dispatcher.recoverAndClean();
+        assert.deepEqual(await terminalDispatcher.dispatchOne(), { status: "EMPTY" });
+      }
+    });
+
+    await run("account-token cleanup leaves unrelated verification purposes, sessions and rate counters unchanged", async () => {
+      const owner = await fixture();
+      const expiredAt = new Date(now.getTime() - 1);
+      const session = await database.session.create({ data: { id: randomUUID(), userId: owner.userId,
+        token: randomUUID(), expiresAt: expiredAt } });
+      const counter = await database.rateLimit.create({ data: { id: randomUUID(), key: randomUUID(), count: 1, lastRequest: 0n } });
+      const unrelated = await database.verification.create({ data: { id: randomUUID(), identifier: "synthetic-unrelated-purpose",
+        value: "synthetic-only", expiresAt: expiredAt } });
+      const expiredIds = [];
+      for (const prefix of ["halaga-email-verification:", "halaga-password-reset:", "halaga-email-change:"]) {
+        const row = await database.verification.create({ data: { id: prefix + randomUUID(), identifier: prefix + owner.userId,
+          value: "synthetic-only", expiresAt: expiredAt } });
+        expiredIds.push(row.id);
+      }
+      const live = await database.verification.findMany({ where: { expiresAt: { gt: now } }, orderBy: { id: "asc" } });
+      await dispatcher.recoverAndClean();
+      assert.equal(await database.verification.count({ where: { id: { in: expiredIds } } }), 0);
+      assert.deepEqual(await database.verification.findUnique({ where: { id: unrelated.id } }), unrelated);
+      assert.deepEqual(await database.verification.findMany({ where: { expiresAt: { gt: now } }, orderBy: { id: "asc" } }), live);
+      assert.deepEqual(await database.session.findUnique({ where: { id: session.id } }), session);
+      assert.deepEqual(await database.rateLimit.findUnique({ where: { id: counter.id } }), counter);
+      assert.equal((await job()).state, "READY");
       assert.equal(messages.length, 0);
     });
 
