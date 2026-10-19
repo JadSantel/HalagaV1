@@ -1,13 +1,15 @@
 # Server repository boundary
 
 Latest listing boundary (2026-10-19 PHT): `laptop-drafts.ts` implements authenticated
-owner-private single-item laptop draft create/read/save. `laptop-drafts-http.ts`
-mounts only POST `/api/laptop-drafts` and GET/PUT `/api/laptop-drafts/[listingId]`
+owner-private single-item laptop draft list/create/read/save. `laptop-drafts-http.ts`
+mounts only GET/POST `/api/laptop-drafts` and GET/PUT `/api/laptop-drafts/[listingId]`
 for local synthetic validation. Exact stored-session/mapping/owner/state checks
 run under transactions; strict snapshots, immutable history, request-UUID retry
 deduplication and expected-revision guards preserve private drafts. Explicit detail
-includes the owner's private expectation and never enters public responses,
-metadata or pages. Unverified owners can save drafts without marketplace rights.
+includes the owner's private expectation, rendered only in the owner editor at
+`/drafts/[listingId]`, and never enters public responses or metadata. The `/drafts`
+list selects only ID, title, revision, updated time and validated condition.
+Unverified owners can save drafts without marketplace rights.
 No public listing reader, staff grant, publication/hold, media or notification is
 added. This supersedes historical claims below that no persisted listing reader
 exists; the browser practice form remains memory-only. See

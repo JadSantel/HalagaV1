@@ -10,16 +10,22 @@ This tracker maps the approved MVP to implementation work. Product behavior come
 | --- | --- | --- |
 | Laptop diagnostic rules | Prototype complete; private backend reuse | `app/src/domain/laptop-diagnostics.ts` derives the four accepted condition states, validates answers, handles safety stops, and provides synthetic examples. Slice 3 now reuses these rules server-side for owner-private drafts; publication enforcement remains gated. |
 | Laptop draft and privacy preview | Prototype complete | `app/src/domain/laptop-listing.ts` validates a local draft and creates an explicit public-field allowlist. `app/src/app/laptop-draft-form.tsx` renders the practice flow and three fictional sample-image fixtures. Data stays in browser memory; barangays and listing are fictional; sample images do not count as actual-item evidence; no publication. |
-| Web stack bootstrap | Foundation only | Next.js/TypeScript app, Tailwind, selected packages, and the first account/listing migration exist. PostgreSQL storage constraints and synthetic rollback tests are implemented. Auth and marketplace user flows remain absent. |
+| Web stack bootstrap | Foundation only | Next.js/TypeScript app, Tailwind, selected packages, and the first account/listing migration exist. PostgreSQL storage constraints and synthetic rollback tests are implemented. Local account/private-draft paths are documented below; marketplace flows remain gated. |
 
 No production marketplace flow is implemented yet.
 
-### First Slice 3 backend boundary (2026-10-19 PHT)
+### Working Slice 3 owner-private workspace (2026-10-19 PHT)
 
-Authenticated, mapped, undeleted synthetic accounts can create, read and replace
-their own single-item laptop drafts through POST `/api/laptop-drafts` and
-GET/PUT `/api/laptop-drafts/[listingId]`. Stored sessions and ownership are
-rechecked under transaction locks. Clients cannot set the seller, author,
+Authenticated, mapped, undeleted synthetic accounts can list, create, edit and resume
+their own single-item laptop drafts at `/drafts` and `/drafts/[listingId]`, linked
+from sign-in. GET/POST `/api/laptop-drafts` and GET/PUT
+`/api/laptop-drafts/[listingId]` provide the saved source of truth. The list excludes
+any non-draft or publication history and returns only ID, title, revision, updated
+time and validated condition. Loading, empty, error, signed-out, pending, saved,
+uncertain-retry and stale-edit states are implemented. Shared diagnostic controls
+retain the browser-only practice behavior; no sample data is automatically saved.
+Stored sessions and ownership are rechecked under transaction locks.
+Clients cannot set the seller, author,
 condition, listing type/category, quantity or lifecycle. Unverified accounts can
 use this private draft capability; it grants no marketplace action.
 
@@ -30,7 +36,10 @@ idempotent retries; expected revision guards reject stale edits. The nullable
 barangay/condition migration is checked in and tested in disposable schemas;
 apply it through the existing local migration workflow before manual persistence.
 
-Explicit owner-private detail includes private price expectation; no public
+Full replacement saves preserve a request UUID/body through uncertain retries.
+Stale edits cannot overwrite a newer revision; the UI retains edits and offers
+explicit reload. Saved data never uses browser storage. Explicit owner-private
+detail includes private price expectation; no public
 reader, metadata, marketplace grant, hold or publication is added. Barangay input,
 including fictional practice choices, media, fulfillment and ownership-submission
 input remain unsupported. The browser practice form still uses memory only.

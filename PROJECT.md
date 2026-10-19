@@ -366,10 +366,13 @@ IMEI entry is optional but strongly encouraged for smartphones and cellular-capa
 ### 11.4 Local synthetic draft implementation boundary (2026-10-19 PHT)
 
 The first bounded Slice 3 backend implementation supports authenticated,
-owner-private single-item laptop draft creation/read/save. Drafts may be incomplete
+owner-private single-item laptop draft listing, creation, editing and resuming at
+`/drafts` and `/drafts/[listingId]`. Drafts may be incomplete
 and stay `DRAFT`; existing validated diagnostic answers determine any stored
 condition. Missing/invalid disclosures and safety stops store no derived condition.
-Immutable revisions preserve versioned answers and private expectation. The seller
+Immutable revisions preserve versioned answers and private expectation. The owner
+list contains only ID, title, revision, updated time and validated condition;
+answers and private expectation are available only in owner detail/editor. The seller
 is server-owned. No public reader, metadata, publication/hold or marketplace grant
 is added. Unverified authenticated owners may use this private synthetic capability;
 publication eligibility and all evidence/safety requirements above remain unchanged.

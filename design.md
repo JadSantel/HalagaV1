@@ -129,6 +129,13 @@ The architecture handoff names eight screen groups. The details below decompose 
 - **States:** published/active; draft; held; rejected; removed; paused by reservation; resolving existing activity at 30 days; expired after activity resolves; renewal confirmation; material edit validating; pending buyer responses; reservation reconfirmation deadline. Preserve existing proposals' fixed deadlines and reservation flow as source rules require.
 - **Responsive/privacy:** mobile status-first cards; desktop history and activity columns. Seller-only expectation and proposal activity never appear in public preview or buyer view. Renewal limit/grace period and newest timestamp behavior remain open; do not invent them.
 
+Local implementation note (2026-10-19 PHT): the bounded owner-private laptop
+workspace uses the existing prototype styling and diagnostic controls at `/drafts`
+and `/drafts/[listingId]`. It supports incomplete saves/resume, status feedback,
+uncertain retry and stale-edit recovery. It is an English synthetic validation
+surface, not acceptance of proposed wizard layouts/tokens or publication readiness.
+Human-reviewed paired Cebuano/Bisaya and full accessibility validation remain gates.
+
 ### 5.5 Private inquiry and negotiation thread
 
 - **Goal:** ask questions and negotiate privately while preserving message/proposal history.

@@ -66,6 +66,9 @@ export function AccountSignInForm() {
   }
 
   return <>
+    {/* A full navigation obtains a fresh private workspace after sign-in. */}
+    {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+    <p><a href="/drafts" className={styles.back}>Open your private laptop drafts</a></p>
     <form method="post" className={styles.form} onSubmit={submit} noValidate aria-busy={pending}>
       <div className={styles.field}>
         <label htmlFor="email">Email (required)</label>

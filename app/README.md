@@ -1,5 +1,16 @@
 # Halaga local laptop listing prototype
 
+Latest Slice 3 update (2026-10-19 PHT): `/drafts` and `/drafts/[listingId]` provide
+an authenticated owner-private workspace for local synthetic laptop drafts. Owners
+can list, create, save incomplete answers and resume. GET/POST `/api/laptop-drafts`
+and GET/PUT `/api/laptop-drafts/[listingId]` enforce stored sessions, ownership,
+immutable snapshots, retry UUIDs and revision guards. The list excludes answers
+and private expectation; the owner editor can show both. Static page metadata and
+HTML contain no stored draft content. The existing `/` practice exercise remains
+browser-only. No publication, hold, images, real geography, fulfillment or ownership
+submission is added. See [the workspace testing guide](../docs/LAPTOP_DRAFT_LOCAL_TESTING.md)
+for migrations, manual checks, the disposable browser harness and remaining gates.
+
 Latest Slice 2 signup update (2026-10-18 PHT, after sign-in): protected POST
 `/api/auth/sign-up/email` and the accessible form at `/account/register` now work
 for local synthetic data only. Signup retains atomic private eligibility/token/
@@ -44,7 +55,7 @@ There is no file picker, so real participant images cannot enter this practice
 flow. The fixtures are not stock/catalog evidence or qualifying actual-item
 photos. The practice count and the missing real-photo requirement stay separate.
 
-Everything remains a local, synthetic-data exercise. Drafts are held only in
+Everything remains a local, synthetic-data exercise. At `/`, practice drafts are held only in
 React browser memory. There are no form submission endpoints, database calls,
 uploads, authentication, analytics, local-storage saves, emails, or publication
 actions. Refreshing or closing the tab loses the draft. Metadata is static;

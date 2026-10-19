@@ -230,7 +230,22 @@ test("actual Next signup and sign-in routes use only a disposable synthetic sche
       await read(await sendDraft("PUT", save, draftId), 200, { id: draftId, revision: 2 });
       await read(await sendDraft("PUT", { ...save, requestId: randomUUID() }, draftId), 409, { code: "INVALID_STATE" });
       await read(await sendDraft("GET", undefined, draftId, ""), 401, { code: "UNAUTHORIZED" });
-      assert.equal((await fetch(target)).status, 405);
+      await read(await fetch(target), 401, { code: "UNAUTHORIZED" });
+      const summary = await sendDraft("GET");
+      assert.equal(summary.headers.get("cache-control"), "no-store");
+      const list = await summary.json();
+      assert.deepEqual(list.drafts.map(({ id }) => id), [draftId]);
+      assert.deepEqual(Object.keys(list.drafts[0]).sort(), ["condition", "id", "revision", "title", "updatedAt"]);
+      assert.equal(list.drafts[0].revision, 2);
+      for (const path of ["/drafts", `/drafts/${draftId}`]) {
+        const shell = await fetch(`${origin}${path}`, { headers: { cookie: draftCookie } });
+        assert.equal(shell.headers.get("cache-control"), "no-store");
+        assert.equal(shell.headers.get("referrer-policy"), "no-referrer");
+        const html = await shell.text();
+        assert.ok(!html.includes(create.draft.title));
+        assert.ok(!html.includes(save.draft.title));
+        assert.ok(!html.includes(create.draft.privatePriceExpectation));
+      }
       assert.equal((await fetch(`${origin}/api/listings/${draftId}`)).status, 404);
       assert.equal((await database.listing.findUnique({ where: { id: draftId } })).status, "DRAFT");
       assert.equal(await database.publicationCycle.count(), 0);
@@ -252,6 +267,7 @@ test("actual Next signup and sign-in routes use only a disposable synthetic sche
       assert.equal(await database.session.count(), 0);
       const revokedDraftRead = await fetch(`${origin}/api/laptop-drafts/${draftId}`, { headers: { cookie: draftCookie } });
       await read(revokedDraftRead, 401, { code: "UNAUTHORIZED" });
+      await read(await fetch(`${origin}/api/laptop-drafts`, { headers: { cookie: draftCookie } }), 401, { code: "UNAUTHORIZED" });
       assert.equal((await database.user.findUnique({ where: { email }, select: { emailVerified: true } })).emailVerified, true);
       assert.ok((await database.userAccount.findFirst({ select: { emailVerifiedAt: true } })).emailVerifiedAt);
       await read(await send("verify-email", { token }), 400, { code: "INVALID_INPUT" });
@@ -260,6 +276,10 @@ test("actual Next signup and sign-in routes use only a disposable synthetic sche
       await read(response, 200, { status: "REQUEST_RECEIVED" });
       assert.equal(await database.outboxEvent.count(), 1);
       assert.equal(await database.session.count(), 0);
+    });
+    if (process.env.SIGNUP_BROWSER_EXECUTABLE) await t.test("optional installed browser verifies private draft create, save, resume, retry, stale edit and reflow", async () => {
+      const { checkLaptopDraftBrowser } = await import("./helpers/laptop-drafts-browser.mjs");
+      await checkLaptopDraftBrowser(origin, database, auth);
     });
     if (process.env.SIGNUP_BROWSER_EXECUTABLE) await t.test("optional installed browser verifies signup keyboard, pending, result, errors and reflow", async () => {
       const { checkSignupBrowser } = await import("./helpers/signup-browser.mjs");

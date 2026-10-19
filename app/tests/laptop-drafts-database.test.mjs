@@ -87,6 +87,28 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
 
   try {
     const owner = await fixture(), other = await fixture();
+    await t.test("list requires a current owner session and has an explicit minimal projection", async () => {
+      await read(await send(null, "GET"), 401, { code: "UNAUTHORIZED" });
+      await read(await send(owner, "GET"), 200, { drafts: [] });
+      const own = await operations.create(owner.headers, input({ title: "Synthetic summary", privatePriceExpectation: "1234567.89" }));
+      const foreign = await operations.create(other.headers, input({ title: "Other owner's private title" }));
+      const result = await read(await send(owner, "GET"), 200);
+      assert.equal(result.drafts.length, 1);
+      assert.deepEqual(Object.keys(result.drafts[0]).sort(), ["condition", "id", "revision", "title", "updatedAt"]);
+      assert.equal(result.drafts[0].id, own.id);
+      assert.equal(result.drafts[0].condition, null);
+      assert.ok(!JSON.stringify(result).includes("1234567.89"));
+      assert.ok(!JSON.stringify(result).includes(foreign.id));
+      const saved = await operations.save(owner.headers, own.id, { ...input(copyDraft(samples[0].draft)), expectedRevision: 1 });
+      const summary = (await operations.list(owner.headers)).drafts[0];
+      assert.equal(summary.revision, saved.revision);
+      assert.equal(summary.condition, "FULLY_FUNCTIONAL");
+      const unmapped = await fixture(false);
+      await read(await send(unmapped, "GET"), 401, { code: "UNAUTHORIZED" });
+      await database.userAccount.update({ where: { id: owner.accountId }, data: { deletedAt: new Date() } });
+      await read(await send(owner, "GET"), 401, { code: "UNAUTHORIZED" });
+      await database.userAccount.update({ where: { id: owner.accountId }, data: { deletedAt: null } });
+    });
     let listingId;
     await t.test("unverified authenticated owner creates incomplete draft, server owns seller and condition", async () => {
       const before = await counts();
@@ -143,12 +165,14 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
       for (const data of [{ expiresAt: new Date(0) }, { createdAt: new Date(Date.now() + 60000) }, { token: randomUUID() }]) {
         await database.session.update({ where: { id: session.id }, data });
         await assert.rejects(staleOperations.create(other.headers, input()), rejects("UNAUTHORIZED"));
+        await assert.rejects(staleOperations.list(other.headers), rejects("UNAUTHORIZED"));
         await assert.rejects(staleOperations.read(other.headers, listingId), rejects("UNAUTHORIZED"));
         await assert.rejects(staleOperations.save(other.headers, listingId, { ...input(), expectedRevision: 1 }), rejects("UNAUTHORIZED"));
         await database.session.update({ where: { id: session.id }, data: {
           createdAt: session.createdAt, expiresAt: session.expiresAt, token: session.token } });
       }
       await database.session.delete({ where: { id: session.id } });
+      await assert.rejects(staleOperations.list(other.headers), rejects("UNAUTHORIZED"));
       await assert.rejects(staleOperations.create(other.headers, input()), rejects("UNAUTHORIZED"));
       await assert.rejects(staleOperations.read(other.headers, listingId), rejects("UNAUTHORIZED"));
       await assert.rejects(staleOperations.save(other.headers, listingId, { ...input(), expectedRevision: 1 }), rejects("UNAUTHORIZED"));
@@ -210,7 +234,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
     });
 
     await t.test("reads and writes waiting behind revocation recheck stored sessions after the exact account lock", async () => {
-      for (const command of ["read", "save", "create"]) {
+      for (const command of ["read", "save", "create", "list"]) {
         const account = await fixture();
         const draft = await operations.create(account.headers, input());
         const before = await counts();
@@ -226,7 +250,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
         const blocker = await entered.promise;
         const stale = createLaptopDraftOperations(database, { api: { getSession: async () =>
           ({ response: account.actor, headers: new Headers() }) } });
-        const pending = command === "create" ? stale.create(account.headers, input()) : command === "save"
+        const pending = command === "list" ? stale.list(account.headers) : command === "create" ? stale.create(account.headers, input()) : command === "save"
           ? stale.save(account.headers, draft.id, { ...input(), expectedRevision: 1 }) : stale.read(account.headers, draft.id);
         const rejected = assert.rejects(pending, rejects("UNAUTHORIZED"));
         try {
@@ -271,13 +295,14 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
       for (const headers of [{ origin: "https://foreign.invalid" }, { origin: "null" }, { "sec-fetch-site": "cross-site" }]) {
         await read(await send(owner, "POST", input(), undefined, headers), 401, { code: "UNAUTHORIZED" });
         await read(await send(owner, "GET", undefined, listingId, headers), 401, { code: "UNAUTHORIZED" });
+        await read(await send(owner, "GET", undefined, undefined, headers), 401, { code: "UNAUTHORIZED" });
       }
       const noOrigin = new Request(`${origin}/api/laptop-drafts`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
       await read(await handler(noOrigin), 401, { code: "UNAUTHORIZED" });
       await read(await send(owner, "POST", input(), undefined, { "content-type": "text/plain" }), 400, { code: "INVALID_INPUT" });
       await read(await handler(new Request(`${origin}/api/laptop-drafts`, { method: "POST",
         headers: { origin, "content-type": "application/json" }, body: "{" })), 400, { code: "INVALID_INPUT" });
-      await read(await send(owner, "GET"), 404, { code: "NOT_FOUND" });
+      assert.equal((await read(await send(owner, "GET"), 200)).drafts.some((draft) => draft.id === listingId), true);
       assert.deepEqual(await counts(), before);
       const revision = (await operations.read(owner.headers, listingId)).revision;
       for (const status of ["VALIDATING", "HELD", "PUBLISHED", "PAUSED_BY_RESERVATION", "RESOLVING_EXISTING_ACTIVITY", "REMOVED", "REJECTED", "EXPIRED", "CLOSED"]) {
@@ -285,6 +310,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
           expiredAt: status === "EXPIRED" ? new Date() : null, closedAt: status === "CLOSED" ? new Date() : null } });
         await read(await send(owner, "GET", undefined, listingId), 404, { code: "NOT_FOUND" });
         await read(await send(owner, "PUT", { ...input(), expectedRevision: revision }, listingId), 404, { code: "NOT_FOUND" });
+        assert.equal((await operations.list(owner.headers)).drafts.some((draft) => draft.id === listingId), false);
       }
       await database.listing.update({ where: { id: listingId }, data: { status: "DRAFT", expiredAt: null, closedAt: null } });
       assert.deepEqual(await counts(), before);
@@ -292,6 +318,16 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
         "outboxEvent", "accountEmailDelivery", "passwordChangeNotice"]) assert.equal(await database[table].count(), 0, table);
       assert.equal(await database.listing.count({ where: { status: { not: "DRAFT" } } }), 0);
       assert.equal(await database.listingRevision.count({ where: { barangayCode: { not: null } } }), 0);
+    });
+    await t.test("a draft with any prior publication cycle is excluded from list and detail", async () => {
+      const { id } = await operations.create(owner.headers, input({ title: "Synthetic previously published fixture" }));
+      const startsAt = new Date("2026-10-01T00:00:00Z");
+      await database.publicationCycle.create({ data: { listingId: id, revisionNumber: 1, cycleNumber: 1,
+        kind: "INITIAL_PUBLICATION", confirmedById: owner.accountId, startsAt,
+        expiresAt: new Date("2026-10-31T00:00:00Z") } });
+      assert.equal((await operations.list(owner.headers)).drafts.some((draft) => draft.id === id), false);
+      await read(await send(owner, "GET", undefined, id), 404, { code: "NOT_FOUND" });
+      await read(await send(owner, "PUT", { ...input(), expectedRevision: 1 }, id), 404, { code: "NOT_FOUND" });
     });
   } finally { await sandbox.close(); }
 });

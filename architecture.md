@@ -111,10 +111,18 @@ Architecture consequences:
 
 #### Local synthetic draft boundary (2026-10-19 PHT)
 
-The first Slice 3 backend path mounts only owner-private laptop draft create/read/
-save. It reuses stored-session authentication, then locks identity/domain, exact
+The bounded Slice 3 path mounts only owner-private laptop draft list/create/read/
+save and a local synthetic workspace at `/drafts` and `/drafts/[listingId]`.
+It reuses stored-session authentication, then locks identity/domain, exact
 session and owner-scoped listing records. Both reads and writes recheck undeleted
 mapping, session validity and draft state; saves guard the expected revision.
+List reads use the same locked owner/session wrapper and select only draft ID,
+title, revision, updated time and validated condition. They exclude any listing
+with publication history and any non-draft or other-owner listing. Workspace pages
+serve static metadata and an empty loading shell; private data comes only from
+the no-store authorized API. Full document navigation clears private UI state.
+Uncertain writes freeze the exact snapshot/request UUID for retry; stale saves
+keep edits visible but require explicit reload before further writes.
 Revision UUIDs are client retry identifiers, while seller/author and listing ID
 remain server-owned. Revisions, quantity-one item groups and versioned question
 answers append atomically; the current pointer advances in the same transaction.

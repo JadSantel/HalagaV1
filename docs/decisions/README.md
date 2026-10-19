@@ -7,9 +7,10 @@ The files in this directory preserve decisions in chronological order.
 Current listing boundary (2026-10-19 PHT): ADR-084's implementation record covers
 the owner's requested local synthetic, authenticated owner-private laptop drafts.
 Incomplete snapshots append immutable revisions and versioned diagnostic answers;
-nullable draft geography/condition avoid invented data. Only private create/read/
-save is mounted, with no public listing reader, publication/hold or marketplace
-grant. Publication audit/outbox, evidence, safety and readiness gates remain.
+nullable draft geography/condition avoid invented data. The owner-private list/
+create/read/save API and local workspace at `/drafts` are mounted, with no public
+listing reader, publication/hold or marketplace grant. Publication audit/outbox,
+evidence, safety and readiness gates remain.
 See [LAPTOP_DRAFT_LOCAL_TESTING.md](../LAPTOP_DRAFT_LOCAL_TESTING.md).
 
 Use the ADRs to understand why a rule exists and what tradeoffs were accepted. Add or update an ADR when a decision changes product behavior, domain semantics, operational responsibility, privacy, retention, or safety controls.

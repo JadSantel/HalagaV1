@@ -136,6 +136,21 @@ export function createLaptopDraftOperations(
   }
 
   return {
+    async list(headers: Headers, applySessionHeaders: (headers: Headers) => void = () => {}) {
+      return withOwner(headers, async (transaction, sellerId) => {
+        const listings = await transaction.listing.findMany({
+          where: { sellerId, status: "DRAFT", publicationCycles: { none: {} },
+            currentRevision: { category: "LAPTOPS", listingType: "SINGLE_ITEM", diagnosticSchemaVersion: diagnosticVersion } },
+          orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+          // Minimal owner-private summary. Never load answers or price expectation.
+          select: { id: true, currentRevisionNumber: true, updatedAt: true,
+            currentRevision: { select: { title: true, conditionSummary: true } } },
+        });
+        return { drafts: listings.map((listing) => ({ id: listing.id, title: listing.currentRevision!.title,
+          revision: listing.currentRevisionNumber!, updatedAt: listing.updatedAt,
+          condition: listing.currentRevision!.conditionSummary })) };
+      }, applySessionHeaders);
+    },
     async create(headers: Headers, input: unknown, applySessionHeaders: (headers: Headers) => void = () => {}) {
       const parsed = createSchema.safeParse(input);
       if (!parsed.success) throw new LaptopDraftRejected("INVALID_INPUT");

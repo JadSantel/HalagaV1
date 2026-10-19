@@ -50,6 +50,16 @@ items multi-select arrays and their details. Existing whole-draft/per-answer ser
 validation gates derived-condition persistence; incomplete or invalid disclosures
 and safety-stop answers remain private with null conditions.
 
+The next bounded slice adds GET `/api/laptop-drafts` and the accessible owner
+workspace at `/drafts` and `/drafts/[listingId]`. The list reuses locked stored-session
+and owner checks and selects only ID, title, revision, updated time and condition,
+excluding non-drafts and any publication cycle. The editor reuses diagnostic
+controls without practice geography, sample photos or declaration inputs. Incomplete
+replacement snapshots, retry UUIDs and expected-version guards retain the existing
+contract. Private data is fetched only through authorized no-store API responses;
+page metadata is static and price expectation remains detail-only. This implements
+the existing private draft boundary without changing publication or launch policy.
+
 Reads select an explicit owner-private detail; there is no public reader, staff
 grant or marketplace grant. Unverified authenticated users may work on these
 synthetic drafts, following the owner's request; this does not change publication

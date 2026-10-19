@@ -17,7 +17,7 @@ export function createLaptopDraftHandler(operations: ReturnType<typeof createLap
   return async (request: Request, listingId?: string): Promise<Response> => {
     const reply = (body: unknown, status: number) => Response.json(body, { status, headers: privateHeaders });
     try {
-      if (!(listingId ? ["GET", "PUT"] : ["POST"]).includes(request.method)) return reply({ code: "NOT_FOUND" }, 404);
+      if (!(listingId ? ["GET", "PUT"] : ["GET", "POST"]).includes(request.method)) return reply({ code: "NOT_FOUND" }, 404);
       const write = request.method !== "GET";
       // Next may reconstruct request.url with its internal listener hostname.
       // Admission uses configured Origin, never a Host/proxy-derived trust list.
@@ -40,7 +40,8 @@ export function createLaptopDraftHandler(operations: ReturnType<typeof createLap
       const result = listingId
         ? request.method === "GET" ? await operations.read(request.headers, listingId, apply)
           : await operations.save(request.headers, listingId, input, apply)
-        : await operations.create(request.headers, input, apply);
+        : request.method === "GET" ? await operations.list(request.headers, apply)
+          : await operations.create(request.headers, input, apply);
       const response = reply(result, 200);
       for (const cookie of sessionHeaders.getSetCookie()) response.headers.append("set-cookie", cookie);
       return response;
