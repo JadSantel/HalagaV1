@@ -4,6 +4,14 @@ The files in this directory preserve decisions in chronological order.
 
 `PROJECT.md` is the current authoritative product and domain specification. Earlier ADRs may contain an `unresolved` consequence that was answered by a later ADR. Read the later decision and `PROJECT.md` before treating an older open item as current uncertainty.
 
+Current listing boundary (2026-10-19 PHT): ADR-084's implementation record covers
+the owner's requested local synthetic, authenticated owner-private laptop drafts.
+Incomplete snapshots append immutable revisions and versioned diagnostic answers;
+nullable draft geography/condition avoid invented data. Only private create/read/
+save is mounted, with no public listing reader, publication/hold or marketplace
+grant. Publication audit/outbox, evidence, safety and readiness gates remain.
+See [LAPTOP_DRAFT_LOCAL_TESTING.md](../LAPTOP_DRAFT_LOCAL_TESTING.md).
+
 Use the ADRs to understand why a rule exists and what tradeoffs were accepted. Add or update an ADR when a decision changes product behavior, domain semantics, operational responsibility, privacy, retention, or safety controls.
 
 Do not silently resolve items listed in `PROJECT.md` under **Deferred Decisions**.

@@ -1,5 +1,18 @@
 # Server repository boundary
 
+Latest listing boundary (2026-10-19 PHT): `laptop-drafts.ts` implements authenticated
+owner-private single-item laptop draft create/read/save. `laptop-drafts-http.ts`
+mounts only POST `/api/laptop-drafts` and GET/PUT `/api/laptop-drafts/[listingId]`
+for local synthetic validation. Exact stored-session/mapping/owner/state checks
+run under transactions; strict snapshots, immutable history, request-UUID retry
+deduplication and expected-revision guards preserve private drafts. Explicit detail
+includes the owner's private expectation and never enters public responses,
+metadata or pages. Unverified owners can save drafts without marketplace rights.
+No public listing reader, staff grant, publication/hold, media or notification is
+added. This supersedes historical claims below that no persisted listing reader
+exists; the browser practice form remains memory-only. See
+[LAPTOP_DRAFT_LOCAL_TESTING.md](../../../../docs/LAPTOP_DRAFT_LOCAL_TESTING.md).
+
 Latest signup boundary (2026-10-18 PHT, after sign-in): `signup-http.ts` exposes
 only protected POST `/sign-up/email`; application dispatch adds that exact pathname
 alongside sign-in and six email commands. The existing atomic signup operation
@@ -51,6 +64,8 @@ recipient/metadata cleanup decisions. Keep the operation and owner detail unmoun
 
 | Module | Permitted access |
 | --- | --- |
+| `src/server/repositories/laptop-drafts.ts` | Authenticated owner-only draft reads and guarded transactional create/save, immutable revisions/answers, safe retry responses. No public/staff reader, marketplace grant or lifecycle transition. |
+| `src/server/repositories/laptop-drafts-http.ts` | Exact configured-origin JSON writes and authenticated owner-private detail; fixed errors and private response/cookie headers. No public listing or upload endpoint. |
 | `src/server/repositories/account-email-intents.ts` | Trusted internal account-module inspection. Explicit guard projections check token work and old-recipient snapshots; output is fixed status without addresses/tokens/bindings/digests. Notice branch never reads the new address. It is not dispatch authorization. |
 | `src/server/repositories/account-email-dispatch.ts` | Internal dispatcher and cleanup only. Claims one job under a fenced PostgreSQL lease, rechecks account/token/binding/expiry, renders fixed templates and sends through Brevo. Fixed status output; no route, participant/staff reader or operator retry. UNKNOWN work is not retried automatically. |
 | `src/server/prisma.ts` | Construct and share the generated Prisma client using the installed PostgreSQL adapter and validated server configuration. This is infrastructure, not an authorization service. |

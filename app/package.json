@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test:diagnostics": "node --test tests/laptop-diagnostics.test.mjs",
     "test:listing": "node --test tests/laptop-listing.test.mjs",
+    "test:laptop-drafts": "node --conditions=react-server --test tests/laptop-drafts-database.test.mjs",
     "test:photos": "node --test tests/sample-laptop-photos.test.mjs",
     "test:logging": "node --conditions=react-server --test tests/operational-logging.test.mjs",
     "test:auth": "node --conditions=react-server --test tests/auth-policy.test.mjs tests/auth-rate-limit-database.test.mjs tests/account-access.test.mjs",

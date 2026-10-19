@@ -8,11 +8,35 @@ This tracker maps the approved MVP to implementation work. Product behavior come
 
 | Slice | Status | Evidence and boundary |
 | --- | --- | --- |
-| Laptop diagnostic rules | Prototype complete | `app/src/domain/laptop-diagnostics.ts` derives the four accepted condition states, validates answers, handles safety stops, and provides synthetic examples. No server enforcement or persistence. |
+| Laptop diagnostic rules | Prototype complete; private backend reuse | `app/src/domain/laptop-diagnostics.ts` derives the four accepted condition states, validates answers, handles safety stops, and provides synthetic examples. Slice 3 now reuses these rules server-side for owner-private drafts; publication enforcement remains gated. |
 | Laptop draft and privacy preview | Prototype complete | `app/src/domain/laptop-listing.ts` validates a local draft and creates an explicit public-field allowlist. `app/src/app/laptop-draft-form.tsx` renders the practice flow and three fictional sample-image fixtures. Data stays in browser memory; barangays and listing are fictional; sample images do not count as actual-item evidence; no publication. |
 | Web stack bootstrap | Foundation only | Next.js/TypeScript app, Tailwind, selected packages, and the first account/listing migration exist. PostgreSQL storage constraints and synthetic rollback tests are implemented. Auth and marketplace user flows remain absent. |
 
 No production marketplace flow is implemented yet.
+
+### First Slice 3 backend boundary (2026-10-19 PHT)
+
+Authenticated, mapped, undeleted synthetic accounts can create, read and replace
+their own single-item laptop drafts through POST `/api/laptop-drafts` and
+GET/PUT `/api/laptop-drafts/[listingId]`. Stored sessions and ownership are
+rechecked under transaction locks. Clients cannot set the seller, author,
+condition, listing type/category, quantity or lifecycle. Unverified accounts can
+use this private draft capability; it grants no marketplace action.
+
+Incomplete snapshots are saved as immutable, numbered revisions with versioned
+per-question answers. A condition is stored only after existing whole-draft and
+per-answer validation passes. Request UUIDs identify immutable revisions for
+idempotent retries; expected revision guards reject stale edits. The nullable
+barangay/condition migration is checked in and tested in disposable schemas;
+apply it through the existing local migration workflow before manual persistence.
+
+Explicit owner-private detail includes private price expectation; no public
+reader, metadata, marketplace grant, hold or publication is added. Barangay input,
+including fictional practice choices, media, fulfillment and ownership-submission
+input remain unsupported. The browser practice form still uses memory only.
+Publication remains gated on controlled CDO geography, evidence/image processing,
+safety/risk/restriction checks, declaration history, audit/outbox and operational
+readiness. See [LAPTOP_DRAFT_LOCAL_TESTING.md](LAPTOP_DRAFT_LOCAL_TESTING.md).
 
 ### Latest Slice 2 signup boundary (2026-10-18 PHT, after sign-in)
 
@@ -65,7 +89,7 @@ Password-change email work and all existing launch gates remain incomplete.
 | --- | --- | --- | --- |
 | 1 | Application and data foundation | Configure validated runtime, PostgreSQL connection, Prisma migrations, shared server validation, module boundaries, and privacy-safe logging. Keep local/private development on synthetic data. | **Complete:** runtime configuration reports field-only validation errors; local PostgreSQL connection and reviewed migration workflow are configured; the first migration is installed and its checksum, 15 constraints, and seven triggers verify locally. Shared Zod validation, server-only/database import boundaries, guarded-command transaction behavior, and privacy-safe operational logging pass synthetic checks. Exact direct dependency pins match the lockfile; `.nvmrc` matches Node 24.21.0. Slice 1 added no persisted product reads or commands; slice 2 now provides account prerequisite reads, while other authorized projections and flow-specific safeguards belong to their owning slices. See `docs/architecture/SERVER_BOUNDARY_REVIEW.md`, `docs/architecture/PHYSICAL_SCHEMA_REVIEW.md`, `app/README.md`, and `app/src/server/repositories/README.md`. |
 | 2 | Adult account and access | Registration, 18+ attestation and private DOB, Better Auth sessions, email verification, account eligibility/restrictions, and server-enforced action gates. | **Partial, synthetic only:** ADR-086 policies plus stored-session-to-account resolution, explicit owner-only prerequisite projection, PHT-calendar adult/DOB and attestation checks, matching identity/domain email checks, and server prerequisite rejection for publication, inquiry and proposal submission. DOB/email/tokens never enter that projection or logs. Local isolated PostgreSQL tests cover ownership, missing mapping, deletion, eligibility, renewal, expiry, revocation and safe failures. ADR-087 settles onboarding, token, resend, recovery, email-change, generic-response, atomicity and session policies. Unmounted signup atomically creates Better Auth identity/credential, domain mapping, private DOB, attestation version/timestamp and durable verification-email outbox intent. Unmounted verification issues/replaces 24-hour tokens with private outbox intent and atomically consumes a token, synchronizes both verification states and revokes sessions. Unmounted reset issues/replaces one-hour tokens with private outbox intent and atomically replaces the credential, consumes the token and revokes every stored session while preserving both verification states. Unmounted email change rechecks the owner's fresh stored session under locks, leaves the existing verified address primary during bound 24-hour token issue/replacement, and atomically consumes proof, switches/verifies the address, revokes sessions and records minimized old-address security-notice intent. A narrow additive recipient-snapshot migration is necessary for that notice and replayed only in disposable schemas. Dedicated PostgreSQL checks cover freshness, conflicts, mapping/eligibility, write/commit rollback, same-token retry, expiry, replacement, reuse, concurrency, isolation and fresh sign-in compatibility. No routes/UI, account action grants or worker deployment: route/link integration, sign-in racing reset/email proof, cookie-response integration, restrictions/blocks, full command authorization, audited staff recovery, provider setup and deployment readiness remain gated. See `docs/SIGNUP_LOCAL_TESTING.md`, `docs/EMAIL_VERIFICATION_LOCAL_TESTING.md`, `docs/PASSWORD_RESET_LOCAL_TESTING.md` and `docs/EMAIL_CHANGE_LOCAL_TESTING.md`. |
-| 3 | Listing creation and publication | Convert laptop prototype into a server-validated flow; real supported CDO barangays; ownership declaration history; listing/revision lifecycle; required photos, safe image handling, publication risk checks and held-review path; private price expectation. | Prototype exists; backend not started |
+| 3 | Listing creation and publication | Convert laptop prototype into a server-validated flow; real supported CDO barangays; ownership declaration history; listing/revision lifecycle; required photos, safe image handling, publication risk checks and held-review path; private price expectation. | **Partial, local synthetic only:** authenticated owner-private single-item laptop draft create/read/save, incomplete snapshots, server validation/condition derivation, immutable versioned history, exact private expectation, transactions, retry idempotency and stale-revision guards. No publication/hold/public reader or marketplace grant. Barangay registry, media, fulfillment/declaration submission, publication safety/risk/restrictions, audit/outbox and readiness remain gated. See `docs/LAPTOP_DRAFT_LOCAL_TESTING.md`. |
 | 4 | Public marketplace discovery | Public active-listing browse/search/detail with explicit public projections, filters and sort rules, shareable noindex pages, blocking-aware signed-in views, and no demand/private-data leakage. | Not started |
 | 5 | Buyer inquiry and offer negotiation | Pre-offer inquiry, private buyer-seller conversation, structured proposals/counters, 72-hour deadlines, withdrawal/rejection/expiry, revision acknowledgement, and seller-only offer comparison. | Not started |
 | 6 | Reservation and competing-offer handling | Guarded seller acceptance, at most one active reservation, pause/reopen eligible competing offers, cancellation and reservation expiry, and material-edit buyer reconfirmation. | Not started |

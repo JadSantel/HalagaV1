@@ -30,6 +30,38 @@ The first foundation migration now includes the Better Auth CLI-generated core t
 
 These mechanisms implement existing history, integrity, and exposure rules. They do not implement marketplace authorization, publish/renew commands, matching completion, retention execution, or audit/outbox services. The prerequisites for creating the first migration are satisfied; consequential commands still require their documented gates.
 
+## Local synthetic draft implementation record (2026-10-19 PHT)
+
+The owner's bounded Slice 3 request authorizes authenticated owner-private,
+potentially incomplete single-item laptop drafts. The additive
+`20261019090000_incomplete_laptop_drafts` migration makes revision barangay and
+item-group condition nullable. This represents unselected geography and answers
+that cannot yet support a validated condition, without inventing geographic data
+or treating invalid/incomplete data as `Untested/unknown`. Publication requirements
+are unchanged and no publication command is implemented.
+
+POST and owner-only GET/PUT draft routes recheck the undeleted mapping and exact
+stored session under identity/domain/session locks. Clients supply a request UUID,
+not seller/author identity. The UUID becomes the immutable revision ID for retry
+deduplication; saves require the expected current version. All writes append
+revision/group/answer history and advance the pointer atomically while staying
+`DRAFT`. Versioned question rows also preserve the accepted behavior and included
+items multi-select arrays and their details. Existing whole-draft/per-answer server
+validation gates derived-condition persistence; incomplete or invalid disclosures
+and safety-stop answers remain private with null conditions.
+
+Reads select an explicit owner-private detail; there is no public reader, staff
+grant or marketplace grant. Unverified authenticated users may work on these
+synthetic drafts, following the owner's request; this does not change publication
+eligibility. Drafts generate no asynchronous work or notifications. Immutable
+revision ID/author/target/version/time record the private save history with a fixed
+draft state; this does not implement or waive consequential publication audit/outbox
+requirements. Controlled CDO geography, media, declaration/fulfillment submission,
+safety/risk/restriction checks, audit/outbox and launch gates remain unresolved or
+unimplemented as applicable. Retention/deletion remains separately gated; history
+is not authorized for indefinite retention. See
+[LAPTOP_DRAFT_LOCAL_TESTING.md](../LAPTOP_DRAFT_LOCAL_TESTING.md).
+
 ## Source
 
 - `PROJECT.md` sections 11, 17, 20, and 34

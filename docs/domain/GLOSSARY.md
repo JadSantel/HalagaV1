@@ -177,6 +177,15 @@ A listing change that could reasonably affect buyer valuation or transaction int
 
 A bundle-level summary shown when included items have more than one of the four universal condition states. It displays quantities by condition and is not a fifth item-condition value. A mixed bundle matches a condition filter when any included item has that condition.
 
+## Listing Draft
+
+An owner's non-public, potentially incomplete listing. Saving a draft does not
+publish, hold or grant marketplace participation. The local synthetic laptop
+backend preserves immutable versioned snapshots; a missing or invalid diagnostic
+disclosure has no stored derived condition. Private draft access is limited to the
+authenticated owner, including an unverified owner, and does not satisfy later
+publication gates (architecture §4.1; ADR-084 implementation record).
+
 ## Listing Renewal
 
 An explicit seller action confirming that an item remains available and its listing facts remain accurate for a new 30-day active lifetime. Renewal does not erase prior history.

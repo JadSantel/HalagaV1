@@ -109,6 +109,26 @@ Architecture consequences:
 - Submission records the ownership declaration and the exact listing revision evaluated.
 - Immediate publication and held-for-review are outcomes of one validation policy; a held listing is never publicly searchable.
 
+#### Local synthetic draft boundary (2026-10-19 PHT)
+
+The first Slice 3 backend path mounts only owner-private laptop draft create/read/
+save. It reuses stored-session authentication, then locks identity/domain, exact
+session and owner-scoped listing records. Both reads and writes recheck undeleted
+mapping, session validity and draft state; saves guard the expected revision.
+Revision UUIDs are client retry identifiers, while seller/author and listing ID
+remain server-owned. Revisions, quantity-one item groups and versioned question
+answers append atomically; the current pointer advances in the same transaction.
+Missing/invalid disclosure or safety-stop answers store null conditions, never a
+placeholder derived label. Barangay remains null pending controlled geography.
+
+An explicit account-private detail projection is the only persisted listing
+reader. No public projection, search, media, staff reader, notification or lifecycle
+transition is added. Private saves record actor/target/request/version/time through
+immutable revision history and retain `DRAFT`; no asynchronous effect requires a
+job. Publication audit/outbox, evidence, safety/risk/restrictions, declaration and
+operational gates remain required. No broad audit/job/retention default is inferred.
+See [LAPTOP_DRAFT_LOCAL_TESTING.md](docs/LAPTOP_DRAFT_LOCAL_TESTING.md).
+
 ### 4.2 Browse, inspect, and inquire
 
 **Goal:** let a visitor evaluate public facts and an eligible buyer privately ask questions without exposing marketplace demand or contact details.

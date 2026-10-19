@@ -12,6 +12,24 @@ This foundation covers the domain account mapping, Better Auth core tables, list
 
 ADR-084 settled the physical choices. The Better Auth CLI-generated core models are aligned, and the SQL constraints are included in `app/prisma/migrations/20261012130000_account_listing_foundation/migration.sql`. The migration was verified with rolled-back synthetic data and applied to the loopback development database. This does not authorize real participant data or public deployment.
 
+### Local synthetic incomplete-draft supplement (2026-10-19 PHT)
+
+The additive `20261019090000_incomplete_laptop_drafts` migration makes
+`ListingRevision.barangayCode` and `ListedItemGroup.condition` nullable. No other
+column, trigger or SQL constraint changes. Null means unselected controlled
+geography or no validated condition; it is not a new condition enum. Publication
+must still require controlled geography and validated diagnostic/evidence/safety
+facts before exposure. There is no publication command in this slice.
+
+Draft create/save appends immutable revisions/groups/versioned answers and updates
+the current pointer transactionally. Existing SQL history triggers continue to
+reject updates. Request UUIDs use revision IDs for idempotency; guarded expected
+versions prevent stale overwrites. Accepted behavior/included diagnostic arrays
+use their own per-question JSON rows with separate details. Owner-private reads
+select only draft fields; private expectation is never a public projection.
+No audit/outbox schema is added for publication. See ADR-084's implementation record
+and [LAPTOP_DRAFT_LOCAL_TESTING.md](../LAPTOP_DRAFT_LOCAL_TESTING.md).
+
 ## Accepted physical choices
 
 These are the reviewed implementation choices recorded in ADR-084. Their product-level implications are synchronized in `PROJECT.md` and the glossary where needed:

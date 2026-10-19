@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { createServer, request } from "node:http";
 import { registerHooks } from "node:module";
 import test from "node:test";
@@ -41,6 +42,7 @@ test("actual Next signup and sign-in routes use only a disposable synthetic sche
     server = createServer(app.getRequestHandler());
     await new Promise((resolve, reject) => { server.once("error", reject); server.listen(3102, "127.0.0.1", resolve); });
     let sequence = 0;
+    let draftCookie, draftId;
     // Unlike fetch, http.request preserves supplied Fetch Metadata headers.
     const send = (path, body = {}, headers = {}) => new Promise((resolve, reject) => {
       const outgoing = request(`${origin}/api/auth/${path}`, {
@@ -189,6 +191,7 @@ test("actual Next signup and sign-in routes use only a disposable synthetic sche
       assert.match(values[0], /^better-auth\.session_token=.*; Path=\/.*; HttpOnly.*; SameSite=Lax/i);
       assert.doesNotMatch(values[0], /; Domain=/i);
       const headers = new Headers({ cookie: values[0].split(";")[0] });
+      draftCookie = headers.get("cookie");
       const session = await auth.api.getSession({ headers });
       assert.equal(session.user.emailVerified, false);
       assert.equal(await database.session.count(), 1);
@@ -201,6 +204,43 @@ test("actual Next signup and sign-in routes use only a disposable synthetic sche
       await read(responseSignup, 200, { status: "REQUEST_RECEIVED" });
       assert.deepEqual(await database.session.findMany(), before);
     });
+    await t.test("actual private laptop draft routes create/read/save without publishing or exposing public metadata", async () => {
+      const target = `${origin}/api/laptop-drafts`;
+      const sendDraft = (method, body, id, cookie = draftCookie) => fetch(`${target}${id ? `/${id}` : ""}`, {
+        method, headers: { origin, cookie, "content-type": "application/json" },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      const create = { requestId: randomUUID(), draft: { title: "Synthetic owner-private laptop", privatePriceExpectation: "7654321.98" } };
+      await read(await sendDraft("POST", create, undefined, ""), 401, { code: "UNAUTHORIZED" });
+      const created = await sendDraft("POST", create);
+      assert.equal(created.status, 200);
+      const result = await created.json();
+      draftId = result.id;
+      assert.deepEqual(Object.keys(result).sort(), ["id", "revision"]);
+      await read(await sendDraft("POST", create), 200, result);
+      const privateResponse = await sendDraft("GET", undefined, draftId);
+      assert.equal(privateResponse.headers.get("cache-control"), "no-store");
+      assert.equal(privateResponse.headers.get("x-robots-tag"), "noindex, nofollow");
+      const detail = await privateResponse.json();
+      assert.equal(detail.draft.privatePriceExpectation, "7654321.98");
+      assert.equal(detail.condition, null);
+      assert.equal(detail.status, "DRAFT");
+      const save = { requestId: randomUUID(), expectedRevision: 1, draft: { title: "Synthetic private correction" } };
+      await read(await sendDraft("PUT", save, draftId), 200, { id: draftId, revision: 2 });
+      await read(await sendDraft("PUT", save, draftId), 200, { id: draftId, revision: 2 });
+      await read(await sendDraft("PUT", { ...save, requestId: randomUUID() }, draftId), 409, { code: "INVALID_STATE" });
+      await read(await sendDraft("GET", undefined, draftId, ""), 401, { code: "UNAUTHORIZED" });
+      assert.equal((await fetch(target)).status, 405);
+      assert.equal((await fetch(`${origin}/api/listings/${draftId}`)).status, 404);
+      assert.equal((await database.listing.findUnique({ where: { id: draftId } })).status, "DRAFT");
+      assert.equal(await database.publicationCycle.count(), 0);
+      assert.equal(await database.publicationAvailabilityInterval.count(), 0);
+      assert.equal(await database.listingMedia.count(), 0);
+      assert.equal(await database.outboxEvent.count(), 1); // Existing signup intent only.
+      const home = await (await fetch(origin)).text();
+      assert.ok(!home.includes(create.draft.title));
+      assert.ok(!home.includes(create.draft.privatePriceExpectation));
+    });
     await t.test("fake delivery feeds the mounted verification command; proof revokes sessions and creates none", async () => {
       const messages = [];
       const dispatcher = createAccountEmailDispatcher(database, async (message) => { messages.push(message); return "synthetic-route-accept"; });
@@ -210,6 +250,8 @@ test("actual Next signup and sign-in routes use only a disposable synthetic sche
       const token = new URL(messages[0].text.match(/https?:\/\/\S+#token=[a-f0-9]+/)[0]).hash.slice(7);
       await read(await send("verify-email", { token }), 200, { status: "EMAIL_VERIFIED" });
       assert.equal(await database.session.count(), 0);
+      const revokedDraftRead = await fetch(`${origin}/api/laptop-drafts/${draftId}`, { headers: { cookie: draftCookie } });
+      await read(revokedDraftRead, 401, { code: "UNAUTHORIZED" });
       assert.equal((await database.user.findUnique({ where: { email }, select: { emailVerified: true } })).emailVerified, true);
       assert.ok((await database.userAccount.findFirst({ select: { emailVerifiedAt: true } })).emailVerifiedAt);
       await read(await send("verify-email", { token }), 400, { code: "INVALID_INPUT" });

@@ -259,7 +259,8 @@ model ListingRevision {
   bundleFamily            BundleFamily?
   title                   String
   description             String
-  barangayCode            String
+  // Unselected in private drafts; publication still requires controlled geography.
+  barangayCode            String?
   priceExpectation        Decimal?        @db.Decimal(12, 2)
   conditionSummary        ItemCondition?
   diagnosticSchemaVersion String?
@@ -322,7 +323,8 @@ model ListedItemGroup {
   brand          String?
   model          String?
   approximateAge String?
-  condition      ItemCondition
+  // Incomplete/invalid draft answers must not imply a derived condition.
+  condition      ItemCondition?
   batteryStatus  String?
   lockStatus     String?
   knownIssues    String?

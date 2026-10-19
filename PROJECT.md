@@ -363,6 +363,25 @@ IMEI entry is optional but strongly encouraged for smartphones and cellular-capa
 - Otherwise, it is limited to the seller and authorized staff with an operational need.
 - Providing an IMEI does not prove ownership, authenticity, or theft-free status.
 
+### 11.4 Local synthetic draft implementation boundary (2026-10-19 PHT)
+
+The first bounded Slice 3 backend implementation supports authenticated,
+owner-private single-item laptop draft creation/read/save. Drafts may be incomplete
+and stay `DRAFT`; existing validated diagnostic answers determine any stored
+condition. Missing/invalid disclosures and safety stops store no derived condition.
+Immutable revisions preserve versioned answers and private expectation. The seller
+is server-owned. No public reader, metadata, publication/hold or marketplace grant
+is added. Unverified authenticated owners may use this private synthetic capability;
+publication eligibility and all evidence/safety requirements above remain unchanged.
+
+Controlled CDO barangay input, media, fulfillment/declaration submission, publication
+risk/restriction checks, audit/outbox and operational readiness remain gated. The
+browser practice exercise remains separate and memory-only; its fictional geography
+is never accepted as real listing data. This is an implementation boundary for local
+synthetic validation, not pilot readiness or a change to listing publication rules.
+See [LAPTOP_DRAFT_LOCAL_TESTING.md](docs/LAPTOP_DRAFT_LOCAL_TESTING.md) and ADR-084's
+implementation record.
+
 ## 12. Condition Model
 
 The seller does not select a judgment label directly. The platform asks simple, observable diagnostic questions, derives a condition, and shows the result before publication. The label cannot be overridden; the seller must correct the underlying answers.
