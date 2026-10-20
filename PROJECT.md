@@ -185,11 +185,17 @@ historical warning merely because primary changed. ADR-087 defines content limit
 race ordering, deduplication, failure and recipient privacy. The independent in-app
 portion is implemented: each success atomically materializes one owner-private
 notice with an opaque event/work identity and fixed locked email-eligibility outcome.
-Email intent, recipient snapshot and password-change delivery remain unimplemented,
-including for eligible events. Final password-change email copy and the ordinary
-recipient/metadata retention, cleanup and delayed/deleted-account rules remain
-unaccepted; ADR-088's four-message contract does not implicitly extend them to this
-event. No later email backfill is implemented or authorized. Password change and
+ADR-089 (owner-approved 2026-10-20 PHT) now accepts exact version-1 email copy,
+seven-day delivery, immediate recipient erasure on acceptance/suppression and
+erasure by the original deadline for failed/unknown work. Private delivery metadata
+purges 30 days after terminal outcome, capped at 37 days from the event; in-app
+notice/eligibility/read state lasts 90 days or until committed deletion if sooner.
+Cleanup never restarts clocks or backfills email. Committed deletion suppresses
+unsent work, quarantines in-flight work and erases recipients/notices; this email
+does not itself block deletion. Provider/backup/hold enforcement remain real-data
+gates. The unmounted synthetic pipeline implements these rules, reusing existing
+dispatch/recovery with atomic recipient binding and deletion erasure. ADR-089
+explicitly supplements ADR-088 for this event. Password change and
 its notice reader stay unmounted pending these gates, sign-in race integration and
 existing deployment/readiness gates. The additive in-app migration is replayed only
 in disposable synthetic schemas; it does not expand recipient storage.
@@ -733,10 +739,10 @@ content. Recipient snapshots are purpose-limited private delivery data. ADR-088
 sets encrypted handoff, dispatch/recovery and 30-day terminal metadata cleanup for
 its four supported account messages. Password-change in-app persistence and locked
 eligibility recording are implemented, with an unmounted owner-only detail projection.
-Password-change email copy, ordinary recipient/metadata retention and cleanup,
-atomic email intent/recipient binding, delivery and sign-in race integration remain
-gated. The accepted notice policy is only partially implemented; no account operation
-is made mountable by this independent work.
+ADR-089 accepts password-change copy, seven-day delivery, per-outcome recipient
+erasure, metadata retention capped at 37 days, 90-day in-app retention and deletion/
+cleanup rules. Atomic email intent/binding/delivery must be verified before mounting;
+acceptance of these rules alone does not make an account operation mountable.
 
 SMS, browser push, and native push are out of scope.
 
@@ -829,6 +835,20 @@ After eligible deletion:
 ### 28.4 Retention exceptions
 
 Records may be retained past their standard period only when necessary for an active case/safety investigation or a documented legal obligation or hold. An authorized operator must record the minimum affected data and subjects, purpose/reason, authorizing identity, start date, and review/expiry date. Review active exceptions at least every 30 calendar days. Release the exception promptly when its purpose or legal basis ends, then delete or irreversibly anonymize under the ordinary rule without undue delay. An exception does not make private data public or permit unrelated reuse. Provider-specific backup purge timing and deletion propagation must be verified after storage is selected (ADR-079).
+
+### 28.5 Password-change security records
+
+Owner-approved ADR-089 classifies recipient snapshots as delivery/reconciliation
+data: erase on provider acceptance, suppression or committed account deletion;
+failed/unknown work retains addressing only until the original seven-day delivery
+deadline. Minimal private delivery metadata/deduplication records purge 30 days
+after terminal outcome, capped at 37 days from the event. In-app notice, eligibility
+and read state last 90 days from the event or until committed deletion if sooner.
+Reading, retries, delayed cleanup and deletion never restart these clocks.
+Email work alone does not block otherwise eligible deletion. Scoped section 28.4
+exceptions remain private and audited; provider/backup evidence, restore safeguards
+and exception enforcement remain prerequisites for real data. No indefinite
+retention or physical-erasure guarantee during worker outages is authorized.
 
 ## 29. Core Domain Model
 
@@ -1017,7 +1037,7 @@ These items are intentionally not invented in this specification. They require a
 - The exact timestamp behavior for `Newest` after renewal or material republication.
 - Provider-specific backup purge timing and deletion propagation.
 - Treatment of an account later found to be underage.
-- Password-change notice implementation readiness: ADR-087's owner-approved 2026-10-15 supplement settles trigger, recipient, content limits and atomic binding. Atomic in-app persistence/eligibility recording is implemented. Final password-change email copy, ordinary recipient/metadata retention and cleanup, dependent email intent/binding/delivery and sign-in races remain gates before mounting. Reuse ADR-088's accepted generic transport/dispatch mechanisms after the event-specific decisions; its four-message scope does not silently approve the missing rules. Do not reopen the accepted trigger/recipient policy or infer operational defaults. The [remaining email and retention decision brief](docs/PASSWORD_CHANGE_EMAIL_RETENTION_DECISION_BRIEF.md) separates accepted rules from open copy, delivery-window, retention, cleanup and delayed/deleted-account decisions; no proposal there is accepted.
+- Password-change readiness: ADR-087 settles trigger, eligibility and atomic binding; owner-approved ADR-089 resolves the email/retention brief's event-specific copy, delivery, retention, cleanup and deletion rules. Implement and verify them before mounting. Provider/backup evidence, hold enforcement, protected password-change integration and operational/ADR-081 readiness remain gates; no real sending, participant data, deployment or schedule is authorized.
 - External emergency or law-enforcement escalation procedure.
 - IMEI or device-identifier blocklist integrations.
 - Availability, performance, browser-support, PWA, and storage-capacity targets.

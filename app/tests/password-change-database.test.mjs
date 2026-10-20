@@ -12,6 +12,9 @@ import { createEmailVerificationOperations } from "../src/server/repositories/em
 import { createEmailChangeOperations } from "../src/server/repositories/email-change.ts";
 import { createSignupOperation } from "../src/server/repositories/signup.ts";
 import { openSignupSandbox } from "./helpers/signup-sandbox.mjs";
+import { createAccountEmailIntentInspector } from "../src/server/repositories/account-email-intents.ts";
+import { renderAccountEmail } from "../src/server/account-email-templates.ts";
+import { passwordChangeEmailEvent, passwordChangeDeliveryMs, passwordChangeNoticeMs } from "../src/server/password-change-notice-policy.ts";
 
 const oldPassword = "synthetic-old-change-password-only";
 const newPassword = "synthetic-new-change-password-only";
@@ -36,8 +39,7 @@ test("password change rejects invalid shapes and maps auth failures to fixed saf
   await assert.rejects(failing(new Headers(), input, () => {}), rejects("INTERNAL_ERROR"));
 });
 
-// In-app completion does not resolve the email and sign-in mounting gates.
-test("in-app-only password change stays unmounted with disabled previews", async () => {
+test("password change and notice readers stay unmounted with disabled previews", async () => {
   for (const path of ["/change-password", "/sign-up/email", "/sign-in/email"]) assert.ok(!accountEmailPaths.includes(path));
   const appDirectory = new URL("../src/app/", import.meta.url);
   const files = (await readdir(appDirectory, { recursive: true })).filter((name) => /\.[cm]?[jt]sx?$/.test(name));
@@ -55,7 +57,7 @@ test("in-app-only password change stays unmounted with disabled previews", async
   assert.doesNotMatch(screens, /onSubmit|formAction|onClick|fetch\(/);
 });
 
-test("isolated PostgreSQL password change with atomic owner-private in-app notices (email gated)", async (t) => {
+test("isolated PostgreSQL password change with atomic notices and ADR-089 email retention", async (t) => {
   const sandbox = await openSignupSandbox();
   const { database, auth, connection } = sandbox;
   let now = new Date();
@@ -92,13 +94,14 @@ test("isolated PostgreSQL password change with atomic owner-private in-app notic
       "halaga-password-reset:" + userId, "halaga-email-change:" + userId] } }, orderBy: { id: "asc" }, select: {
       id: true, identifier: true, value: true, createdAt: true, updatedAt: true, expiresAt: true } }),
     intents: await database.outboxEvent.findMany({ where: { accountId }, orderBy: { id: "asc" }, select: {
-      id: true, eventType: true, eventVersion: true, deduplicationKey: true, recipientEmail: true, createdAt: true, dispatchedAt: true } }),
+      id: true, accountId: true, eventType: true, eventVersion: true, deduplicationKey: true, recipientEmail: true, createdAt: true, dispatchedAt: true } }),
     notices: await database.passwordChangeNotice.findMany({ where: { accountId }, orderBy: { id: "asc" }, select: {
       id: true, accountId: true, eventType: true, eventVersion: true, inAppWorkKey: true, emailEligibility: true, createdAt: true, readAt: true } }),
   });
   const assertPreserved = (before, after) => {
-    // Email remains gated, so existing email work and token families stay unchanged.
-    for (const key of ["identity", "account", "tokens", "intents"]) assert.deepEqual(after[key], before[key]);
+    for (const key of ["identity", "account", "tokens"]) assert.deepEqual(after[key], before[key]);
+    assert.deepEqual(after.intents.filter((row) => row.eventType !== passwordChangeEmailEvent),
+      before.intents.filter((row) => row.eventType !== passwordChangeEmailEvent));
     assert.deepEqual(after.credentials.filter((row) => row.providerId !== "credential"),
       before.credentials.filter((row) => row.providerId !== "credential"));
     const { password: oldHash, updatedAt: oldUpdate, ...oldCredential } = before.credentials.find((row) => row.providerId === "credential");
@@ -118,6 +121,11 @@ test("isolated PostgreSQL password change with atomic owner-private in-app notic
     assert.equal(notice.readAt, null);
     assert.equal(notice.emailEligibility, before.identity.emailVerified && before.account.emailVerifiedAt &&
       before.account.emailVerifiedAt <= now ? "ELIGIBLE" : "INELIGIBLE");
+    const emails = after.intents.filter((row) => !before.intents.some(({ id }) => id === row.id));
+    assert.equal(emails.length, notice.emailEligibility === "ELIGIBLE" ? 1 : 0);
+    if (emails.length) assert.deepEqual(emails[0], { id: emails[0].id, accountId: notice.accountId,
+      eventType: passwordChangeEmailEvent, eventVersion: 1, deduplicationKey: `password-changed-email:${notice.id}`,
+      recipientEmail: before.identity.email, createdAt: now, dispatchedAt: null });
   };
   const context = await auth.$context;
   const customAuth = (overrides) => ({ api: auth.api, $context: Promise.resolve({ ...context,
@@ -275,8 +283,12 @@ test("isolated PostgreSQL password change with atomic owner-private in-app notic
         ["session", "AFTER", "DELETE", "DEFERRABLE INITIALLY DEFERRED"],
         ["password_change_notice", "BEFORE", "INSERT", ""],
         ["password_change_notice", "AFTER", "INSERT", "DEFERRABLE INITIALLY DEFERRED"],
+        ["outbox_event", "BEFORE", "INSERT", ""],
+        ["outbox_event", "AFTER", "INSERT", "DEFERRABLE INITIALLY DEFERRED"],
+        ["account_email_delivery", "BEFORE", "INSERT", ""],
+        ["account_email_delivery", "AFTER", "INSERT", "DEFERRABLE INITIALLY DEFERRED"],
       ]) {
-        const account = await fixture();
+        const account = await fixture(true);
         await signIn(account);
         const before = await state(account);
         await injectFailure(table, timing, action, deferred, async () => {
@@ -369,7 +381,7 @@ test("isolated PostgreSQL password change with atomic owner-private in-app notic
 
     await t.test("concurrent changes from same or different sessions have one winner using the current locked hash", async () => {
       for (const sameSession of [true, false]) {
-        const account = await fixture();
+        const account = await fixture(true);
         const second = sameSession ? account : { ...account, headers: cookieHeaders(await signIn(account)) };
         const passwords = [newPassword, "synthetic-competing-password-only"];
         const results = await Promise.allSettled([account, second].map((actor, index) => perform(actor, change, { ...input, newPassword: passwords[index] })));
@@ -378,6 +390,7 @@ test("isolated PostgreSQL password change with atomic owner-private in-app notic
         assert.ok(rejects(sameSession ? "INVALID_PASSWORD" : "UNAUTHORIZED")(results[1 - winner].reason));
         assert.equal((await state(account)).sessions.length, 1);
         assert.equal((await state(account)).notices.length, 1);
+        assert.equal(await database.outboxEvent.count({ where: { accountId: account.accountId, eventType: passwordChangeEmailEvent } }), 1);
         assert.ok(await auth.api.getSession({ headers: [account, second][winner].headers }));
         await signIn(account, passwords[winner]);
         await assert.rejects(signIn(account, passwords[1 - winner]));
@@ -413,7 +426,7 @@ test("isolated PostgreSQL password change with atomic owner-private in-app notic
       }
     });
 
-    await t.test("all verification combinations use locked event-time eligibility, with no email intent or snapshot", async () => {
+    await t.test("only commit-time verified-in-both-stores eligibility creates email intent and snapshot", async () => {
       for (const [emailVerified, timestamp] of [[false, "none"], [true, "none"], [false, "past"],
         [false, "future"], [true, "future"], [true, "past"], [true, "equal"]]) {
         const account = await fixture();
@@ -425,7 +438,8 @@ test("isolated PostgreSQL password change with atomic owner-private in-app notic
         const after = await state(account);
         assertPreserved(before, after);
         assert.equal(after.notices[0].emailEligibility, emailVerified && ["past", "equal"].includes(timestamp) ? "ELIGIBLE" : "INELIGIBLE");
-        assert.equal(await database.outboxEvent.count({ where: { accountId: account.accountId, recipientEmail: { not: null } } }), 0);
+        assert.equal(await database.outboxEvent.count({ where: { accountId: account.accountId, recipientEmail: { not: null } } }),
+          after.notices[0].emailEligibility === "ELIGIBLE" ? 1 : 0);
       }
     });
 
@@ -491,7 +505,8 @@ test("isolated PostgreSQL password change with atomic owner-private in-app notic
           await perform(account);
           assert.equal((await state(account)).notices[0].emailEligibility, "ELIGIBLE");
         }
-        assert.equal(await database.outboxEvent.count({ where: { accountId: account.accountId, recipientEmail: { not: null } } }), 0);
+        assert.equal(await database.outboxEvent.count({ where: { accountId: account.accountId, recipientEmail: { not: null } } }),
+          first === "verification" ? 1 : 0);
       }
     });
 
@@ -525,10 +540,13 @@ test("isolated PostgreSQL password change with atomic owner-private in-app notic
         const notices = (await state(account)).notices;
         assert.ok(!JSON.stringify(notices).includes(account.email));
         assert.ok(!JSON.stringify(notices).includes(proposedEmail));
-        // Only the separate email-switch warning has a snapshot; password email remains unimplemented.
+        // Both warnings bind to their own commit-time recipient, independently.
         const snapshots = await database.outboxEvent.findMany({ where: { accountId: account.accountId, recipientEmail: { not: null } },
           select: { eventType: true, recipientEmail: true } });
-        assert.deepEqual(snapshots, [{ eventType: "account.email-changed-security-notice", recipientEmail: account.email }]);
+        assert.deepEqual(snapshots.sort((a, b) => a.eventType.localeCompare(b.eventType)), [
+          { eventType: "account.email-changed-security-notice", recipientEmail: account.email },
+          { eventType: passwordChangeEmailEvent, recipientEmail: first === "password" ? account.email : proposedEmail },
+        ]);
       }
     });
 
@@ -580,6 +598,270 @@ test("isolated PostgreSQL password change with atomic owner-private in-app notic
         await assert.rejects(failing(account.headers, notice.id, () => {}), rejects("INTERNAL_ERROR"));
       } finally { Object.assign(console, original); }
       assert.deepEqual(lines, []);
+    });
+
+    const emailFor = (account) => database.outboxEvent.findFirst({ where: { accountId: account.accountId,
+      eventType: passwordChangeEmailEvent }, include: { emailDelivery: true } });
+    const emailFixture = async () => {
+      await database.outboxEvent.deleteMany();
+      const account = await fixture(true);
+      await perform(account);
+      await database.outboxEvent.deleteMany({ where: { eventType: { not: passwordChangeEmailEvent } } });
+      return account;
+    };
+    const dispatcherFor = (send) => createAccountEmailDispatcher(database, send, () => now);
+    const day = 24 * 60 * 60 * 1000;
+
+    await t.test("approved text/HTML uses PHT event facts, no links, tracking, addressing or credentials in content", async () => {
+      const message = renderAccountEmail("PASSWORD_CHANGED", "synthetic@example.invalid", undefined, new Date("2026-10-20T06:30:00Z"));
+      assert.equal(message.subject, "Your Halaga password changed");
+      assert.equal(message.text, "The password for your Halaga account changed on 20 Oct 2026, 14:30:00 PHT (UTC+08:00).\n\n" +
+        "At that time, other sessions were signed out. The session used for this change remained signed in.\n\n" +
+        "If you did not expect this change, open Halaga directly and use the password reset option.");
+      assert.equal((message.html.match(/<p>/g) ?? []).length, 3);
+      assert.match(message.html, /<html lang="en">/);
+      assert.doesNotMatch(message.text + message.html, /synthetic@example|href|<img|https?:|token|synthetic-old/);
+      assert.throws(() => renderAccountEmail("PASSWORD_CHANGED", message.to));
+      assert.throws(() => renderAccountEmail("PASSWORD_CHANGED", message.to, "https://example.invalid", new Date()));
+    });
+
+    await t.test("email binding is mandatory, immutable and cannot be recreated after erasure; email write failures roll back delivery too", async () => {
+      const account = await emailFixture();
+      const event = await emailFor(account);
+      assert.equal(event.emailDelivery.expiresAt.getTime(), event.createdAt.getTime() + passwordChangeDeliveryMs);
+      await assert.rejects(database.accountEmailDelivery.update({ where: { id: event.emailDelivery.id },
+        data: { expiresAt: new Date(event.emailDelivery.expiresAt.getTime() + 1) } }));
+      for (const data of [{ recipientEmail: "other@example.invalid" }, { accountId: (await fixture()).accountId },
+        { deduplicationKey: `password-changed-email:${randomUUID()}` }, { eventType: "unsupported" },
+        { createdAt: new Date(event.createdAt.getTime() + 1) }]) {
+        await assert.rejects(database.outboxEvent.update({ where: { id: event.id }, data }));
+      }
+      await assert.rejects(database.outboxEvent.create({ data: { id: randomUUID(), accountId: account.accountId,
+        eventType: passwordChangeEmailEvent, eventVersion: 1, deduplicationKey: `password-changed-email:${randomUUID()}` } }));
+      await database.outboxEvent.update({ where: { id: event.id }, data: { recipientEmail: null } });
+      await assert.rejects(database.outboxEvent.update({ where: { id: event.id }, data: { recipientEmail: account.email } }));
+      assert.deepEqual(await createAccountEmailIntentInspector(database, () => now)(event.id), { status: "STALE" });
+    });
+
+    await t.test("pending/later email switches never retarget committed password mail and accepted delivery erases only its recipient", async () => {
+      const account = await emailFixture();
+      const proposedEmail = `immutable-${randomUUID()}@example.invalid`;
+      const proof = await emailChange.issue(account.headers, { proposedEmail }, () => {});
+      await emailChange.consume(proof.token);
+      // Isolate the password email from the separate email-switch notice and proof.
+      await database.outboxEvent.deleteMany({ where: { eventType: { not: passwordChangeEmailEvent } } });
+      const event = await emailFor(account);
+      assert.deepEqual(await createAccountEmailIntentInspector(database, () => now)(event.id), { status: "NOTICE_RECORDED" });
+      const messages = [];
+      const dispatcher = dispatcherFor(async (message) => { messages.push(message); return "synthetic-password-accept"; });
+      const before = await state(account);
+      assert.deepEqual(await Promise.all([dispatcher.dispatchOne(), dispatcher.dispatchOne()]).then((values) => values.map((v) => v.status).sort()), ["ACCEPTED", "EMPTY"]);
+      assert.equal(messages.length, 1);
+      assert.equal(messages[0].to, account.email);
+      const after = await emailFor(account);
+      assert.equal(after.recipientEmail, null);
+      assert.equal(after.emailDelivery.state, "ACCEPTED");
+      assert.equal(after.emailDelivery.ciphertext.length, 0);
+      assert.ok(after.dispatchedAt);
+      for (const key of ["credentials", "sessions", "notices", "identity", "account"]) assert.deepEqual((await state(account))[key], before[key]);
+      assert.deepEqual(await dispatcher.dispatchOne(), { status: "EMPTY" });
+    });
+
+    await t.test("provider failure and ambiguity preserve credentials/notices; recipients expire without resend or late-clock extension", async () => {
+      for (const category of ["REJECTED", "AMBIGUOUS"]) {
+        const account = await emailFixture();
+        const before = await state(account);
+        const event = await emailFor(account);
+        let sends = 0;
+        const dispatcher = dispatcherFor(async () => { sends++; throw new BrevoSendError(category); });
+        assert.deepEqual(await dispatcher.dispatchOne(), { status: category === "REJECTED" ? "FAILED" : "UNKNOWN" });
+        assert.equal((await emailFor(account)).recipientEmail, account.email);
+        assert.deepEqual(await dispatcher.dispatchOne(), { status: "EMPTY" });
+        for (const key of ["credentials", "sessions", "notices"]) assert.deepEqual((await state(account))[key], before[key]);
+        now = new Date(event.emailDelivery.expiresAt.getTime() - 1);
+        await dispatcher.recoverAndClean();
+        assert.equal((await emailFor(account)).recipientEmail, account.email);
+        now = event.emailDelivery.expiresAt;
+        await dispatcher.recoverAndClean();
+        await dispatcher.recoverAndClean();
+        assert.equal((await emailFor(account)).recipientEmail, null);
+        assert.equal((await emailFor(account)).emailDelivery.state, category === "REJECTED" ? "FAILED" : "UNKNOWN");
+        assert.deepEqual(await dispatcher.dispatchOne(), { status: "EMPTY" });
+        assert.equal(sends, 1);
+      }
+    });
+
+    await t.test("password notice 429 retries, crashed leases and expired SENDING use existing bounds and fencing", async () => {
+      const account = await emailFixture();
+      const event = await emailFor(account);
+      let sends = 0;
+      const dispatcher = dispatcherFor(async () => { sends++; throw new BrevoSendError("RATE_LIMIT"); });
+      for (const delay of [30, 60, 120, 240]) {
+        assert.deepEqual(await dispatcher.dispatchOne(), { status: "RETRY_SCHEDULED" });
+        const job = (await emailFor(account)).emailDelivery;
+        assert.equal(job.availableAt.getTime(), now.getTime() + delay * 1000);
+        assert.deepEqual(job.expiresAt, event.emailDelivery.expiresAt);
+        now = job.availableAt;
+      }
+      assert.deepEqual(await dispatcher.dispatchOne(), { status: "FAILED" });
+      assert.equal(sends, 5);
+      for (const state of ["LEASED", "SENDING"]) {
+        const next = await emailFixture();
+        const work = await emailFor(next);
+        await database.accountEmailDelivery.update({ where: { id: work.emailDelivery.id }, data: {
+          state, leaseId: randomUUID(), leaseExpiresAt: now, attemptCount: 1 } });
+        await dispatcher.recoverAndClean();
+        assert.equal((await emailFor(next)).emailDelivery.state, state === "LEASED" ? "READY" : "UNKNOWN");
+        if (state === "SENDING") assert.deepEqual(await dispatcher.dispatchOne(), { status: "EMPTY" });
+      }
+    });
+
+    await t.test("exact seven-day expiry suppresses queued/leased mail, quarantines sending, and erases recipients", async () => {
+      for (const state of ["READY", "LEASED", "SENDING"]) {
+        const account = await emailFixture();
+        const event = await emailFor(account);
+        if (state !== "READY") await database.accountEmailDelivery.update({ where: { id: event.emailDelivery.id }, data: {
+          state, leaseId: randomUUID(), leaseExpiresAt: new Date(event.emailDelivery.expiresAt.getTime() + day), attemptCount: 1 } });
+        const dispatcher = dispatcherFor(async () => assert.fail("Expired email must not send"));
+        now = event.emailDelivery.expiresAt;
+        assert.deepEqual(await dispatcher.dispatchOne(), { status: "EMPTY" });
+        await dispatcher.recoverAndClean();
+        const after = await emailFor(account);
+        assert.equal(after.recipientEmail, null);
+        assert.equal(after.emailDelivery.state, state === "SENDING" ? "UNKNOWN" : "SUPPRESSED");
+        assert.deepEqual(after.emailDelivery.terminalAt, event.emailDelivery.expiresAt);
+        assert.equal(after.emailDelivery.leaseId, null);
+      }
+      const account = await emailFixture();
+      const event = await emailFor(account);
+      now = new Date(event.emailDelivery.expiresAt.getTime() - 1);
+      assert.deepEqual(await dispatcherFor(async () => "synthetic-last-millisecond").dispatchOne(), { status: "ACCEPTED" });
+    });
+
+    await t.test("deletion atomically erases notices/recipients, fences a provider in flight, and rollback restores all records", async () => {
+      const account = await emailFixture();
+      const event = await emailFor(account);
+      const before = await state(account);
+      await assert.rejects(database.$transaction(async (tx) => {
+        await tx.userAccount.update({ where: { id: account.accountId }, data: { deletedAt: now } });
+        throw new Error("synthetic-deletion-rollback");
+      }));
+      assert.deepEqual(await state(account), before);
+      assert.equal((await emailFor(account)).emailDelivery.state, "READY");
+      const entered = Promise.withResolvers();
+      const released = Promise.withResolvers();
+      const dispatcher = dispatcherFor(async () => { entered.resolve(); await released.promise; return "synthetic-late-accept"; });
+      const pending = dispatcher.dispatchOne();
+      await entered.promise;
+      try {
+        await database.userAccount.update({ where: { id: account.accountId }, data: { deletedAt: now } });
+        const after = await emailFor(account);
+        assert.equal(after.recipientEmail, null);
+        assert.equal(after.emailDelivery.state, "UNKNOWN");
+        assert.equal(await database.passwordChangeNotice.count({ where: { accountId: account.accountId } }), 0);
+      } finally { released.resolve(); }
+      assert.deepEqual(await pending, { status: "UNKNOWN" });
+      assert.equal((await emailFor(account)).dispatchedAt, null);
+      assert.equal((await emailFor(account)).emailDelivery.providerMessageId, null);
+      assert.deepEqual(await dispatcher.dispatchOne(), { status: "EMPTY" });
+      assert.equal((await emailFor(account)).id, event.id);
+      for (const state of ["READY", "LEASED", "FAILED", "UNKNOWN", "ACCEPTED"]) {
+        const next = await emailFixture();
+        const work = await emailFor(next);
+        if (state === "ACCEPTED") await dispatcherFor(async () => "synthetic-accept").dispatchOne();
+        else if (state !== "READY") await database.accountEmailDelivery.update({ where: { id: work.emailDelivery.id }, data: {
+          state, leaseId: state === "LEASED" ? randomUUID() : null,
+          leaseExpiresAt: state === "LEASED" ? new Date(now.getTime() + 120000) : null,
+          terminalAt: ["FAILED", "UNKNOWN"].includes(state) ? now : null } });
+        await database.userAccount.update({ where: { id: next.accountId }, data: { deletedAt: now } });
+        const after = await emailFor(next);
+        assert.equal(after.recipientEmail, null);
+        assert.equal(after.emailDelivery.state, ["READY", "LEASED"].includes(state) ? "SUPPRESSED" : state);
+        assert.equal(await database.passwordChangeNotice.count({ where: { accountId: next.accountId } }), 0);
+      }
+    });
+
+    await t.test("account-lock waits recheck lease/expiry and expiry fences a provider acknowledgement already in flight", async () => {
+      const account = await emailFixture();
+      const event = await emailFor(account);
+      let sends = 0;
+      const dispatcher = dispatcherFor(async () => { sends++; return "synthetic-accept"; });
+      await connection.query("BEGIN");
+      await connection.query('SELECT id FROM "user_account" WHERE id = $1 FOR UPDATE', [account.accountId]);
+      const pending = dispatcher.dispatchOne();
+      let waiting = false;
+      try {
+        for (let attempt = 0; attempt < 100; attempt++) {
+          await connection.query("SELECT pg_stat_clear_snapshot()");
+          const { rowCount } = await connection.query(`SELECT 1 FROM pg_stat_activity WHERE datname = current_database()
+            AND wait_event_type = 'Lock' AND query LIKE '%FROM "user_account" WHERE id =%' AND pid <> pg_backend_pid()`);
+          if (rowCount) { waiting = true; break; }
+          await setTimeout(10);
+        }
+        now = event.emailDelivery.expiresAt;
+      } finally { await connection.query("COMMIT"); }
+      assert.deepEqual(await pending, { status: "LEASE_LOST" });
+      assert.ok(waiting, "Observed password notice waiting on its account lock");
+      assert.equal(sends, 0);
+      await dispatcher.recoverAndClean();
+      assert.equal((await emailFor(account)).recipientEmail, null);
+
+      const next = await emailFixture();
+      const work = await emailFor(next);
+      const entered = Promise.withResolvers();
+      const released = Promise.withResolvers();
+      const paused = dispatcherFor(async () => { entered.resolve(); await released.promise; return "synthetic-late-accept"; });
+      const inFlight = paused.dispatchOne();
+      await entered.promise;
+      try { now = work.emailDelivery.expiresAt; await paused.recoverAndClean(); }
+      finally { released.resolve(); }
+      assert.deepEqual(await inFlight, { status: "UNKNOWN" });
+      const after = await emailFor(next);
+      assert.equal(after.recipientEmail, null);
+      assert.equal(after.emailDelivery.state, "UNKNOWN");
+      assert.equal(after.dispatchedAt, null);
+      assert.equal(after.emailDelivery.providerMessageId, null);
+      assert.deepEqual(await paused.dispatchOne(), { status: "EMPTY" });
+    });
+
+    await t.test("metadata purge and in-app expiry use separate original clocks and repeated cleanup cannot backfill", async () => {
+      for (const outcome of ["ACCEPTED", "FAILED", "UNKNOWN", "SUPPRESSED", "late-cleanup", "late-terminal"]) {
+        const account = await emailFixture();
+        const event = await emailFor(account);
+        const eventTime = now;
+        const dispatcher = dispatcherFor(async () => {
+          if (outcome === "FAILED") throw new BrevoSendError("REJECTED");
+          if (outcome === "UNKNOWN") throw new BrevoSendError("AMBIGUOUS");
+          if (outcome === "late-terminal") now = new Date(eventTime.getTime() + 35 * day);
+          return "synthetic-retention-accept";
+        });
+        if (outcome === "SUPPRESSED") {
+          now = event.emailDelivery.expiresAt;
+          await dispatcher.recoverAndClean();
+        } else if (outcome !== "late-cleanup") await dispatcher.dispatchOne();
+        const deadline = new Date(eventTime.getTime() + (["SUPPRESSED", "late-cleanup", "late-terminal"].includes(outcome) ? 37 : 30) * day);
+        now = new Date(deadline.getTime() - 1);
+        await dispatcher.recoverAndClean();
+        assert.ok(await emailFor(account));
+        now = deadline;
+        await dispatcher.recoverAndClean();
+        assert.equal(await emailFor(account), null);
+        assert.equal(await database.accountEmailDelivery.count({ where: { id: event.emailDelivery.id } }), 0);
+        assert.equal(await database.passwordChangeNotice.count({ where: { accountId: account.accountId } }), 1);
+        now = new Date(eventTime.getTime() + passwordChangeNoticeMs);
+        await dispatcher.recoverAndClean();
+        await dispatcher.recoverAndClean();
+        assert.equal(await database.passwordChangeNotice.count({ where: { accountId: account.accountId } }), 0);
+        assert.deepEqual(await dispatcher.dispatchOne(), { status: "EMPTY" });
+      }
+      const account = await fixture();
+      await perform(account);
+      const notice = (await state(account)).notices[0];
+      const cutoff = new Date(now.getTime() - passwordChangeNoticeMs);
+      await database.passwordChangeNotice.update({ where: { id: notice.id }, data: { createdAt: cutoff } });
+      assert.equal(await readNotice(account.headers, notice.id, () => {}), null);
+      await database.passwordChangeNotice.update({ where: { id: notice.id }, data: { createdAt: new Date(cutoff.getTime() + 1) } });
+      assert.ok(await readNotice(account.headers, notice.id, () => {}));
     });
 
     await t.test("existing email delivery failure, duplicate dispatch and cleanup never alter committed credentials or in-app notices", async () => {

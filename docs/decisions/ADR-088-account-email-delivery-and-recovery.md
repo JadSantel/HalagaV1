@@ -3,6 +3,7 @@
 - Status: Accepted for slice 2 implementation on explicit owner request
 - Date: 2026-10-15
 - Supplements: ADR-073, ADR-075, ADR-087
+- Later supplement: ADR-089, owner-approved 2026-10-20 PHT, explicitly extends generic dispatch mechanisms to password change with distinct recipient erasure, metadata/in-app retention and deletion rules. Existing four-message rules remain unchanged.
 
 ## Context
 

@@ -2,6 +2,14 @@
 
 The files in this directory preserve decisions in chronological order.
 
+Latest password-change policy (2026-10-20 PHT): accepted
+[ADR-089](ADR-089-password-change-email-and-retention.md) resolves exact version-1
+copy, seven-day delivery, recipient erasure, bounded metadata/in-app retention,
+cleanup and delayed/deleted-account behavior. It supersedes older statements below
+that these decisions remain open. The unmounted synthetic pipeline and separate
+retention/deletion cleanup are implemented with fake delivery; mounting and real-data readiness
+remain separate gates.
+
 `PROJECT.md` is the current authoritative product and domain specification. Earlier ADRs may contain an `unresolved` consequence that was answered by a later ADR. Read the later decision and `PROJECT.md` before treating an older open item as current uncertainty.
 
 Current listing boundary (2026-10-19 PHT): ADR-084's implementation record covers

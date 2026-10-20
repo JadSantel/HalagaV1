@@ -1,6 +1,10 @@
 # Decision brief: remaining password-change email and retention rules
 
-Date: 2026-10-19 PHT. **Status: Open; no proposal in this brief is accepted.**
+Date: 2026-10-19 PHT. **Updated 2026-10-20: proposal A–C accepted by explicit owner
+answers and recorded in [ADR-089](decisions/ADR-089-password-change-email-and-retention.md).**
+Earlier open-gap descriptions below preserve the decision context. ADR-089 now
+governs the accepted rules; provider/backup evidence, hold enforcement and other
+mounting/real-data readiness gates remain incomplete.
 
 Scope: decisions required before completing and mounting the existing authenticated
 password-change operation. This is not password reset or the email-switch warning.
@@ -8,7 +12,7 @@ It adds no runtime behavior, recipient storage, template, delivery, cleanup sche
 provider setup or permission to use real participant data. Any future validation
 must use synthetic data until ADR-081 readiness gates pass.
 
-## Authority and current implementation
+## Authority and implementation before ADR-089
 
 [PROJECT §§8.5, 25, 28 and 34](../PROJECT.md#85-authentication-protection),
 [architecture §§3, 5, 6 and 8.2](../architecture.md#6-flow-level-notification-contract),
@@ -73,9 +77,12 @@ staff reconciliation and provider-accept/crash ambiguity remain operational gate
   surfaces. Apply [ADR-085](decisions/ADR-085-privacy-safe-operational-logs.md);
   general logs cannot substitute for restricted audit history.
 
-## Decisions still required
+## Prerequisites recorded before ADR-089
 
-All entries below are **open**. Options describe tradeoffs, not defaults.
+These entries record the gaps before ADR-089. Its accepted policy now resolves
+copy, timing, classification, cleanup and deletion behavior; actual provider/backup,
+hold and operational evidence remains a real-data gate. Original options below
+explain the tradeoffs and do not override ADR-089.
 
 | Decision | Required approval artifact and tradeoff |
 | --- | --- |
@@ -133,3 +140,103 @@ sign-in/session race checks, direct credential-write compatibility review, and
 existing operations/readiness gates. Serialized sign-in and local signup are now
 implemented; that does not itself complete password-change integration. No real
 email, participant data, persistent migration, deployment or billing is authorized.
+
+## Concrete proposal for owner review (2026-10-20 PHT)
+
+**Accepted as ADR-089 after explicit approval of all three questions.** The owner
+requested a decision interview after the prerequisite audit. The following package
+preserves the reviewed proposal; ADR-089 records its acceptance and is binding.
+Its periods were selected explicitly for password change, not inherited from
+another message. PROJECT, architecture and glossary are synchronized.
+
+### A. Version-1 email and delivery window
+
+Proposed subject: `Your Halaga password changed`
+
+Proposed exact plain text, with one server-rendered timestamp placeholder:
+
+```text
+The password for your Halaga account changed on {eventTimePHT}.
+
+At that time, other sessions were signed out. The session used for this change remained signed in.
+
+If you did not expect this change, open Halaga directly and use the password reset option.
+```
+
+Use fixed English month names and 24-hour time in
+`DD Mon YYYY, HH:mm:ss PHT (UTC+08:00)` format, computed in `Asia/Manila` from the
+committed event instant. Version 1 HTML contains exactly these three paragraphs,
+escaped, in an English document; no links, tracking, images or additional copy.
+Render at dispatch and do not store rendered text/HTML. Recipient addressing is
+transport-only. The existing ADR-087 exclusions and commit-time eligibility stay
+binding.
+
+Propose an exact seven-times-24-hour delivery window from event time. No send may
+start at or after that deadline, and retry/recovery cannot extend it. This allows
+bounded outage recovery, at the cost of potentially delayed security warnings.
+Reuse ADR-088's existing two-minute fenced leases, five-attempt bound, explicit-429
+backoff and ambiguous-outcome quarantine; no new retry allowance or endpoint.
+
+### B. Recipient, metadata and in-app retention
+
+| Data/state | Proposed ordinary rule and purpose |
+| --- | --- |
+| Recipient in READY/LEASED/SENDING | Keep the immutable commit-time address for delivery only, until the original seven-day deadline at the latest. Never fall back to another address. |
+| Recipient after ACCEPTED or SUPPRESSED | Erase in the transaction recording that outcome; keep only the bounded non-address metadata below. Acceptance means provider acceptance, not inbox delivery. |
+| Recipient after FAILED or UNKNOWN | Keep only until the original seven-day deadline for purpose-restricted reconciliation, then erase. UNKNOWN must never be automatically resent. This does not authorize a staff reader or controlled-retry endpoint. |
+| Delivery metadata | Keep account/event/outbox/job IDs and channel work key for association/deduplication; type/version/event time and original deadline for interpretation/expiry; state, attempts, availability and lease fields for dispatch/fencing; fixed error code, bounded provider message ID and outcome timestamps for reconciliation. These are private, potentially account-linkable data, not anonymous analytics. Retain until the earlier of terminal outcome plus 30 days or event time plus 37 days; then purge outbox, delivery and their email processed-work evidence together. Clear lease fields on terminal transition. No recipient, rendered content, token, password, request data or raw provider error belongs in metadata. |
+| In-app notice, eligibility and read state | Keep account association, event/work identity, type/version/time, fixed eligibility and nullable read time for 90 days from the event, then delete together. Reading does not restart the period. This gives the owner a bounded security history; email terminalization or metadata purge alone does not erase it. Committed account deletion erases it sooner, subject only to ADR-079's scoped exceptions. |
+
+All boundaries use `now >= deadline`; they are elapsed durations, not business-day
+or local-midnight calculations. Cleanup remains an explicitly invoked existing
+worker operation, with no proposed cadence. Outages can delay physical execution;
+on resumption, cleanup uses the original due instants and immediately handles
+overdue records, without starting new retention clocks or exposing expired records
+to readers. No bounded deletion-latency guarantee is claimed until worker/hosting
+readiness is verified.
+
+Cleanup must serialize with account commands, deletion and job claims/sends using
+the existing lock order and fenced state updates. At delivery expiry, READY/LEASED
+work becomes SUPPRESSED; SENDING work becomes UNKNOWN because acceptance may have
+occurred; FAILED/UNKNOWN keep their truthful outcome but lose the recipient.
+Late acknowledgements cannot recreate addressing or overwrite a fenced outcome.
+Cleanup is restart-safe and purges dependent email work together only after it
+cannot send again. No cleanup, replay or reconciliation may reconstruct email
+from the in-app eligibility record or the current account address.
+
+Use ADR-085's fixed, non-identifying operational cleanup outcomes/counts rather
+than a new permanent per-recipient deletion log. ADR-079 permits only separately
+documented, purpose-restricted exceptions reviewed at least every 30 calendar
+days. Exception release applies the original ordinary deadline without a fresh
+period. Hold enforcement and audited staff tools remain real-data readiness gates;
+synthetic validation does not implement or exercise real holds.
+
+### C. Deletion, external copies and scope
+
+Propose that a deletion request alone does not suppress the notice while deletion
+is blocked by another workflow. This notice's queued, failed or ambiguous delivery
+does not itself block eligible account deletion. On committed deletion, atomically
+suppress READY/LEASED work, erase all remaining password-change recipients and
+in-app records, and fence SENDING work as UNKNOWN. Keep only the bounded metadata
+above for delivery reconciliation; deletion cannot restart its clock. Other
+unresolved-workflow blockers in PROJECT section 28.3 remain binding. The actual
+deletion workflow is a separate implementation; synthetic checks must exercise
+the committed-deletion boundary before any real account use.
+
+A send already handed to the provider cannot reliably be recalled and may arrive
+after expiry or deletion. Do not promise recall, recreate erased addressing or
+blindly resend. A later primary-address change alone must never suppress or retarget
+this notice.
+
+The designated owner/operator must verify provider-held recipient/content/diagnostic
+copies, tracking disablement, backup expiry and restore behavior before real data
+or sending. Record actual provider purge limits and deletion procedures; do not
+claim instant external erasure. Restores must reapply original retention/deletion
+cutoffs and released exceptions before enabling reads or dispatch. Provider-specific
+evidence, hosting/worker readiness and exception enforcement remain launch gates,
+not permission to retain live copies indefinitely.
+
+Approval of this package would authorize documenting the rules and completing only
+the previously requested unmounted synthetic pipeline with a fake provider. It
+would not authorize mounting commands/readers/UI, real sending, participant data,
+a schedule, deployment, new provider/dependency or billing path.

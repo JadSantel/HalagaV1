@@ -7,6 +7,8 @@ import { accountEmailActionUrl, sendBrevoEmail, BrevoSendError } from "../accoun
 import { renderAccountEmail, type AccountEmailKind, type AccountEmailMessage } from "../account-email-templates.ts";
 import { getPrisma } from "../prisma.ts";
 import { emailChangeBindingSchema } from "./email-change.ts";
+import { passwordChangeEmailEvent, passwordChangeDeliveryMs, passwordChangeMetadataMs,
+  passwordChangeMetadataCapMs, passwordChangeNoticeMs } from "../password-change-notice-policy.ts";
 
 const tokenKinds = {
   "account.verification-email-requested": { kind: "VERIFY", namespace: "halaga-email-verification:", key: "verification-email:" },
@@ -61,6 +63,38 @@ export function createAccountEmailDispatcher(
         ciphertext: new Uint8Array() } });
   }
 
+  async function preparePasswordNotice(tx: Parameters<Parameters<typeof database.$transaction>[0]>[0], job: Job, accountId: string) {
+    // Never select the current address/verification: the committed snapshot owns delivery.
+    const accounts = await tx.$queryRaw<Array<{ deletedAt: Date | null }>>`
+      SELECT "deletedAt" FROM "user_account" WHERE id = ${accountId}::uuid FOR UPDATE
+    `;
+    await tx.$queryRaw`SELECT id FROM "account_email_delivery" WHERE id = ${job.id}::uuid FOR UPDATE`;
+    const delivery = await tx.accountEmailDelivery.findUnique({ where: { id: job.id }, select: {
+      state: true, leaseId: true, leaseExpiresAt: true, expiresAt: true, outboxEvent: { select: {
+        id: true, accountId: true, eventType: true, eventVersion: true, deduplicationKey: true,
+        createdAt: true, dispatchedAt: true, recipientEmail: true,
+      } },
+    } });
+    const now = clock(); // Reread state, snapshot and time after all lock waits.
+    if (!delivery || delivery.state !== "LEASED" || delivery.leaseId !== job.leaseId ||
+        !delivery.leaseExpiresAt || delivery.leaseExpiresAt <= now) return null;
+    const event = delivery.outboxEvent;
+    if (!accounts[0] || accounts[0].deletedAt || event.accountId !== accountId ||
+        event.eventType !== passwordChangeEmailEvent || event.eventVersion !== 1 ||
+        !/^password-changed-email:[0-9a-f-]{36}$/.test(event.deduplicationKey) || !isEmail(event.recipientEmail) ||
+        event.createdAt > now || event.dispatchedAt || delivery.expiresAt <= now ||
+        delivery.expiresAt.getTime() !== event.createdAt.getTime() + passwordChangeDeliveryMs) {
+      await tx.accountEmailDelivery.update({ where: { id: job.id }, data: { state: "SUPPRESSED",
+        leaseId: null, leaseExpiresAt: null, terminalAt: delivery.expiresAt <= now ? delivery.expiresAt : now,
+        lastErrorCode: "STALE_NOTICE", ciphertext: new Uint8Array() } });
+      await tx.outboxEvent.update({ where: { id: event.id }, data: { recipientEmail: null } });
+      return null;
+    }
+    await tx.accountEmailDelivery.update({ where: { id: job.id }, data: { state: "SENDING" } });
+    return { kind: "PASSWORD_CHANGED" as const,
+      message: renderAccountEmail("PASSWORD_CHANGED", event.recipientEmail, undefined, event.createdAt) };
+  }
+
   async function prepare(job: Job): Promise<{ message: AccountEmailMessage; kind: AccountEmailKind } | null> {
     return database.$transaction(async (tx) => {
       const delivery = await tx.accountEmailDelivery.findUnique({ where: { id: job.id }, select: {
@@ -70,6 +104,7 @@ export function createAccountEmailDispatcher(
         } },
       } });
       const event = delivery?.outboxEvent;
+      if (event?.eventType === passwordChangeEmailEvent) return preparePasswordNotice(tx, job, event.accountId);
       const now = clock();
       if (!delivery || !event || delivery.state !== "LEASED" || delivery.leaseId !== job.leaseId ||
           !delivery.leaseExpiresAt || delivery.leaseExpiresAt <= now) return null;
@@ -221,8 +256,18 @@ export function createAccountEmailDispatcher(
         ciphertext: state === "ACCEPTED" ? new Uint8Array() : undefined },
       });
       if (updated.count === 1 && state === "ACCEPTED") {
-        const row = await tx.accountEmailDelivery.findUnique({ where: { id: job.id }, select: { outboxEventId: true } });
-        if (row) await tx.outboxEvent.update({ where: { id: row.outboxEventId }, data: { dispatchedAt: now } });
+        const row = await tx.accountEmailDelivery.findUnique({ where: { id: job.id }, select: {
+          outboxEventId: true, outboxEvent: { select: { eventType: true } },
+        } });
+        if (row) await tx.outboxEvent.update({ where: { id: row.outboxEventId }, data: { dispatchedAt: now,
+          ...(row.outboxEvent.eventType === passwordChangeEmailEvent ? { recipientEmail: null } : {}) } });
+      } else if (updated.count === 1) {
+        const row = await tx.accountEmailDelivery.findUnique({ where: { id: job.id }, select: {
+          outboxEventId: true, expiresAt: true, outboxEvent: { select: { eventType: true } },
+        } });
+        if (row?.outboxEvent.eventType === passwordChangeEmailEvent && row.expiresAt <= now) {
+          await tx.outboxEvent.update({ where: { id: row.outboxEventId }, data: { recipientEmail: null } });
+        }
       }
       return updated.count === 1;
     });
@@ -235,6 +280,63 @@ export function createAccountEmailDispatcher(
     await database.accountEmailDelivery.updateMany({ where: { id: job.id, state: "SENDING", leaseId: job.leaseId },
       data: { state: "READY", leaseId: null, leaseExpiresAt: null, availableAt: new Date(now.getTime() + delay),
         lastErrorCode: code } });
+  }
+
+  async function recoverPasswordChanges() {
+    // ponytail: scan accounts with this bounded work; batch by account if measured volume requires it.
+    const accounts = await database.userAccount.findMany({ where: { OR: [
+      { outboxEvents: { some: { eventType: passwordChangeEmailEvent } } },
+      { passwordChangeNotices: { some: {} } },
+    ] }, orderBy: { id: "asc" }, select: { id: true } });
+    for (const account of accounts) await database.$transaction(async (tx) => {
+      const owners = await tx.$queryRaw<Array<{ deletedAt: Date | null }>>`
+        SELECT "deletedAt" FROM "user_account" WHERE id = ${account.id}::uuid FOR UPDATE
+      `;
+      // Take job locks before any outbox erasure/purge, matching acknowledgement/deletion.
+      const jobs = await tx.$queryRaw<Array<{ id: string; outboxEventId: string; state: string;
+        attemptCount: number; leaseExpiresAt: Date | null; expiresAt: Date; terminalAt: Date | null; createdAt: Date }>>`
+        SELECT d.id, d."outboxEventId", d.state, d."attemptCount", d."leaseExpiresAt", d."expiresAt",
+               d."terminalAt", e."createdAt"
+        FROM "account_email_delivery" d JOIN "outbox_event" e ON e.id = d."outboxEventId"
+        WHERE e."accountId" = ${account.id}::uuid AND e."eventType" = ${passwordChangeEmailEvent}
+        ORDER BY d.id FOR UPDATE OF d
+      `;
+      const now = clock();
+      const deleted = !owners[0] || Boolean(owners[0].deletedAt);
+      for (const job of jobs) {
+        let state = job.state;
+        let terminalAt = job.terminalAt;
+        let code: string | undefined;
+        if (deleted || job.expiresAt <= now) {
+          if (["READY", "LEASED", "SENDING"].includes(state)) {
+            state = state === "SENDING" ? "UNKNOWN" : "SUPPRESSED";
+            terminalAt = deleted ? owners[0]?.deletedAt ?? now : job.expiresAt;
+            code = deleted ? "ACCOUNT_DELETED" : "EXPIRED";
+          }
+        } else if (job.leaseExpiresAt && job.leaseExpiresAt <= now) {
+          if (state === "SENDING") {
+            state = "UNKNOWN"; terminalAt = job.leaseExpiresAt; code = "WORKER_CRASH_AFTER_SEND_STARTED";
+          } else if (state === "LEASED") {
+            state = job.attemptCount < maxAttempts ? "READY" : "FAILED";
+            terminalAt = state === "FAILED" ? job.leaseExpiresAt : null;
+            code = state === "FAILED" ? "LEASE_RETRY_LIMIT" : "LEASE_RECOVERED";
+          }
+        }
+        const erase = deleted || job.expiresAt <= now || state === "ACCEPTED" || state === "SUPPRESSED";
+        if (state !== job.state || erase) {
+          await tx.accountEmailDelivery.update({ where: { id: job.id }, data: { state, terminalAt,
+            ...(state !== job.state ? { leaseId: null, leaseExpiresAt: null, lastErrorCode: code } : {}),
+            ...(erase ? { ciphertext: new Uint8Array() } : {}) } });
+        }
+        if (erase) await tx.outboxEvent.update({ where: { id: job.outboxEventId }, data: { recipientEmail: null } });
+        if ((terminalAt && terminalAt.getTime() + passwordChangeMetadataMs <= now.getTime()) ||
+            job.createdAt.getTime() + passwordChangeMetadataCapMs <= now.getTime()) {
+          await tx.outboxEvent.delete({ where: { id: job.outboxEventId } });
+        }
+      }
+      await tx.passwordChangeNotice.deleteMany({ where: { accountId: account.id,
+        ...(deleted ? {} : { createdAt: { lte: new Date(now.getTime() - passwordChangeNoticeMs) } }) } });
+    });
   }
 
   return {
@@ -270,21 +372,24 @@ export function createAccountEmailDispatcher(
     },
 
     async recoverAndClean(): Promise<void> {
+      await recoverPasswordChanges();
       const now = clock();
+      const legacy = { outboxEvent: { eventType: { not: passwordChangeEmailEvent } } };
       await database.$transaction(async (tx) => {
-        await tx.accountEmailDelivery.updateMany({ where: { state: "LEASED", leaseExpiresAt: { lte: now }, attemptCount: { lt: maxAttempts } },
+        await tx.accountEmailDelivery.updateMany({ where: { ...legacy, state: "LEASED", leaseExpiresAt: { lte: now }, attemptCount: { lt: maxAttempts } },
           data: { state: "READY", leaseId: null, leaseExpiresAt: null, lastErrorCode: "LEASE_RECOVERED" } });
-        await tx.accountEmailDelivery.updateMany({ where: { state: "LEASED", leaseExpiresAt: { lte: now }, attemptCount: { gte: maxAttempts } },
+        await tx.accountEmailDelivery.updateMany({ where: { ...legacy, state: "LEASED", leaseExpiresAt: { lte: now }, attemptCount: { gte: maxAttempts } },
           data: { state: "FAILED", leaseId: null, leaseExpiresAt: null, terminalAt: now,
             lastErrorCode: "LEASE_RETRY_LIMIT" } });
-        await tx.accountEmailDelivery.updateMany({ where: { state: "SENDING", leaseExpiresAt: { lte: now } },
+        await tx.accountEmailDelivery.updateMany({ where: { ...legacy, state: "SENDING", leaseExpiresAt: { lte: now } },
           data: { state: "UNKNOWN", leaseId: null, leaseExpiresAt: null, terminalAt: now,
             lastErrorCode: "WORKER_CRASH_AFTER_SEND_STARTED" } });
-        await tx.accountEmailDelivery.updateMany({ where: { state: "READY", expiresAt: { lte: now } },
+        await tx.accountEmailDelivery.updateMany({ where: { ...legacy, state: "READY", expiresAt: { lte: now } },
           data: { state: "SUPPRESSED", terminalAt: now, lastErrorCode: "EXPIRED", ciphertext: new Uint8Array() } });
-        await tx.accountEmailDelivery.updateMany({ where: { expiresAt: { lte: now } },
+        await tx.accountEmailDelivery.updateMany({ where: { ...legacy, expiresAt: { lte: now } },
           data: { ciphertext: new Uint8Array() } });
-        await tx.outboxEvent.deleteMany({ where: { emailDelivery: { is: { terminalAt: { lte: new Date(now.getTime() - retentionMs) } } } } });
+        await tx.outboxEvent.deleteMany({ where: { eventType: { not: passwordChangeEmailEvent },
+          emailDelivery: { is: { terminalAt: { lte: new Date(now.getTime() - retentionMs) } } } } });
       });
       // Independent retention writes must not hold job locks while waiting on tokens:
       // dispatch holds token then job; account replacement serializes under account locks.

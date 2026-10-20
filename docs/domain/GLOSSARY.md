@@ -52,9 +52,11 @@ later verification does not backfill email. Required intents commit atomically w
 credential replacement and other-session revocation. This policy is accepted under
 ADR-087's owner-approved 2026-10-15 supplement. The independent in-app notice and
 fixed locked email-eligibility outcome are implemented synchronously and atomically;
-email intent/snapshot/delivery remain unimplemented pending password-change copy
-and ordinary recipient-retention/cleanup decisions. The operation and owner-only
-detail reader remain unmounted. No later email backfill is authorized.
+ADR-089 approves exact version-1 email, seven-day delivery, recipient erasure on
+acceptance/suppression or by expiry, metadata purge after 30 terminal days capped
+at 37 event days, and 90-day in-app retention shortened by committed deletion.
+The synthetic pipeline implements these rules; the operation and owner-only detail reader
+remain unmounted. No later email backfill is authorized.
 It does not define password-reset notices or replace the email-switch notice.
 
 ## Password-Change Notice Recipient
@@ -64,8 +66,9 @@ password change, used only for its eligible email delivery/recovery and authoriz
 audited staff diagnosis. A subsequent email switch cannot retarget or suppress that
 historical warning merely because primary changed. Pending or previously held
 addresses are not fallback recipients. No snapshot is retained for an email-ineligible
-change. Content omits addresses; purpose-limited retention/cleanup remains separately
-gated (ADR-087). This differs from the old-address recipient of an email-switch notice.
+change. Content omits addresses. ADR-089 requires erasure on acceptance/suppression,
+at the original seven-day deadline for failed/unknown work, or on committed account
+deletion if sooner. This differs from the old-address recipient of an email-switch notice.
 
 ## Rolling Session
 

@@ -80,9 +80,9 @@ try {
     console.log({ status: "PASSWORD_CHANGED", retainedInitiatingSession: true, otherSessionRevoked: true,
       oldPasswordRejected: true, newPasswordSignInSucceeded: true, verificationPreserved: true, oneInAppNoticeRecorded: true });
   }
-  assert.equal(await database.outboxEvent.count(), beforeIntents);
+  assert.equal(await database.outboxEvent.count(), beforeIntents + (scenario === "verified" ? 1 : 0));
   assert.equal(await database.verification.count(), beforeTokens);
-  console.log({ tokensPreserved: true, emailIntentsUnchanged: true });
+  console.log({ tokensPreserved: true, eligibleEmailIntentRecorded: scenario === "verified" });
 } finally {
   await sandbox.close();
   console.log("Disposable schema and synthetic records removed. No email sent.");

@@ -1,6 +1,6 @@
 import "server-only";
 
-export type AccountEmailKind = "VERIFY" | "RESET" | "EMAIL_CHANGE" | "EMAIL_CHANGED";
+export type AccountEmailKind = "VERIFY" | "RESET" | "EMAIL_CHANGE" | "EMAIL_CHANGED" | "PASSWORD_CHANGED";
 export type AccountEmailMessage = Readonly<{ to: string; subject: string; text: string; html: string }>;
 
 function escapeHtml(value: string) {
@@ -9,9 +9,21 @@ function escapeHtml(value: string) {
 }
 
 export function renderAccountEmail(
-  kind: AccountEmailKind, recipient: string, actionUrl?: string,
+  kind: AccountEmailKind, recipient: string, actionUrl?: string, eventTime?: Date,
 ): AccountEmailMessage {
-  const labels: Record<AccountEmailKind, { subject: string; lead: string; action?: string; expiry?: string; tail: string }> = {
+  if (kind === "PASSWORD_CHANGED") {
+    if (actionUrl || !eventTime || !Number.isFinite(eventTime.getTime())) throw new Error("EMAIL_TEMPLATE_INPUT_INVALID");
+    const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Manila", day: "2-digit", month: "short",
+      year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(eventTime);
+    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((value) => value.type === type)!.value;
+    const timestamp = `${part("day")} ${part("month")} ${part("year")}, ${part("hour")}:${part("minute")}:${part("second")} PHT (UTC+08:00)`;
+    const paragraphs = [`The password for your Halaga account changed on ${timestamp}.`,
+      "At that time, other sessions were signed out. The session used for this change remained signed in.",
+      "If you did not expect this change, open Halaga directly and use the password reset option."];
+    return { to: recipient, subject: "Your Halaga password changed", text: paragraphs.join("\n\n"),
+      html: `<!doctype html><html lang="en"><body>${paragraphs.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}</body></html>` };
+  }
+  const labels: Record<Exclude<AccountEmailKind, "PASSWORD_CHANGED">, { subject: string; lead: string; action?: string; expiry?: string; tail: string }> = {
     VERIFY: { subject: "Verify your Halaga email", lead: "Confirm this email address to finish setting up your Halaga account.",
       action: "Verify email", expiry: "This link expires in 24 hours.", tail: "If you did not create this account, you can ignore this message." },
     RESET: { subject: "Reset your Halaga password", lead: "A password reset was requested for your Halaga account.",

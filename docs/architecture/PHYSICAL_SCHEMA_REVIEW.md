@@ -153,11 +153,36 @@ after checking the current stored session and undeleted mapping. No recipient,
 password/hash/session reference, rendered content, public/staff reader or cache is
 introduced. Nullable read storage does not mount a mark-read command or interface.
 
-Password-change email copy and ordinary recipient/metadata cleanup remain gated;
-no email intent, snapshot, dispatch branch or later backfill is implemented even for
-eligible events. In-app retention/deletion execution remains a real-data gate.
+ADR-089's later implementation below supersedes this record's earlier email and
+ordinary-retention gaps. No later backfill is implemented or authorized.
 Only disposable synthetic schemas replay this migration. Application Prisma and
 shared sandbox connections pin UTC to satisfy the installed adapter's timestamp
 normalization assumption; no database/server-wide timezone is changed. PHT domain
 and display rules remain in force. See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`.
+
+## Password-change email and retention supplement (2026-10-20 PHT)
+
+Accepted ADR-089 governs migration
+`20261020090000_password_change_email_retention`. It leaves Prisma's nullable
+recipient column and existing email-switch rule intact, adding password-change
+purpose support with SQL-only guards:
+
+- An initial password-change intent requires its recipient. Its event/account/
+  work/time binding cannot change; addressing can only stay fixed or become null.
+  Erased addressing cannot be restored. Other event types cannot be relabeled.
+- Password-change job creation/updates enforce the exact original 168-hour expiry
+  and event creation time. Existing jobs cannot change their outbox binding or
+  extend the delivery deadline.
+- Committed account deletion triggers job fencing and recipient/in-app erasure in
+  that account transaction. READY/LEASED become SUPPRESSED; SENDING becomes UNKNOWN;
+  prior terminal outcomes stay truthful. Job updates precede outbox erasure,
+  matching dispatch completion and account-locked cleanup order.
+
+No new table, role, endpoint, staff reader or schedule is added. Cleanup purges
+email work/metadata together at 30 terminal days capped by 37 event days, with
+independent 90-event-day owner-notice retention. SQL triggers/checks are intentional
+schema exceptions; future generated migrations must preserve them. Disposable
+synthetic schemas replay all migrations, including failure/rollback/race checks;
+no persistent/shared migration was applied. Hold enforcement, actual deletion
+workflow, provider/backup propagation and operations remain real-data gates.
 

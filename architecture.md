@@ -444,9 +444,11 @@ now commits one notice and its fixed eligibility outcome with credentials/sessio
 After acquiring identity/domain locks, a separate statement reads both verification
 stores; event time is checked after current-password verification. A random event ID
 and unique channel work key make the synchronous notice its processed-work record;
-no in-app worker or additional delivery boundary is needed. No email intent or
-recipient snapshot is created while password-change copy and ordinary recipient
-retention/cleanup remain unresolved. This remains partial compliance and unmounted.
+no in-app worker or additional delivery boundary is needed. Under owner-approved
+ADR-089, eligible email intent, immutable recipient and delivery job now also commit
+in that transaction. The existing dispatcher renders its link-free version-1
+message; account-locked cleanup and deletion erasure apply event-specific rules.
+Command/reader/UI mounting remains separate and disabled.
 See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`. The additive in-app migration is replayed
 only in disposable schemas; no dependency or mounted flow is added. Prisma application
 and shared signup-sandbox connections explicitly use UTC because the installed
@@ -583,18 +585,25 @@ Owner-only in-app detail, purpose/role/audited staff access and minimized worker
 projections apply. Snapshots are delivery-private, excluded from generic readers,
 logs, analytics, caches and responses. ADR-073/075 govern duplicate suppression,
 retry/recovery and delivery failure; provider-accept/crash reconciliation remains
-unresolved. Recipient/attempt retention, cleanup, deletion propagation and final
-templates remain gates; neither transaction retention nor intent history authorizes
+an operational gate. ADR-089 now supplies recipient/attempt retention, cleanup and
+final copy; provider/backup deletion evidence remains required before real data.
+Neither transaction retention nor intent history authorizes
 indefinite recipient storage. The independent in-app store now contains only account
 reference, opaque event/work identity, versioned event type, event time, fixed email
 eligibility and nullable read time. Its unmounted owner-only reader returns event
 identity/type/version/time/read state after a current stored-session and undeleted
 mapping check in the read statement; it excludes email eligibility/work metadata.
-No final copy, email snapshot, generic/staff reader, analytics or cache is added.
-ADR-088's four approved messages do not settle password-change copy or its ordinary
-recipient/metadata cleanup and delayed/deleted-account rules. Email intent/binding
-and dispatch coverage stay blocked on those decisions. In-app retention/deletion
-execution remains a real-data readiness gate, not indefinite retention permission.
+Eligible email snapshots and fixed final copy are now implemented under ADR-089;
+no generic/staff reader, analytics or cache is added.
+ADR-089 (owner-approved 2026-10-20 PHT) supplements ADR-088 for password change:
+version-1 copy, seven-day original deadline, recipient erasure on acceptance/
+suppression or by expiry for failed/unknown work, metadata purge after 30 terminal
+days capped at 37 event days, and in-app erasure at 90 event days or committed
+deletion if sooner. Deletion atomically suppresses unsent work, quarantines sending
+work and erases recipients/notices; notice delivery does not itself block deletion.
+Account-to-job locking and fenced cleanup preserve truthful outcomes and prevent
+late acknowledgement from restoring erased addressing. Provider/backup evidence,
+hold enforcement and mounting/real-data readiness remain gates.
 
 ## 7. Screen-design handoff
 
@@ -655,7 +664,7 @@ These decisions must be recorded rather than inferred in code. Some are needed b
 - Listing renewal limits, grace period, and the `Newest` timestamp behavior after renewal/material republication.
 - Whether to send appointment reminders and, if so, their timing and delivery rules (separate from ADR-063 completion reminders).
 - Handling an account discovered to be underage.
-- Password-change notice implementation: ADR-087's owner-approved supplement settles mandatory in-app notices, verified-only commit-bound email and content/privacy limits. Atomic in-app persistence/eligibility recording is implemented. Final password-change email copy, ordinary recipient/metadata retention and cleanup, dependent atomic email intent/binding/delivery and sign-in races remain gates before mounting. ADR-088 supplies generic account-email transport, dispatch/recovery and terminal retention mechanics for its four supported messages; do not silently extend the unresolved event-specific rules. The unmounted operation remains partial for the approved contract. See the [remaining email and retention decision brief](docs/PASSWORD_CHANGE_EMAIL_RETENTION_DECISION_BRIEF.md) for open copy, delivery-window, recipient/metadata classification, cleanup, delayed/deleted-account and provider/backup questions. Its options remain unaccepted.
+- Password-change readiness: accepted ADR-089 resolves the email/retention brief's event-specific policy gaps and supplements ADR-087/088. Implementation and synthetic verification must precede mounting; provider/backup evidence, hold enforcement, audited staff recovery, protected HTTP/client integration and operational/ADR-081 readiness remain gates. No schedule or real sending is selected.
 - Category-request waitlist behavior and diagnostic questions/safe-testing guidance for supported categories beyond the laptop prototype.
 - External emergency or law-enforcement escalation procedure.
 - Service availability, performance, browser support, PWA position, and storage-capacity targets.

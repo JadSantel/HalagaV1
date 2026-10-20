@@ -14,6 +14,41 @@ This tracker maps the approved MVP to implementation work. Product behavior come
 
 No production marketplace flow is implemented yet.
 
+### Completed unmounted password-change email slice (2026-10-20 PHT)
+
+The owner explicitly approved wording/seven-day delivery, retention and deletion/
+scope decisions. Accepted [ADR-089](decisions/ADR-089-password-change-email-and-retention.md)
+resolves the earlier prerequisite audit and supersedes historical open-policy/
+email-unimplemented statements below.
+
+Credential replacement, other-session revocation, mandatory in-app notice and
+eligible email intent/immutable recipient/job now commit atomically. Locked
+verified-in-both-stores eligibility selects the primary address; ineligible changes
+create no email work, and later verification never backfills. The initiating
+session survives. Existing dispatch/recovery supports version-1 PHT copy, original
+seven-day expiry, existing bounded retries/leases and ambiguous-outcome fencing.
+
+Recipients erase on acceptance/suppression/deletion or by original expiry for
+FAILED/UNKNOWN. Metadata purges after 30 terminal days capped at 37 event days;
+in-app records last 90 event days or until committed deletion. SQL guards prevent
+retargeting/restoration/deadline extension. A deletion trigger atomically erases
+password-change recipients/notices, suppresses unsent work and quarantines SENDING.
+The existing manual cleanup path applies separate clocks without backfill.
+
+Final verification: 176 passes across `test:password-change` (30), `test:signup` (7),
+`test:verification` (11), `test:reset` (12), `test:email-change` (16),
+`test:account-email-intents` (13), `test:account-email` (27), `test:sign-in` (34),
+`test:logging` (5) and `test:foundation` (21). Lint and build/type checking passed.
+Only synthetic schemas and fake delivery were used. See the
+[password-change guide](PASSWORD_CHANGE_LOCAL_TESTING.md#implemented-email-pipeline-and-approved-rules-2026-10-20-pht)
+for behavior, migration and verification details.
+
+Password-change commands/readers stay unmounted; preview and real sending remain
+disabled. Protected HTTP/client integration, direct-write compatibility, actual
+deletion/hold/staff workflows, provider/backup/restore evidence, hosted operations
+and ADR-081 readiness remain gates. No persistent migration, new dependency,
+provider, cadence, deployment, participant data or billing is authorized.
+
 ### Working Slice 3 owner-private workspace (2026-10-19 PHT)
 
 Authenticated, mapped, undeleted synthetic accounts can list, create, edit and resume

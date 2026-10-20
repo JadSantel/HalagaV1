@@ -5,6 +5,7 @@ import { hasAdultEligibility } from "../account-access.ts";
 import { decryptAccountEmailToken } from "../account-email-crypto.ts";
 import { getPrisma } from "../prisma.ts";
 import { emailChangeBindingSchema } from "./email-change.ts";
+import { passwordChangeEmailEvent } from "../password-change-notice-policy.ts";
 
 export class AccountEmailIntentRejected extends Error {
   readonly code: "INVALID_INPUT" | "INTERNAL_ERROR";
@@ -60,14 +61,17 @@ export function createAccountEmailIntentInspector(
         if (intent.eventVersion !== 1) return { status: "UNSUPPORTED" };
         if (intent.dispatchedAt) return { status: "DISPATCH_RECORDED" };
 
-        if (intent.eventType === "account.email-changed-security-notice") {
+        if (intent.eventType === "account.email-changed-security-notice" || intent.eventType === passwordChangeEmailEvent) {
           // Deliberately never read the identity/current (new) email for this notice.
           // This checks the recorded snapshot only; ADR-088 governs delayed-send
           // suppression and approved copy. Never fetch the current/new address.
           const snapshot = await transaction.outboxEvent.findUnique({
             where: { id: parsed.data }, select: { recipientEmail: true },
           });
-          return { status: /^email-changed-notice:halaga-email-change:[a-f0-9]{64}$/.test(intent.deduplicationKey) &&
+          const validKey = intent.eventType === passwordChangeEmailEvent
+            ? /^password-changed-email:[0-9a-f-]{36}$/.test(intent.deduplicationKey)
+            : /^email-changed-notice:halaga-email-change:[a-f0-9]{64}$/.test(intent.deduplicationKey);
+          return { status: validKey &&
             normalizedEmail.safeParse(snapshot?.recipientEmail).success ? "NOTICE_RECORDED" : "STALE" };
         }
 

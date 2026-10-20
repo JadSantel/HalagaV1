@@ -166,10 +166,14 @@ documents eight direct exercises, concurrency checks and remaining gates.
 ADR-087's owner-approved 2026-10-15 supplement requires an in-app notice after every
 successful password change and email only to the primary address verified in both
 stores at commit. In-app persistence and an owner-only detail projection are implemented.
-Final password-change email copy and ordinary recipient/metadata cleanup remain
-unaccepted; no password-change email intent, snapshot or delivery is implemented,
-even when eligible. No later backfill is authorized. Password-change commands
-remain unmounted pending those writes and existing integration/readiness gates;
+Owner-approved ADR-089 now governs version-1 password-change mail, seven-day
+delivery, recipient erasure, metadata purge after 30 terminal days capped at 37
+event days, 90-day in-app retention and committed-deletion erasure/fencing.
+The unmounted synthetic pipeline implements atomic eligible intent/snapshot/job
+writes and reuses existing dispatch/recovery. Migration
+`20261020090000_password_change_email_retention` adds purpose/immutability guards
+and a deletion trigger, exercised only in disposable schemas. No backfill is
+authorized. Commands and notice readers remain unmounted pending integration/readiness gates;
 the disabled preview is not a working password-change flow.
 
 ## Authentication policy foundation

@@ -118,8 +118,8 @@ model OutboxEvent {
   deduplicationKey String      @unique
   createdAt        DateTime    @default(now()) @db.Timestamptz(3)
   dispatchedAt     DateTime?   @db.Timestamptz(3)
-  // Private old-address snapshot ONLY for account.email-changed-security-notice.
-  // SQL check enforces purpose; no proposed address, token, or rendered body.
+  // Private immutable snapshot for email-switch/password-change notices only.
+  // Password-change erasure is monotonic under ADR-089; SQL guards enforce purpose.
   recipientEmail   String?
   account          UserAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
   emailDelivery    AccountEmailDelivery?

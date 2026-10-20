@@ -155,9 +155,10 @@ transport, token URL format, callback URL, redirect contract or client submit pa
    commit-time primary address verified in both stores. Unverified/mismatched
    states get no email, with no later backfill or recipient retargeting. Atomic
    in-app notice/eligibility recording is implemented as of 2026-10-17 PHT, together
-   with an unmounted owner-only detail reader. Password-change email copy and ordinary
-   recipient/metadata cleanup remain unaccepted; email intent/binding/delivery are
-   unimplemented even for eligible changes. Password-change mounting stays gated.
+   with an unmounted owner-only detail reader. ADR-089 now accepts password-change
+   email/retention/deletion rules; eligible intent/binding/delivery and cleanup are
+   implemented for synthetic validation with a fake provider. Password-change
+   command/reader/UI mounting stays gated; real sending remains disabled.
 4. **Sign-in/session creation races.** Existing library sign-in does not share the
    account-owned identity/mapping/credential locks. A sign-in can race reset,
    email proof or password replacement. The synthetic plugin intentionally exposes

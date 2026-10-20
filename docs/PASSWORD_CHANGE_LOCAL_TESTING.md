@@ -1,5 +1,84 @@
 # Unmounted authenticated password change: local synthetic testing
 
+## Implemented email pipeline and approved rules (2026-10-20 PHT)
+
+The owner explicitly approved all three policy questions. Accepted
+[ADR-089](decisions/ADR-089-password-change-email-and-retention.md) resolves the
+previous email/retention brief's copy, deadline, recipient/metadata/in-app retention,
+cleanup and deletion decisions. The earlier prerequisite audit was superseded by
+that approval. This section supersedes historical email-unimplemented, unresolved
+policy and unchanged-outbox wording below; historical verification records remain
+dated records.
+
+Every successful change atomically records its in-app notice. When both locked
+verification stores qualify at event time, the same transaction also writes one
+email intent, immutable primary-address snapshot and delivery job. Required insert
+or deferred-commit failure rolls back credentials, revocation and both channels.
+The exact initiating session survives. Ineligible events create no email work or
+snapshot; verification later never backfills. Work keys use the opaque change UUID.
+
+The existing inspector returns fixed statuses only. The existing dispatcher sends
+ADR-089's link-free version-1 text/HTML with the original PHT event timestamp.
+Delivery uses the immutable snapshot, even after an email switch; it never fetches
+the current primary address as a fallback. Existing leases, five-attempt 429
+backoff and UNKNOWN quarantine apply. Addressing and delivery internals remain
+outside command responses, owner notice detail, page metadata and operational logs.
+
+| Data/work | Implemented boundary |
+| --- | --- |
+| Email delivery | Original event plus seven elapsed days; equality is expired. No retry/recovery extension. |
+| Recipient | Erased atomically on ACCEPTED/SUPPRESSED or committed deletion; FAILED/UNKNOWN retain only until original delivery expiry. Erased addressing cannot be restored or retargeted. |
+| Email metadata/deduplication | Purged with outbox and cascaded job after 30 terminal days, capped at 37 event days. Late cleanup/acknowledgement cannot restart the cap. |
+| Owner notice/eligibility/read state | Independently retained for 90 event days, shortened by committed deletion. Reader excludes expired events before physical cleanup; reads do not restart retention. |
+| Committed deletion | SQL trigger atomically suppresses READY/LEASED, fences SENDING as UNKNOWN and erases all password-change recipients/notices. Terminal outcomes remain truthful. In-flight mail may still arrive. |
+| Cleanup | Existing manual worker invocation; account-to-job locks, fenced outcomes, restart-safe erasure/purge. No new schedule, backfill or permanent per-recipient cleanup log. |
+
+Migration `20261020090000_password_change_email_retention` narrows recipient purpose,
+requires a recipient at email-intent creation, enforces immutable event/address
+binding and original job deadline, and installs the committed-deletion trigger.
+Prisma's nullable recipient column is unchanged; SQL-only guards are documented in
+the physical schema review. Migrations were replayed only in disposable synthetic
+schemas, never applied to the persistent/shared database.
+
+Existing script definitions were inspected before running from `app`. A launcher
+loaded local configuration without printing it, selected loopback
+`halaga_signup_test` for both database variables and disabled real sending.
+Signup sandboxes remove their random schemas in `finally`; foundation checks use
+rolled-back synthetic schemas. Provider classification uses mocked fetch only.
+
+| Command | Result |
+| --- | --- |
+| `npm.cmd run test:password-change` | 30 passed; eligibility, insert/commit rollback, concurrent writers/claims, immutable addressing, delivery failures, retries/lease fencing, expiry/deletion races, separate cleanup clocks and safe owner projection. |
+| `npm.cmd run test:signup` | 7 passed. |
+| `npm.cmd run test:verification` | 11 passed. |
+| `npm.cmd run test:reset` | 12 passed. |
+| `npm.cmd run test:email-change` | 16 passed. |
+| `npm.cmd run test:account-email-intents` | 13 passed. |
+| `npm.cmd run test:account-email` | 27 passed; existing four-message behavior preserved. |
+| `npm.cmd run test:sign-in` | 34 passed, including protected HTTP and both password-change lock orders. |
+| `npm.cmd run test:logging` | 5 passed. |
+| `npm.cmd run test:foundation` | 21 passed. |
+| `npm.cmd run lint` | Passed. |
+| `npm.cmd run build` | Passed compilation, TypeScript and page generation. |
+| `node --conditions=react-server scripts/try-password-change.mjs success` | Passed; unverified change records no email intent. |
+| `node --conditions=react-server scripts/try-password-change.mjs verified` | Passed; verified change records one eligible email intent. |
+
+The ten final test scripts reported 176 passes, zero failures/skips. An earlier
+implementation run passed 29 password-change tests before the additional lock-wait/
+expiry-acknowledgement coverage was added. Existing `MODULE_TYPELESS_PACKAGE_JSON`
+warnings remain. Other direct exercise scenarios were not rerun in this slice;
+their affected guards are covered by the automated suite. No browser/accessibility
+run was needed: no UI changed.
+
+Command and owner-reader mounting, protected password-change HTTP/client flow and
+direct-write compatibility review remain gates. The preview stays disabled.
+Provider/backup purge evidence, restore safeguards, hold enforcement/audited staff
+reconciliation, worker/hosting readiness and all ADR-081 real-data launch checks
+remain required. The deletion trigger supports the future deletion commit; this
+slice does not implement a deletion endpoint or hold-management workflow. Physical
+cleanup can be delayed by outages; original cutoffs remain fixed on resumption.
+No real sending, participant data, service, dependency, schedule or deployment.
+
 Update 2026-10-18 PHT: the account sign-in operation serializes
 Better Auth credential/state reads through session commit with password change,
 reset, verification and email proof. Both lock orders and real PostgreSQL waits
@@ -9,11 +88,11 @@ remains unserialized. Protected POST sign-in and its accessible form are now
 mounted for local synthetic testing only; password-change email and other mounting gates
 remain. No password-change route, preview or email path is enabled.
 
-This Slice 2 operation implements credential/session changes and the independently
-accepted atomic in-app notice portion of ADR-087 using synthetic data. Password-change
+This Slice 2 operation implements credential/session changes and atomic in-app/
+eligible email notices under ADR-087/089 using synthetic data. Password-change
 routes, Server Actions, notice readers and UI remain unmounted/disabled. Protected
 endpoint integration exists for synthetic testing; the application exposes only the
-existing six email commands plus protected serialized sign-in. Signup remains closed. Use fictional `.invalid`
+existing six email commands plus protected serialized sign-in and signup. Use fictional `.invalid`
 addresses and synthetic passwords only.
 
 ## Setup and automated checks
@@ -100,11 +179,12 @@ inside the synthetic process. Each invocation removes its schema and sends no em
 | `failure` | A PostgreSQL trigger rejects other-session deletion after the credential update. `INTERNAL_ERROR`; the old credential and both sessions survive. Removing the trigger permits same-session retry. |
 | `commit-failure` | A deferred trigger rejects commit after the credential write. Every effect rolls back; removing the trigger permits same-session retry. |
 
-All exercises assert unchanged token and email-outbox counts. Successful changes
+All exercises assert unchanged token counts. Only the `verified` exercise adds
+one eligible password-change email intent/job; the other exercises leave existing
+email work unchanged. Successful changes
 add exactly one in-app notice, with ELIGIBLE only for the verified exercise; rejected
 or rolled-back attempts add none. Retry after rollback leaves exactly one committed
-notice. No password-change email intent or recipient snapshot is created, including
-for eligible events. These exercises do not establish full ADR-087 mounting readiness.
+notice. These exercises do not send mail or establish mounting readiness.
 
 ## Operation and privacy boundary
 
@@ -156,59 +236,28 @@ has committed; competing requests cannot authenticate against a stale hash.
 
 ## Security-notice decision and remaining gates
 
-The owner approved the [decision brief](PASSWORD_CHANGE_NOTICE_DECISION_BRIEF.md)
-and contract on 2026-10-15 PHT. ADR-087 now requires an account-private durable in-app
-notice after every successful authenticated password change, with email only to
-the primary address verified in both stores at commit (`emailVerifiedAt` no later
-than the event). Unverified, mismatched or future-dated verification gets no email
-intent/snapshot. Password maintenance remains available without verification repair
-or marketplace access. Later verification does not backfill an email. Bind required
-intents and the eligible immutable recipient atomically with credential/session
-writes; later email changes cannot retarget the warning. The ADR records content,
-race, retry/failure and retention limits. Final templates and operational retention/
-cleanup for this event remain unresolved. This resolves the policy gap, not the
-remaining email implementation gates.
+ADR-087's 2026-10-15 supplement accepts mandatory in-app notices, verified-only
+commit-time email eligibility, immutable binding, atomic writes and no backfill.
+ADR-089's owner-approved 2026-10-20 supplement resolves the final email copy,
+original delivery window, data classification/retention, cleanup and deletion
+questions. The unmounted synthetic implementation and checks above implement them.
 
-Completed: atomic in-app notice, fixed locked eligibility and the safe owner detail
-repository. Unchanged email-outbox assertions now describe the explicit gated email
-boundary. The mounting regression checks the six-path email allowlist excludes
-password change/signup/sign-in, disabled previews, and no application password-change
-command/reader wiring. Partial implementation is not a policy exception permitting
-public password changes without their mandatory eligible email work.
+Before mounting, integrate the protected password-change HTTP/client flow with
+safe errors, initiating-cookie preservation, configured origin/CSRF and ADR-086
+endpoint/IP protection. Direct operation calls do not invoke the HTTP limiter or
+library change-password hooks. The raw library endpoint is not a substitute: its
+other-session option replaces the initiating session. Review direct credential
+writes on library/schema/password-configuration/plugin/database-hook changes.
 
-Remaining decisions, checked against current ADR-087/088 and PROJECT on 2026-10-17 PHT:
+Serialized protected sign-in now shares the account transaction/lock boundary;
+both race orders are covered by current tests. Raw library sign-in remains unsafe
+to expose. Keep the password-change command and owner detail reader unmounted and
+the preview disabled until their integration is separately authorized/verified.
 
-1. Approve the final password-change email subject, text and HTML/template contract
-   within ADR-087's accepted content limits. ADR-088 approves exactly four other
-   messages; neither its email-switch template nor a reset message is a substitute.
-2. Explicitly settle ordinary password-change recipient-snapshot and minimal
-   delivery-metadata retention/cleanup, delivery-window and delayed/deleted-account
-   handling, including the applicability of ADR-088 mechanics. Provider/backup
-   deletion propagation remains a readiness check. Do not infer this event's rule
-   from transaction/negotiation periods or ADR-079 exception reviews.
-
-Until then, no password-change email intent, recipient snapshot, template, worker
-branch, send or later backfill is implemented for any eligibility outcome. The
-existing outbox recipient check remains exclusive to the email-switch warning.
-No recipient is retained speculatively. In-app retention/deletion execution also
-requires readiness review before real data; no ordinary period or schedule is invented.
-
-Before mounting, resolve those email decisions and implement/test atomic eligible
-email intent/commit-time recipient binding, immutable addressing across later email
-switches, required-write rollback and password-change-specific delivery/recovery;
-review direct credential-write compatibility on library/schema/password configuration,
-plugin or database-hook changes; integrate safe errors and response cookies with
-origin/CSRF and ADR-086 endpoint/IP protection. The direct operation does not invoke
-Better Auth's endpoint limiter or change-password hooks. The library endpoint is
-not a substitute: its other-session option replaces the initiating session.
-
-Account-owned reset, verification, email-change and password-change commands share
-identity/mapping locks. Library sign-in/session creation does not share those locks:
-an old-password sign-in racing credential replacement may create a session after
-revocation. That integration race must be settled before mounting. Existing durable
-dispatch/jobs, retention/cleanup, secrets/proxy/origin review, restrictions/full
-marketplace authorization and ADR-081 real-data/launch gates remain. No operational
-schedule, retry allowance, provider, paid service or participant data is added.
+Actual deletion/hold workflows, purpose-restricted audited staff recovery,
+provider/backup purge evidence, restore safeguards, secrets/proxy/origin review,
+worker/hosting readiness and ADR-081 launch checks remain separate gates. This
+slice selects no cadence, service, billing or real-data path.
 
 ## Verification record (2026-10-15)
 

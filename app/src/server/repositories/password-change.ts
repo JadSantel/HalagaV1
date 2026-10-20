@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getPrisma } from "../prisma.ts";
 import { createAccountAuth } from "./auth.ts";
+import { accountEmailTokenRecord } from "../account-email-crypto.ts";
+import { passwordChangeEmailEvent, passwordChangeDeliveryMs, passwordChangeNoticeMs } from "../password-change-notice-policy.ts";
 
 const inputSchema = z.strictObject({ currentPassword: z.string().min(1), newPassword: z.string().min(1) });
 
@@ -25,10 +27,9 @@ function requireFreshSession(session: { createdAt: Date; expiresAt: Date } | und
   }
 }
 
-/** Internal only: no route, Server Action, library change-password endpoint or email.
+/** Internal only: no route, Server Action or library change-password endpoint.
  * Request headers resolve the owner; no caller-selected account/session ID is accepted.
- * Direct writes bypass library hooks. ADR-087 notice policy is accepted, but required
- * email copy/recipient retention remain gated: this in-app-only slice stays unmounted.
+ * Direct writes bypass library hooks. ADR-087/089 notices commit with credentials.
  */
 export function createPasswordChangeOperation(
   database: ReturnType<typeof getPrisma>,
@@ -66,7 +67,7 @@ export function createPasswordChangeOperation(
         `;
         // Read both verification stores in a new statement after acquiring both locks.
         const account = await transaction.userAccount.findUnique({ where: { authUserId: actor.user.id },
-          select: { id: true, deletedAt: true, emailVerifiedAt: true, authUser: { select: { emailVerified: true } } } });
+          select: { id: true, deletedAt: true, emailVerifiedAt: true, authUser: { select: { email: true, emailVerified: true } } } });
         if (!account || account.id !== owner.id || account.deletedAt) throw new PasswordChangeRejected("INVALID_STATE");
         const credentials = await transaction.$queryRaw<Array<{ id: string; accountId: string; password: string | null }>>`
           SELECT id, "accountId", password FROM "account"
@@ -101,8 +102,20 @@ export function createPasswordChangeOperation(
           inAppWorkKey: `password-changed-in-app:${changeId}`, createdAt: eventTime,
           emailEligibility: emailEligible ? "ELIGIBLE" : "INELIGIBLE",
         }, select: { id: true } });
-        // Deliberately no email intent/snapshot, including eligible changes: final
-        // password-change copy and recipient cleanup are not accepted. No backfill.
+        if (emailEligible) {
+          const outboxEventId = randomUUID();
+          const deduplicationKey = `password-changed-email:${changeId}`;
+          await transaction.outboxEvent.create({ data: {
+            id: outboxEventId, accountId: account.id, eventType: passwordChangeEmailEvent,
+            eventVersion: 1, deduplicationKey, recipientEmail: account.authUser.email, createdAt: eventTime,
+          }, select: { id: true } });
+          await transaction.accountEmailDelivery.create({ data: {
+            ...accountEmailTokenRecord("", { outboxEventId, accountId: account.id,
+              eventType: passwordChangeEmailEvent, eventVersion: 1, deduplicationKey },
+            new Date(eventTime.getTime() + passwordChangeDeliveryMs)),
+            availableAt: eventTime, createdAt: eventTime,
+          }, select: { id: true } });
+        }
         // Preserve current session exactly, verification, tokens and account history.
         return { status: "PASSWORD_CHANGED" as const };
       });
@@ -139,7 +152,8 @@ export function createPasswordChangeNoticeReader(
       // One statement rechecks ownership/deletion and the exact stored session;
       // the earlier auth snapshot alone cannot authorize reading this event.
       return await database.passwordChangeNotice.findFirst({ where: {
-        id: parsed.data, account: { authUserId: actor.user.id, deletedAt: null,
+        id: parsed.data, createdAt: { gt: new Date(now.getTime() - passwordChangeNoticeMs), lte: now },
+        account: { authUserId: actor.user.id, deletedAt: null,
           authUser: { sessions: { some: { id: actor.session.id, userId: actor.user.id,
             token: actor.session.token, expiresAt: { gt: now }, createdAt: { lte: now } } } } },
       }, select: { id: true, eventType: true, eventVersion: true, createdAt: true, readAt: true } });

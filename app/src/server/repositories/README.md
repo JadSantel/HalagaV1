@@ -59,8 +59,12 @@ credential and revokes other sessions while retaining the initiating session exa
 Its security-notice contract is accepted under ADR-087's owner-approved supplement:
 in-app notice for every success, email only to the primary address verified in both
 stores at commit. Atomic in-app notices and fixed locked eligibility are implemented;
-email intent/snapshot/delivery stay gated on password-change copy and ordinary
-recipient/metadata cleanup decisions. Keep the operation and owner detail unmounted.
+eligible email intent/snapshot/job now also commit atomically under owner-approved
+ADR-089. The existing dispatcher supports its version-1 template, seven-day
+deadline, recipient erasure, bounded metadata cleanup and 90-day in-app cleanup.
+SQL guards prevent retargeting, address restoration or deadline extension; a
+committed-deletion trigger erases recipients/notices and fences unsent/in-flight
+jobs. Keep the operation and owner detail unmounted; sending defaults off.
 
 ## Module access
 

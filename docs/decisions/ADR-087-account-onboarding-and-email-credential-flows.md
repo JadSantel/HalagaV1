@@ -4,6 +4,7 @@
 - Date: 2026-10-14
 - Password-change notice supplement approved by owner: 2026-10-15 PHT
 - Account email delivery supplement: ADR-088, accepted 2026-10-15 PHT on explicit owner request
+- Password-change copy/retention/deletion supplement: ADR-089, owner-approved 2026-10-20 PHT; supersedes historical open-policy statements below, without mounting commands/readers/UI.
 - Supplements: ADR-032, ADR-042, ADR-074, ADR-075, ADR-086, ADR-088
 
 ## Context
