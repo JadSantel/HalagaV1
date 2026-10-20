@@ -80,5 +80,36 @@ test("password-change protected handler shares limits and preserves the initiati
       assert.equal(await database.passwordChangeNotice.count(), 1);
       assert.equal(await database.outboxEvent.count({ where: { eventType: passwordChangeEmailEvent } }), 0);
     });
+    await t.test("deleted accounts receive fixed password-change denial without effects on them or unrelated accounts", async () => {
+      const password = "synthetic-deleted-account-password";
+      const fixture = async (email) => {
+        await operations.signup({ email, password, displayName: "Synthetic deletion guard",
+          dateOfBirth: "2000-01-01", adultAttestationAccepted: true });
+        const signed = await operations.signIn(new Headers(), { email, password });
+        const user = await database.user.findUnique({ where: { email }, select: { id: true } });
+        return { userId: user.id, cookie: signed.headers.getSetCookie()[0].split(";")[0] };
+      };
+      const deleted = await fixture("deleted-maintenance@example.invalid");
+      const unrelated = await fixture("unrelated-maintenance@example.invalid");
+      await database.userAccount.update({ where: { authUserId: deleted.userId }, data: { deletedAt: new Date() } });
+      const snapshot = (userId) => Promise.all([
+        database.user.findUnique({ where: { id: userId } }),
+        database.userAccount.findUnique({ where: { authUserId: userId } }),
+        database.account.findMany({ where: { userId }, orderBy: { id: "asc" } }),
+        database.session.findMany({ where: { userId }, orderBy: { id: "asc" } }),
+        database.verification.findMany({ orderBy: { id: "asc" } }),
+        database.passwordChangeNotice.findMany({ where: { account: { authUserId: userId } } }),
+        database.outboxEvent.findMany({ where: { account: { authUserId: userId } }, include: { emailDelivery: true } }),
+      ]);
+      const before = await snapshot(deleted.userId), otherBefore = await snapshot(unrelated.userId);
+      const body = { currentPassword: password, newPassword: "synthetic-unrelated-new-password" };
+      await check(await handler(request(body, deleted.cookie)), 400, { code: "INVALID_INPUT" });
+      await check(await handler(request(body)), 401, { code: "UNAUTHORIZED" });
+      assert.deepEqual(await snapshot(deleted.userId), before);
+      assert.deepEqual(await snapshot(unrelated.userId), otherBefore);
+      await check(await handler(request(body, unrelated.cookie)), 200, { status: "PASSWORD_CHANGED" });
+      assert.deepEqual(await snapshot(deleted.userId), before);
+      assert.equal(await database.passwordChangeNotice.count({ where: { account: { authUserId: unrelated.userId } } }), 1);
+    });
   } finally { await sandbox.close(); }
 });

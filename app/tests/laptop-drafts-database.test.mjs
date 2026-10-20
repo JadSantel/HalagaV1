@@ -86,6 +86,35 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
     include: { itemGroups: { include: { answers: { orderBy: { questionKey: "asc" } } } } } });
 
   try {
+    await t.test("deleted owners cannot list, read, create or save drafts; unrelated owners remain unaffected", async () => {
+      const deleted = await fixture(), unrelated = await fixture();
+      const original = input({ title: "Deleted owner's private draft", privatePriceExpectation: "123.45" });
+      const created = await operations.create(deleted.headers, original);
+      const other = await operations.create(unrelated.headers, input({ title: "Unrelated owner's private draft" }));
+      await database.userAccount.update({ where: { id: deleted.accountId }, data: { deletedAt: new Date() } });
+      const beforeCounts = await counts(), beforeHistory = await history(created.id);
+      const otherDetail = await operations.read(unrelated.headers, other.id);
+      const sessions = await database.session.findMany({ orderBy: { id: "asc" } });
+      for (const [method, body, id] of [
+        ["GET"], ["GET", undefined, created.id], ["POST", input()],
+        ["POST", original], // An idempotent retry must still check current eligibility.
+        ["PUT", { ...input({ title: "Denied edit" }), expectedRevision: 1 }, created.id],
+      ]) {
+        await read(await send(deleted, method, body, id), 401, { code: "UNAUTHORIZED" });
+      }
+      assert.deepEqual(await counts(), beforeCounts);
+      assert.deepEqual(await history(created.id), beforeHistory);
+      assert.deepEqual(await database.session.findMany({ orderBy: { id: "asc" } }), sessions);
+      assert.deepEqual(await operations.read(unrelated.headers, other.id), otherDetail);
+      const saved = await read(await send(unrelated, "PUT", {
+        ...input({ title: "Unrelated owner can still edit" }), expectedRevision: 1,
+      }, other.id), 200);
+      assert.equal(saved.revision, 2);
+      await read(await send(unrelated, "POST", input()), 200);
+      assert.equal((await read(await send(unrelated, "GET"), 200)).drafts.length, 2);
+      assert.deepEqual(await history(created.id), beforeHistory);
+    });
+
     const owner = await fixture(), other = await fixture();
     await t.test("list requires a current owner session and has an explicit minimal projection", async () => {
       await read(await send(null, "GET"), 401, { code: "UNAUTHORIZED" });
