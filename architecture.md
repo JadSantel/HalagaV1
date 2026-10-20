@@ -383,6 +383,19 @@ Architecture consequences:
 
 ## 5. Cross-flow state and race requirements
 
+Latest local integration record (2026-10-20 PHT, after ADR-089): explicit owner
+authorization mounts only protected POST `/api/auth/change-password` and the
+existing form for synthetic validation. A one-path handler follows signup/sign-in
+patterns and reuses the existing plugin/guarded transaction. It disables renewal
+for this command, retains stored-session/strict freshness guards, emits fixed safe
+responses after commit and preserves the exact initiating session/cookie. Both
+protected HTTP sign-in lock orders are tested. The shared limiter glob is corrected
+to `/**` for the installed library's slash-prefixed paths, enforcing existing
+ADR-086 values. This supersedes older password-change mounting/client/direct-write
+review status in this document only; accepted policy remains unchanged. Notice
+readers, notification UI, staff tools and real-data/operational gates remain closed.
+See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`; no scheduler or infrastructure is added.
+
 The following transitions require a transaction or equivalent concurrency control around the authoritative records:
 
 - publishing a validated listing revision;

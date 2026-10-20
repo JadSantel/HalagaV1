@@ -78,7 +78,7 @@ export function createAuthPolicy(environment: Record<string, string | undefined>
         "/request-password-reset": { window: 15 * 60, max: 3 },
         "/send-verification-email": { window: 15 * 60, max: 3 },
         // Last so explicit rules win; replaces the library's other special defaults.
-        "*": { window: 60, max: 60 },
+        "/**": { window: 60, max: 60 },
       },
     },
     hooks: {

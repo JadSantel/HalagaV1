@@ -1,5 +1,14 @@
 # Server repository boundary
 
+Latest password-change boundary (2026-10-20 PHT): `password-change-http.ts` exposes
+only protected POST `/change-password` through the existing plugin/guarded operation;
+exact application dispatch and the existing form are authorized for synthetic data
+only. Stored freshness, no renewal, fixed after-commit responses and exact initiating
+session/cookie preservation apply. Notice readers and staff tools remain unmounted.
+This supersedes older password-change mounting/direct-write-review status below;
+all real-sending/data and operational gates remain. See
+[PASSWORD_CHANGE_LOCAL_TESTING.md](../../../../docs/PASSWORD_CHANGE_LOCAL_TESTING.md).
+
 Latest listing boundary (2026-10-19 PHT): `laptop-drafts.ts` implements authenticated
 owner-private single-item laptop draft list/create/read/save. `laptop-drafts-http.ts`
 mounts only GET/POST `/api/laptop-drafts` and GET/PUT `/api/laptop-drafts/[listingId]`

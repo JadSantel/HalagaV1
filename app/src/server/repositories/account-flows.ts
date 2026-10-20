@@ -8,7 +8,7 @@ import { createEmailChangeOperations } from "./email-change.ts";
 import { createPasswordChangeOperation } from "./password-change.ts";
 import { createAccountSignInOperation } from "./sign-in.ts";
 
-/** Composition only. HTTP callers restrict exposed paths; password change remains gated. */
+/** Composition only. Each HTTP handler explicitly restricts its exposed paths. */
 export function createAccountFlowOperations(
   database: ReturnType<typeof getPrisma>,
   auth: ReturnType<typeof createAccountAuth>,

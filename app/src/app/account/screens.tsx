@@ -3,8 +3,9 @@ import styles from "./account.module.css";
 import { AccountEmailForm, type EmailFlow } from "./email-form";
 import { AccountSignInForm } from "./sign-in-form";
 import { AccountSignupForm } from "./signup-form";
+import { AccountPasswordChangeForm } from "./password-change-form";
 
-// Fixed screen copy. Signup, sign-in and email commands have local synthetic forms.
+// Fixed screen copy. Account commands have local synthetic forms only.
 export const screens = {
   register: { title: "Create your account", action: "Create account", intro:
     "One account for buying and selling. You must be at least 18 years old to participate.",
@@ -33,17 +34,6 @@ export const screens = {
 
 export type AccountScreenName = keyof typeof screens;
 
-function Field({ name, label, type, autoComplete, description }: {
-  name: string; label: string; type: string; autoComplete: string; description?: string;
-}) {
-  return <div className={styles.field}>
-    <label htmlFor={name}>{label} <span>(required)</span></label>
-    {description && <p id={`${name}-help`} className={styles.hint}>{description}</p>}
-    <input id={name} name={name} type={type} autoComplete={autoComplete} required disabled
-      aria-describedby={description ? `${name}-help` : undefined} />
-  </div>;
-}
-
 export function AccountScreen({ name }: { name: AccountScreenName }) {
   const screen = screens[name];
   const emailFlow = ["verify-email", "forgot-password", "reset-password", "change-email", "confirm-email-change"].includes(name);
@@ -52,15 +42,8 @@ export function AccountScreen({ name }: { name: AccountScreenName }) {
     <p className={styles.eyebrow}>Your Halaga account</p>
     <h1>{screen.title}</h1>
     <p className={styles.intro}>{screen.intro}</p>
-    {name === "register" ? <AccountSignupForm /> : name === "sign-in" ? <AccountSignInForm /> : emailFlow ? <AccountEmailForm key={name} flow={name as EmailFlow} /> : <><aside id="availability" className={styles.notice} aria-label="Availability">
-      <strong>This action is not available yet.</strong>
-      <p>This is a local screen preview. Fields and submission are disabled; no information is collected or email sent.</p>
-    </aside>
-    <form method="post" aria-describedby="availability" className={styles.form}>
-      <Field name="currentPassword" label="Current password" type="password" autoComplete="current-password" />
-      <Field name="newPassword" label="New password" type="password" autoComplete="new-password" description="You can paste a password or use your password manager." />
-      <button type="submit" disabled aria-describedby="availability">{screen.action}</button>
-    </form></>}
+    {name === "register" ? <AccountSignupForm /> : name === "sign-in" ? <AccountSignInForm /> : emailFlow ?
+      <AccountEmailForm key={name} flow={name as EmailFlow} /> : <AccountPasswordChangeForm />}
     <section className={styles.explanation} aria-label="What to expect"><p>{screen.detail}</p></section>
     <nav aria-label="Related account screens" className={styles.links}>
       {name !== "sign-in" && <Link href="/account/sign-in">Sign in</Link>}

@@ -17,7 +17,7 @@
     "test:verification": "node --conditions=react-server --test tests/email-verification-database.test.mjs",
     "test:reset": "node --conditions=react-server --test tests/password-reset-database.test.mjs",
     "test:email-change": "node --conditions=react-server --test tests/email-change-database.test.mjs",
-    "test:password-change": "node --conditions=react-server --test tests/password-change-database.test.mjs",
+    "test:password-change": "node --conditions=react-server --test tests/password-change-database.test.mjs tests/password-change-http-database.test.mjs",
     "test:sign-in": "node --conditions=react-server --test tests/sign-in-database.test.mjs tests/sign-in-http-database.test.mjs",
     "test:sign-in-app": "node --test --test-force-exit tests/sign-in-app-database.test.mjs",
     "test:account-email-intents": "node --conditions=react-server --test tests/account-email-intents-database.test.mjs",

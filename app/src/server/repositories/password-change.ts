@@ -27,7 +27,7 @@ function requireFreshSession(session: { createdAt: Date; expiresAt: Date } | und
   }
 }
 
-/** Internal only: no route, Server Action or library change-password endpoint.
+/** Account-owned command behind the protected password-change HTTP handler only.
  * Request headers resolve the owner; no caller-selected account/session ID is accepted.
  * Direct writes bypass library hooks. ADR-087/089 notices commit with credentials.
  */

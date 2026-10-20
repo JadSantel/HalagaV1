@@ -1,5 +1,13 @@
 # Halaga local laptop listing prototype
 
+Latest account update (2026-10-20 PHT): protected POST `/api/auth/change-password`
+and its existing form now support local synthetic validation through the guarded
+operation/plugin. Notice readers, notification UI and staff tools stay unmounted;
+real sending/data and operational launch gates remain closed. This supersedes
+older password-change closure/preview status below. See
+[PASSWORD_CHANGE_LOCAL_TESTING.md](../docs/PASSWORD_CHANGE_LOCAL_TESTING.md) for
+the installed-library review, disposable route/browser checks and remaining gates.
+
 Latest Slice 3 update (2026-10-19 PHT): `/drafts` and `/drafts/[listingId]` provide
 an authenticated owner-private workspace for local synthetic laptop drafts. Owners
 can list, create, save incomplete answers and resume. GET/POST `/api/laptop-drafts`

@@ -39,21 +39,20 @@ test("password change rejects invalid shapes and maps auth failures to fixed saf
   await assert.rejects(failing(new Headers(), input, () => {}), rejects("INTERNAL_ERROR"));
 });
 
-test("password change and notice readers stay unmounted with disabled previews", async () => {
+test("password change uses only its protected handler; notice readers stay unmounted", async () => {
   for (const path of ["/change-password", "/sign-up/email", "/sign-in/email"]) assert.ok(!accountEmailPaths.includes(path));
   const appDirectory = new URL("../src/app/", import.meta.url);
   const files = (await readdir(appDirectory, { recursive: true })).filter((name) => /\.[cm]?[jt]sx?$/.test(name));
   for (const name of files) {
     const source = await readFile(new URL(name.replaceAll("\\", "/"), appDirectory), "utf8");
     assert.doesNotMatch(source,
-      /account-flow-plugin|repositories\/(?:auth|account-flows|password-change)|createPasswordChangeOperation/,
-      `${name} must not mount the notice-incomplete account commands`);
+      /account-flow-plugin|repositories\/(?:auth["']|account-flows|password-change["'])|createPasswordChangeOperation|createPasswordChangeNoticeReader/,
+      `${name} must not expose raw account commands or notice readers`);
   }
   const auth = await readFile(new URL("../src/server/repositories/auth.ts", import.meta.url), "utf8");
   assert.doesNotMatch(auth, /account-flow-plugin|createAccountFlowPlugin/);
   const screens = await readFile(new URL("../src/app/account/screens.tsx", import.meta.url), "utf8");
-  assert.match(screens, /required disabled/);
-  assert.match(screens, /type="submit" disabled/);
+  assert.match(screens, /AccountPasswordChangeForm/);
   assert.doesNotMatch(screens, /onSubmit|formAction|onClick|fetch\(/);
 });
 

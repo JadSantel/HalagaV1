@@ -155,6 +155,19 @@ Active workflows must still reach a terminal state through cancellation, complet
 
 ### 8.5 Authentication protection
 
+Latest local implementation record (2026-10-20 PHT, after ADR-089): the owner
+explicitly authorizes protected POST `/api/auth/change-password` and the existing
+account form for local synthetic validation only. They now reuse the guarded
+operation and protected plugin with stored-session authorization, strict freshness,
+origin/CSRF, accepted rate limits, fixed responses after commit and exact initiating
+session/cookie preservation. Required in-app and eligible immutable email intent/job
+writes remain atomic. This supersedes older password-change unmounted/disabled
+implementation statements in this document, without changing accepted policy.
+Notice readers, notification UI and staff tools remain unmounted. Provider/backup,
+restore, hold enforcement, staff recovery, worker/hosting, terms/privacy and ADR-081
+real-data/public-launch gates remain. Sending stays disabled; only disposable
+synthetic schemas and fake delivery are used. See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`.
+
 Authentication sessions use a seven-day rolling lifetime, renewed on use at most once per day. Inactivity beyond the expiry requires sign-in again. Sensitive email and password changes require a session created less than 15 minutes ago; rolling renewal does not count as a new sign-in.
 
 Cookies remain host-only for the single application, with HttpOnly and SameSite=Lax protection. Production requires HTTPS and Secure cookies; local loopback HTTP development remains supported. Registration allows three requests per 15-minute inactivity window, sign-in five per minute, password-reset requests and verification-email resends each three per 15 minutes, and other authentication endpoints 60 per minute. Limits are per resolved client IP and endpoint, with shared PostgreSQL counters outside local development. Shared-IP participants may need to wait (ADR-086).

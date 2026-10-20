@@ -6,6 +6,34 @@ This tracker maps the approved MVP to implementation work. Product behavior come
 
 ## Implemented
 
+### Local synthetic password-change integration (2026-10-20 PHT, after ADR-089)
+
+Protected POST `/api/auth/change-password` and `/account/change-password` are now
+mounted under explicit owner authorization. A one-path handler reuses the existing
+guarded operation/plugin, preserving stored-session freshness, origin/CSRF, fixed
+responses, exact initiating cookie/session and atomic credentials/revocation/notices/
+eligible email intent/jobs. The accessible form supports pending, validation,
+wrong-password, fresh-sign-in, shared-IP limits, persistent success and truthful
+uncertain outcomes without automatic retries. Passwords clear on response/navigation.
+Installed Better Auth 1.7.7 direct-write compatibility is reviewed; the shared limiter
+glob now implements ADR-086's accepted values for slash-prefixed paths. Synthetic
+PostgreSQL, actual Next dispatch, both protected HTTP sign-in race orders and
+installed-browser checks are recorded in
+[PASSWORD_CHANGE_LOCAL_TESTING.md](PASSWORD_CHANGE_LOCAL_TESTING.md).
+
+This supersedes older password-change unmounted/disabled implementation statements
+in this tracker only. Notice readers, notification UI and staff tools remain
+unmounted. Real sending/data, provider/backup evidence, restores, hold enforcement,
+staff recovery, full deletion workflow, worker/hosting and ADR-081 gates remain.
+No migration is added or applied to persistent/shared databases. No new dependency,
+provider, schedule, session reader, deployment or billing path is selected.
+
+Final verification: twelve account/auth/logging/foundation test scripts report
+218 passes with no failures/skips, including the installed-browser actual Next
+harness. Lint, production build/TypeScript, diff whitespace and the UI detector pass.
+Earlier limiter, fixture, lint and sandboxed-browser failures and the remaining
+human accessibility/real-data gates are recorded in the testing guide.
+
 | Slice | Status | Evidence and boundary |
 | --- | --- | --- |
 | Laptop diagnostic rules | Prototype complete; private backend reuse | `app/src/domain/laptop-diagnostics.ts` derives the four accepted condition states, validates answers, handles safety stops, and provides synthetic examples. Slice 3 now reuses these rules server-side for owner-private drafts; publication enforcement remains gated. |

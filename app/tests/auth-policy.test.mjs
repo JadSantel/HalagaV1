@@ -138,7 +138,7 @@ test("library sessions roll daily; old sessions cannot change email or password"
 test("client requests hit explicit endpoint limits and recover after inactivity", async (t) => {
   const { auth, policy } = fixture();
   for (const [path, rule] of Object.entries(policy.rateLimit.customRules)) {
-    const endpoint = path === "*" ? "/sign-out" : path;
+    const endpoint = path === "/**" ? "/sign-out" : path;
     for (let index = 0; index < rule.max; index++) {
       assert.notEqual((await request(auth, endpoint, { body: {} })).status, 429, `${path}: permitted request ${index + 1}`);
     }

@@ -93,6 +93,19 @@ released exceptions before enabling reads/dispatch.
 
 ## Authorized implementation boundary
 
+Later local integration authorization (2026-10-20 PHT): the owner's subsequent
+explicit implementation request supersedes the unmounted-only restriction below
+for protected POST `/api/auth/change-password` and the existing
+`/account/change-password` form only. The guarded operation/plugin now serves these
+local synthetic surfaces, with fixed safe responses after commit, exact initiating
+session/cookie preservation and the existing atomic notice pipeline. Installed-library
+direct credential-write compatibility and both protected HTTP sign-in race orders
+are reviewed/tested. See `docs/PASSWORD_CHANGE_LOCAL_TESTING.md` for verification.
+Notice readers, notification UI and staff tools remain unmounted; real sending,
+participant data, provider/backup/hold/staff recovery and operational/ADR-081 gates
+remain. This records mounting authorization and implementation, changing none of
+this ADR's accepted delivery, deletion, retry or retention policy.
+
 Record these rules and complete the previously requested unmounted synthetic
 pipeline with a fake provider. No command/reader/UI mounting, real sending,
 participant data, worker schedule, deployment, new provider/dependency or billing

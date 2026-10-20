@@ -1,5 +1,14 @@
 # Protected sign-in: local synthetic verification
 
+Later password-change record (2026-10-20 PHT): explicit owner authorization now
+mounts only protected POST `/api/auth/change-password` and its existing form for
+local synthetic validation. `test:sign-in` exercises both password-change/sign-in
+HTTP lock orders; `test:sign-in-app` also covers password-change actual dispatch,
+rollback, fake delivery and browser behavior. The old blanket password-change
+closure statements below are historical. Notice readers/staff tools stay unmounted,
+and real sending/data and deployment remain gated. See
+[PASSWORD_CHANGE_LOCAL_TESTING.md](PASSWORD_CHANGE_LOCAL_TESTING.md).
+
 Later signup record (2026-10-18 PHT): local synthetic signup is now mounted too.
 Its form replaces the registration preview. The same `test:sign-in-app` script
 now covers both entry routes and fake-delivery verification. See

@@ -1,4 +1,124 @@
-# Unmounted authenticated password change: local synthetic testing
+# Protected password change: local synthetic testing
+
+## Local mounting record (2026-10-20 PHT, after ADR-089)
+
+The owner's explicit request authorizes only protected POST
+`/api/auth/change-password` and the existing `/account/change-password` form for
+local synthetic validation. This supersedes older unmounted/disabled statements
+in this guide and the integration documents for those two surfaces only. Notice
+readers, notification UI and staff tools remain unmounted. No product policy or
+ADR-089 delivery, retry, deletion or retention rule changes.
+
+`password-change-http.ts` follows the signup/sign-in handler pattern, admits only
+the exact POST path without query input, and calls the existing protected plugin
+and guarded operation. The operation's success leaves only
+`{"status":"PASSWORD_CHANGED"}` after commit. Errors remain fixed `INVALID_INPUT`,
+`UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `RATE_LIMITED` or `INTERNAL_ERROR` codes;
+wrong passwords use `400 INVALID_INPUT`. No identity, addressing, notice eligibility,
+token or delivery state leaves this boundary. Responses use no-store/no-referrer/
+nosniff and no replacement/deletion cookie on success. Unverified users retain
+password maintenance without marketplace eligibility changes.
+
+Installed-library compatibility review used Better Auth/core/Prisma adapter 1.7.7
+and Next 16.4.0's bundled Route Handler and Client Component documentation:
+
+- `context/create-context.mjs` supplies the configured hash/verifier and 8–128
+  password limits; `crypto/password.mjs` uses the installed scrypt implementation.
+  The command updates the existing bound `credential` account using that context,
+  matching `api/routes/update-user.mjs` and the credential lookup in sign-in.
+- Raw library change-password may replace the initiating session and returns
+  token/user data. It is never exposed. The guarded Prisma transaction retains
+  the exact initiating row, revokes only other sessions, and atomically records
+  in-app and eligible immutable email intent/job writes. Direct Prisma writes
+  bypass library database hooks. Current auth configuration has no credential
+  database hooks, custom plugins, secondary session store or password callbacks.
+  Re-review on library/schema, hashing, hook/plugin or storage changes.
+- `api/routes/session.mjs` shows that the global freshness hook can perform rolling
+  renewal before rejecting a session. The new one-path handler disables rolling
+  renewal for this command only. The operation independently disables refresh and
+  rechecks the stored session and strict `<15 minutes` rule under locks and after
+  password verification. Other account handlers keep their existing policy.
+- Limiter tests exposed that installed `wildcardMatch("*")` excludes slash-prefixed
+  paths. The shared policy now uses `/**`, last after explicit rules, enforcing
+  ADR-086's already accepted 60/minute rule rather than hidden library defaults.
+  No numeric policy or allowlist is broadened. Two PostgreSQL handler instances
+  admit exactly 60 of 66 concurrent requests for one endpoint/IP.
+
+The form reuses current account styling, labels, autocomplete, inline errors and
+focusable live feedback. Pending state prevents duplicate submission. Success
+persists on-screen. Missing/stale-session guidance offers fresh sign-in; validation,
+wrong-password and shared-IP rate-limit feedback remain fixed. Network failure,
+unexpected success JSON and lost committed responses explicitly say the password
+may already have changed and offer sign-in/reset recovery, without automatic retry.
+Passwords remain only in controls/request bodies and clear after responses,
+pagehide and component unmount. No URL, log, analytics or storage copy is added.
+
+The existing scripts now include `tests/password-change-http-database.test.mjs`
+in `test:password-change`, and actual Next dispatch plus the optional installed
+agent-browser exercise in `test:sign-in-app`. Both reuse the disposable
+`halaga_signup_test` schema harness and fake delivery. To include browser checks,
+set `SIGNUP_BROWSER_EXECUTABLE` to an already installed agent-browser binary and
+`AGENT_BROWSER_EXECUTABLE_PATH` to local Chrome, then run `npm.cmd run test:sign-in-app`.
+No dependency download is required. Never point these checks at real participant data.
+
+Provider/backup purge evidence, restore safeguards, exception/hold enforcement,
+audited staff recovery, full deletion workflow, worker/hosting readiness, session/
+token/counter cleanup, terms/privacy and all ADR-081 real-data/public-launch gates
+remain incomplete. Real sending stays disabled. No scheduler, provider, migration,
+session-reader endpoint, deployment or billing path is introduced. Existing
+migrations are replayed only in random disposable test schemas.
+
+### Integration verification results
+
+Script definitions were inspected first. Checks ran from `app` with a launcher
+loading local configuration without printing credentials, selecting loopback
+`halaga_signup_test` for both database variables and setting
+`ACCOUNT_EMAIL_SENDING_ENABLED=false`. Every database harness removed its random
+schema in `finally`; no persistent/shared schema was migrated. Browser checks used
+the installed agent-browser 0.38.2 and Chrome with isolated synthetic profiles.
+
+| Command | Final result |
+| --- | --- |
+| `npm.cmd run test:password-change` | 34 passed, including shared PostgreSQL limits, direct API rejection, no credential logs and short-lived initiating-session preservation. Existing ADR-089 eligibility, failure, delivery, deletion and retention cases pass. |
+| `npm.cmd run test:sign-in` | 34 passed, including both protected password-change/sign-in HTTP lock orders and actual PostgreSQL waits. |
+| `npm.cmd run test:sign-in-app` (browser enabled) | 17 passed, including actual dispatch, origin/CSRF, malformed input, missing/stale/revoked sessions, wrong password, every required write/deferred commit failure, retry, cookie survival/revocation, verified-only fake delivery, 60/minute actual-route limit, password-change browser checks and existing signup/draft browser regressions. |
+| `npm.cmd run test:auth` | 21 passed; explicit endpoint limits retain precedence and catch-all inactivity recovery passes. |
+| `npm.cmd run test:signup` | 7 passed. |
+| `npm.cmd run test:verification` | 11 passed. |
+| `npm.cmd run test:reset` | 12 passed. |
+| `npm.cmd run test:email-change` | 16 passed. |
+| `npm.cmd run test:account-email-intents` | 13 passed. |
+| `npm.cmd run test:account-email` | 27 passed. |
+| `npm.cmd run test:logging` | 5 passed. |
+| `npm.cmd run test:foundation` | 21 passed. |
+| `npm.cmd run lint` | Passed. |
+| `npm.cmd run build` | Passed compilation, TypeScript and page generation. |
+| `git diff --check` | Passed; ordinary LF/CRLF conversion notices only. |
+| `impeccable.cmd detect --json` on changed account TSX | Passed, empty finding list. |
+
+The twelve final test scripts reported **218 passes, zero failures/skips**. Browser
+coverage includes labels/autocomplete, inline errors and summary links, keyboard
+focus, live pending/error/success feedback, duplicate-submit prevention, persistent
+success, clearing after responses and real document/client navigation/history,
+stale-sign-in and rate guidance, network/malformed-success feedback and a committed
+response deliberately lost before the client receives it. That last case leaves
+exactly one new notice, changes the stored hash and never automatically resubmits.
+Desktop 1440px, 375px and 320px widths and 200% text at 320px have no horizontal
+overflow; WCAG 2/2.1/2.2 A/AA automated audit reports no violations. Desktop/mobile
+screenshots were inspected once. Human screen-reader and native browser zoom
+validation remain outstanding; no full accessibility certification is claimed.
+
+Initial failures were resolved: HTTP tests caught the shared limiter's nonmatching
+`*` glob; a direct API fixture needed to assert the library's thrown unauthorized
+error; lint required framework links. Sandboxed Chrome closed its CDP channel,
+so browser verification reran outside the sandbox. Subsequent fixture corrections
+waited for sign-in hydration, preserved pre-existing unrelated synthetic sessions,
+allowed non-secret field anchors/browser settings, and used real document departure
+rather than a synthetic pagehide dispatch. Final browser and regression checks
+passed. Existing Node `MODULE_TYPELESS_PACKAGE_JSON` warnings remain. Historical
+direct `try-password-change` scenarios below were not rerun; their affected guards
+are covered by the current suites. No real provider, participant, staff, restore,
+hold-management, hosted worker or deployment test was run or is claimed.
 
 ## Implemented email pipeline and approved rules (2026-10-20 PHT)
 

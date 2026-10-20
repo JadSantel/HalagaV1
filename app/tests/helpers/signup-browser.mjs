@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 
 /** Optional installed agent-browser CLI; no download, shared profile or real data. */
 export async function checkSignupBrowser(origin, database) {
+  const existingSessions = await database.session.count();
   const session = `halaga-signup-${randomUUID()}`;
   const run = (args, source) => new Promise((resolve, reject) => {
     const child = spawn(process.env.SIGNUP_BROWSER_EXECUTABLE, ["--session", session, "--json", ...args], {
@@ -74,7 +75,7 @@ export async function checkSignupBrowser(origin, database) {
     assert.equal((await feedback()).focusedRole, "status");
     assert.equal(await evaluate("[...document.querySelectorAll('input:not([type=checkbox])')].every(input => input.value === '') && !document.querySelector('[type=checkbox]').checked"), true);
     assert.equal(await database.user.count({ where: { email: "browser-signup@example.invalid" } }), 1);
-    assert.equal(await database.session.count(), 0);
+    assert.equal(await database.session.count(), existingSessions);
     const workCount = await database.outboxEvent.count();
     await evaluate("window.fetch = window.signupOriginalFetch; true");
     await fill();

@@ -14,7 +14,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
 const { openSignupSandbox } = await import("./helpers/signup-sandbox.mjs");
 const { createAccountEmailDispatcher } = await import("../src/server/repositories/account-email-dispatch.ts");
 
-test("actual Next signup and sign-in routes use only a disposable synthetic schema", { timeout: 240000 }, async (t) => {
+test("actual Next account routes use only a disposable synthetic schema", { timeout: 360000 }, async (t) => {
   const sandbox = await openSignupSandbox();
   const { database, auth } = sandbox;
   const origin = "http://127.0.0.1:3102";
@@ -78,9 +78,10 @@ test("actual Next signup and sign-in routes use only a disposable synthetic sche
       assert.match(html, /autoComplete="username"/);
       assert.match(html, /autoComplete="current-password"/);
       assert.doesNotMatch(html, /This action is not available yet/);
-      const preview = await (await fetch(`${origin}/account/change-password`)).text();
-      assert.match(preview, /This action is not available yet/);
-      assert.match(preview, /<button[^>]*disabled/);
+      const change = await (await fetch(`${origin}/account/change-password`)).text();
+      assert.doesNotMatch(change, /This action is not available yet/);
+      assert.match(change, /autoComplete="current-password"/);
+      assert.match(change, /autoComplete="new-password"/);
     });
     await t.test("signup page has enabled labels, private hints and the exact unchecked adult attestation", async () => {
       const response = await fetch(`${origin}/account/register`);
@@ -102,8 +103,8 @@ test("actual Next signup and sign-in routes use only a disposable synthetic sche
       assert.match(html, /role="status"/);
       assert.doesNotMatch(html, /This action is not available yet/);
     });
-    await t.test("password change and unrelated library routes remain closed", async () => {
-      for (const path of ["change-password", "get-session", "sign-out", "delete-user", "sign-in/social", "sign-in/email/", "sign-in%2Femail", "sign-up/email/", "sign-up%2Femail", "signup/email"]) {
+    await t.test("unrelated library routes remain closed", async () => {
+      for (const path of ["get-session", "sign-out", "delete-user", "sign-in/social", "sign-in/email/", "sign-in%2Femail", "sign-up/email/", "sign-up%2Femail", "signup/email", "change-password/", "change%2Dpassword"]) {
         const response = await send(path);
         // Next may normalize a trailing slash with 308; it never performs a command.
         if (path.endsWith("/")) assert.ok([308, 404].includes(response.status));
@@ -111,6 +112,7 @@ test("actual Next signup and sign-in routes use only a disposable synthetic sche
       }
       assert.equal((await fetch(`${origin}/api/auth/sign-in/email`)).status, 405);
       assert.equal((await fetch(`${origin}/api/auth/sign-up/email`)).status, 405);
+      assert.equal((await fetch(`${origin}/api/auth/change-password`)).status, 405);
       assert.equal(await database.session.count(), 0);
     });
     await t.test("the six email commands still reach their protected handlers", async () => {
@@ -276,6 +278,14 @@ test("actual Next signup and sign-in routes use only a disposable synthetic sche
       await read(response, 200, { status: "REQUEST_RECEIVED" });
       assert.equal(await database.outboxEvent.count(), 1);
       assert.equal(await database.session.count(), 0);
+    });
+    await t.test("mounted password change validates protected dispatch, atomic commit and fake delivery", async () => {
+      const { checkPasswordChangeRoute } = await import("./helpers/password-change-route.mjs");
+      await checkPasswordChangeRoute(origin, sandbox, send, read);
+    });
+    if (process.env.SIGNUP_BROWSER_EXECUTABLE) await t.test("installed browser verifies password maintenance through route and database", async () => {
+      const { checkPasswordChangeBrowser } = await import("./helpers/password-change-browser.mjs");
+      await checkPasswordChangeBrowser(origin, database, auth);
     });
     if (process.env.SIGNUP_BROWSER_EXECUTABLE) await t.test("optional installed browser verifies private draft create, save, resume, retry, stale edit and reflow", async () => {
       const { checkLaptopDraftBrowser } = await import("./helpers/laptop-drafts-browser.mjs");

@@ -55,8 +55,10 @@ fixed locked email-eligibility outcome are implemented synchronously and atomica
 ADR-089 approves exact version-1 email, seven-day delivery, recipient erasure on
 acceptance/suppression or by expiry, metadata purge after 30 terminal days capped
 at 37 event days, and 90-day in-app retention shortened by committed deletion.
-The synthetic pipeline implements these rules; the operation and owner-only detail reader
-remain unmounted. No later email backfill is authorized.
+The synthetic pipeline implements these rules. Explicit owner authorization on
+2026-10-20 PHT mounts only the protected password-change command and existing form
+for local synthetic validation; the owner-only detail reader remains unmounted.
+No later email backfill is authorized.
 It does not define password-reset notices or replace the email-switch notice.
 
 ## Password-Change Notice Recipient

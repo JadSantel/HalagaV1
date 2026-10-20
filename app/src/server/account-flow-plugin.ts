@@ -32,7 +32,7 @@ export function createAccountFlowHandler(auth: { handler: (request: Request) => 
   };
 }
 
-/** Shared protected integration. Application HTTP mounts accountEmailPaths plus explicit sign-in/signup.
+/** Shared protected integration. Application HTTP adds explicit sign-in/signup/password-change handlers.
  * Do not expose the full default path set or auth.api: see ACCOUNT_FLOW_INTEGRATION.md.
  * Core endpoint keys deliberately replace library account transactions/default tokens.
  */

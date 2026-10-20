@@ -94,6 +94,17 @@ The architecture handoff names eight screen groups. The details below decompose 
 
 ### 5.1 Account creation, eligibility, sign-in, and verification
 
+- **Local synthetic password-change integration (2026-10-20 PHT):** the existing
+  screen now uses current account components/styles with visible labels,
+  current/new-password autocomplete, paste support, pending duplicate prevention,
+  associated validation errors and focused live feedback. Wrong-password rejection,
+  fresh-sign-in guidance, shared-IP rate feedback and persistent success are present.
+  Uncertain outcomes explain that the change may have committed and offer sign-in/
+  reset without automatic retry. Passwords clear after responses, pagehide and
+  unmount. Only this screen's disabled-preview status is superseded; visual tokens
+  remain proposals and human screen-reader/native zoom review remains a launch check.
+  Notice readers, notification UI and staff tools remain unmounted.
+
 - **Goal:** create an eligible account and verify email before publishing, inquiring, or offering.
 - **Hierarchy:** display name; email/password; private date of birth; separate unchecked 18+ eligibility attestation using the exact wording/version in ADR-087; terms/privacy links; verification pending/sent/verified state. Explain that age is self-declared and email verification proves address control only.
 - **Actions:** create account, sign in, resend verification, continue after verification. Secondary links to sign-in or return to the intended listing/action.

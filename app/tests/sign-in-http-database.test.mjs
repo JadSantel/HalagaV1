@@ -9,6 +9,7 @@ import { accountEmailPaths, createAccountFlowHandler, createAccountFlowPlugin } 
 import { createAccountFlowOperations } from "../src/server/repositories/account-flows.ts";
 import { createAccountEmailHandler } from "../src/server/repositories/account-email-http.ts";
 import { createAccountSignInHandler } from "../src/server/repositories/sign-in-http.ts";
+import { createAccountPasswordChangeHandler } from "../src/server/repositories/password-change-http.ts";
 import { openSignupSandbox } from "./helpers/signup-sandbox.mjs";
 
 const origin = "http://127.0.0.1:3000";
@@ -223,8 +224,13 @@ test("protected sign-in HTTP integration with disposable synthetic PostgreSQL", 
 
     for (const kind of ["password-change", "reset", "verification", "email-proof"]) {
       const mutation = async (account, headers) => {
-        if (kind === "password-change") return { run: (db) => createAccountFlowOperations(db, auth).passwordChange(headers,
-          { currentPassword: password, newPassword: replacement }, () => {}) };
+        if (kind === "password-change") return { run: async (db) => {
+          const handler = createAccountPasswordChangeHandler(db, auth, configuration());
+          const response = await handler(request({ currentPassword: password, newPassword: replacement },
+            { path: "/change-password", headers: { cookie: headers.get("cookie") } }));
+          assert.deepEqual(response.headers.getSetCookie(), []);
+          await read(response, 200, { status: "PASSWORD_CHANGED" });
+        } };
         if (kind === "reset") {
           const { token } = await operations.reset.issue(account.email);
           return { run: (db) => createAccountFlowOperations(db, auth).reset.consume({ token, newPassword: replacement }) };
@@ -315,8 +321,7 @@ test("protected sign-in HTTP integration with disposable synthetic PostgreSQL", 
       }
       await read(await defaultHandler(request({})), 404, { code: "NOT_FOUND" });
       const screens = await readFile(new URL("../src/app/account/screens.tsx", import.meta.url), "utf8");
-      assert.match(screens, /<input[^>]*disabled/);
-      assert.match(screens, /button[^>]*disabled/);
+      assert.match(screens, /AccountPasswordChangeForm/);
       const page = await readFile(new URL("../src/app/account/[flow]/page.tsx", import.meta.url), "utf8");
       assert.match(page, /AccountScreen/);
       assert.doesNotMatch(page, /sign-in-http|SignInHandler/);

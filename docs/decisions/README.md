@@ -2,6 +2,13 @@
 
 The files in this directory preserve decisions in chronological order.
 
+Latest local integration (2026-10-20 PHT, after ADR-089): explicit owner authorization
+now mounts only protected POST `/api/auth/change-password` and its existing form for
+synthetic validation. This supersedes older mounting/client/direct-write-review
+status below. Notice readers, notification UI and staff tools remain unmounted;
+all accepted policy and real-sending/data/operational gates remain. See
+[PASSWORD_CHANGE_LOCAL_TESTING.md](../PASSWORD_CHANGE_LOCAL_TESTING.md).
+
 Latest password-change policy (2026-10-20 PHT): accepted
 [ADR-089](ADR-089-password-change-email-and-retention.md) resolves exact version-1
 copy, seven-day delivery, recipient erasure, bounded metadata/in-app retention,

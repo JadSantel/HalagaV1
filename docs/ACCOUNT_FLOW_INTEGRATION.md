@@ -1,4 +1,28 @@
-# Slice 2 account integration: synthetic, unmounted commands
+# Slice 2 account integration: local synthetic commands
+
+Latest password-change record (2026-10-20 PHT, after ADR-089): the owner explicitly
+authorizes protected POST `/api/auth/change-password` and the existing account form
+for local synthetic validation. Exact route dispatch calls a new one-path handler
+over the existing protected plugin/guarded operation; it exposes no raw library API.
+After atomic credential/revocation/notice/email-job commit, success contains only
+`PASSWORD_CHANGED` and preserves the exact initiating session and cookie. Stored
+authorization, configured origin/CSRF, strict 15-minute freshness and ADR-086 limits
+remain. The shared limiter glob is corrected from `*` to `/**` to match the installed
+library's slash-prefixed paths; numerical policy is unchanged. Command-local renewal
+is disabled so the library hook cannot alter the initiating session. The accessible
+form clears passwords after responses/navigation and truthfully handles uncertain
+commit outcomes without automatic resubmission. Notice readers, notification UI,
+staff tools and session-reader endpoints remain unmounted. This supersedes older
+password-change mounting/client and direct-write-review gate statements below only.
+See [PASSWORD_CHANGE_LOCAL_TESTING.md](PASSWORD_CHANGE_LOCAL_TESTING.md) for the
+installed-library trace, checks and remaining provider/backup/hold/operational gates.
+No real sending, participant data, schedule, dependency, deployment or billing path.
+
+Final local verification: 218 tests pass across twelve existing/extended scripts;
+lint, build/TypeScript, diff checks and UI detection pass. The installed browser
+exercises the full password-change route/database path, focus/live feedback,
+responsive behavior, clearing on navigation and lost committed responses. Earlier
+failures and skipped human/operational checks are recorded in the testing guide.
 
 Latest signup record (2026-10-18 PHT, after sign-in mounting): local synthetic
 POST `/api/auth/sign-up/email` and `/account/register` now use the protected
