@@ -155,6 +155,14 @@ Active workflows must still reach a terminal state through cancellation, complet
 
 ### 8.5 Authentication protection
 
+Local account-guard record (2026-10-20 PHT): the protected sign-in operation now
+rereads account deletion under identity/domain locks and rejects deleted accounts
+before creating a session, enforcing ADR-074's existing deletion-disables-login
+rule. Existing account-command deletion guards remain in place. This slice does
+not define suspension effects on authentication or recovery; scoped marketplace
+restrictions and suspension still need action-specific policy before those guards
+can be implemented. See `docs/SIGN_IN_LOCAL_TESTING.md` for scope and verification.
+
 Latest local implementation record (2026-10-20 PHT, after ADR-089): the owner
 explicitly authorizes protected POST `/api/auth/change-password` and the existing
 account form for local synthetic validation only. They now reuse the guarded

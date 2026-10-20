@@ -1,5 +1,61 @@
 # Protected sign-in: local synthetic verification
 
+## Account restriction scope and verification (2026-10-20 PHT)
+
+The owner limited this slice to explicit existing rules. ADR-074 states that
+account deletion disables login. The protected sign-in operation previously
+locked the identity/domain mapping but did not check deletion, allowing a deleted
+account to create a session. It now selects only `deletedAt` after acquiring those
+locks and rejects missing/deleted mappings through the existing invalid-credentials
+path before session creation. The HTTP response is the same fixed 401
+`{"code":"UNAUTHORIZED"}` as an unknown address or wrong password, without cookies.
+No deletion reason, account identifier or other private state enters the response.
+
+The existing account-action guards were inspected and retained:
+
+| Existing action | Existing server guard / accepted rule |
+| --- | --- |
+| Signup | Reject under-18 DOB and missing attestation before writes (ADR-087). No existing account is reactivated by duplicate signup. |
+| Sign-in | Reject deleted/missing mapped accounts under locks (ADR-074); unverified sign-in remains allowed. |
+| Verification resend/completion | Deleted/missing account suppresses issuance or rejects proof; completion rechecks the account under locks. |
+| Password-reset request/completion | Deleted/missing account suppresses issuance or rejects proof; no credential or session repair. |
+| Email-change request/proof | Locked mapping/deletion and existing eligibility checks; the request also rechecks the stored fresh session. |
+| Password change | Locked mapping/deletion, credential and exact fresh-session checks; unverified password maintenance remains allowed (ADR-087). |
+| Account prerequisite / password-notice readers and private laptop drafts | Existing owner/session/deletion guards; draft access grants no marketplace rights. |
+
+PROJECT §23 and ADR-064/066 authorize reasoned, scoped restrictions and suspension;
+they do not specify their effects on these authentication/recovery actions. No
+restriction persistence or operator command exists. Suspension effects, restriction
+scope/lifecycle and treatment of an account later found underage remain unimplemented.
+This slice does not make those policy decisions or complete Slice 2. Marketplace
+publication, inquiry and proposal commands remain unimplemented; their prerequisite
+helper is not a full authorization grant. No new schema, dependency, endpoint,
+public/staff reader, real sending, deployment or participant-data use is added.
+
+Verification used disposable synthetic PostgreSQL schemas and the installed auth
+implementation. New tests cover verified/unverified deleted accounts, an observed
+PostgreSQL lock wait behind committed deletion, rollback restoring sign-in, unrelated
+account isolation, unchanged credentials/state and fixed HTTP failures without cookies.
+
+| Command from `app` | Result |
+| --- | --- |
+| `npm.cmd run test:sign-in` before the fix | Three added regression cases failed: deleted sign-in, committed-deletion race and HTTP rejection. Parent tests also report failure. |
+| `npm.cmd run test:sign-in` after the fix | 38 passed; zero failures/skips. |
+| `node --conditions=react-server --test` with the test files from `test:auth`, `test:signup`, `test:verification`, `test:reset`, `test:email-change`, `test:password-change`, `test:laptop-drafts` | 112 passed; zero failures/skips. |
+| `npm.cmd run lint` | Passed. |
+| `npx.cmd tsc --noEmit` | Passed. |
+| `git diff --check` (repository root) | Passed; LF/CRLF conversion notices only. |
+
+For sandbox tests, a Node wrapper loaded the local environment and set
+`SIGNUP_TEST_DATABASE_URL` to the dedicated loopback `halaga_signup_test` database
+without printing credentials. Its first invocation failed before tests because
+PowerShell stripped JavaScript quotes; the corrected wrapper ran successfully.
+An initial batch selected only 16 tests because it sliced the script arguments
+incorrectly; the corrected batch ran all 112 listed above. Node's existing
+`MODULE_TYPELESS_PACKAGE_JSON` warning remains non-failing. Build, browser and
+actual Next-route suites were not rerun for this server-repository-only change;
+the protected HTTP factory and real database transactions were exercised directly.
+
 Later password-change record (2026-10-20 PHT): explicit owner authorization now
 mounts only protected POST `/api/auth/change-password` and its existing form for
 local synthetic validation. `test:sign-in` exercises both password-change/sign-in

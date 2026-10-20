@@ -115,6 +115,18 @@ test("protected sign-in HTTP integration with disposable synthetic PostgreSQL", 
       assert.equal(Boolean(domain.emailVerifiedAt), verified);
     });
 
+    await t.test("deleted accounts return the same private failure as invalid credentials without sessions or cookies", async () => {
+      for (const verified of [false, true]) {
+        const account = await fixture(verified);
+        await database.userAccount.update({ where: { authUserId: account.userId }, data: { deletedAt: new Date() } });
+        for (const input of [{ email: account.email, password },
+          { email: account.email, password: "wrong-synthetic-password" }, { email: "absent@example.invalid", password }]) {
+          await read(await handler(request(input)), 401, { code: "UNAUTHORIZED" });
+        }
+        assert.equal(await database.session.count({ where: { userId: account.userId } }), 0);
+      }
+    });
+
     await t.test("rememberMe false emits only a browser-session cookie; HTTPS uses Secure host-only cookies", async () => {
       const account = await fixture();
       const response = await read(await send({ ...account, input: { rememberMe: false } }), 200, { status: "SIGNED_IN" });

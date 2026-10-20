@@ -439,6 +439,16 @@ Delivery transport and internal dispatch/recovery are implemented under ADR-088.
 Cookie integration remains in the unmounted handler. Library sign-in/session creation racing reset or email proof does
 not share these account-owned locks and requires integration review before mounting.
 
+Local account-guard record (2026-10-20 PHT): protected sign-in rereads only
+`user_account.deletedAt` after acquiring identity/domain locks, before credential
+verification and session creation. Deleted and missing accounts share the fixed
+invalid-credentials outcome; HTTP emits no cookie or account-state detail. A
+waiting sign-in observes committed deletion, while rolled-back deletion leaves
+the prior state usable. This enforces ADR-074 without defining suspension effects
+on authentication/recovery or adding enforcement records, staff access or policy.
+Existing verification/reset/email-change/password-change and owner-private reader
+deletion guards remain. See `docs/SIGN_IN_LOCAL_TESTING.md`.
+
 Unmounted authenticated password change resolves the stored-session owner without
 refreshing the session, snapshots the domain mapping and hashes using Better Auth's
 configured limits/hasher. It locks identity/domain mapping, credential and initiating

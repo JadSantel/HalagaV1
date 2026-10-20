@@ -40,9 +40,13 @@ export function createAccountSignInOperation(
           SELECT u.id FROM "user" u JOIN "user_account" a ON a."authUserId" = u.id
           WHERE u.email = ${parsed.data.email} FOR UPDATE OF u, a
         `;
+        // ADR-074: deletion disables login. Reread after any identity/account lock wait.
+        const account = locked.length === 1 ? await transaction.userAccount.findUnique({
+          where: { authUserId: locked[0].id }, select: { deletedAt: true },
+        }) : null;
         // An address can appear while email proof/signup commits. Never let a
         // later library lookup authenticate an identity this transaction did not lock.
-        if (locked.length !== 1) {
+        if (!account || account.deletedAt) {
           const { password } = await betterAuth(auth.options).$context;
           if (parsed.data.password.length <= password.config.maxPasswordLength) {
             await password.hash(parsed.data.password);

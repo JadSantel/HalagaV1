@@ -156,6 +156,55 @@ test("synthetic PostgreSQL serializes installed Better Auth credential reads thr
       }
     });
 
+    await t.test("deleted verified and unverified accounts cannot sign in or change stored state", async () => {
+      for (const verified of [false, true]) {
+        const account = await fixture(verified);
+        await database.userAccount.update({ where: { authUserId: account.userId }, data: { deletedAt: new Date() } });
+        const before = await state(account);
+        await assert.rejects(login(account), rejected("INVALID_CREDENTIALS"));
+        assert.deepEqual(await state(account), before);
+        assert.ok((await database.userAccount.findUnique({ where: { authUserId: account.userId },
+          select: { deletedAt: true } })).deletedAt);
+      }
+    });
+
+    for (const rollback of [false, true]) {
+      await t.test(`deletion ${rollback ? "rolls back" : "commits"} before waiting sign-in checks account state`, async () => {
+        const account = await fixture();
+        const other = await fixture();
+        const before = await state(account);
+        const held = gate();
+        const writer = Promise.allSettled([database.$transaction(async (transaction) => {
+          await transaction.$queryRaw`SELECT u.id FROM "user" u JOIN "user_account" a ON a."authUserId" = u.id
+            WHERE u.id = ${account.userId} FOR UPDATE OF u, a`;
+          await transaction.userAccount.update({ where: { authUserId: account.userId }, data: { deletedAt: new Date() } });
+          const [{ pid }] = await transaction.$queryRaw`SELECT pg_backend_pid() AS pid`;
+          await held.pause(pid);
+          if (rollback) throw new Error("synthetic-deletion-rollback");
+        })]);
+        const blocker = await held.entered;
+        const pendingLogin = Promise.allSettled([login(account)]);
+        try {
+          await waitForBlock(blocker);
+          await login(other); // An unrelated account remains usable during the lock wait.
+        } finally { held.release(); }
+        assert.equal((await writer)[0].status, rollback ? "rejected" : "fulfilled");
+        const [result] = await pendingLogin;
+        assert.equal(result.status, rollback ? "fulfilled" : "rejected");
+        const after = await state(account);
+        assert.deepEqual(after.identity, before.identity);
+        assert.deepEqual(after.domain, before.domain);
+        assert.deepEqual(after.credentials, before.credentials);
+        if (rollback) {
+          assert.equal(after.sessions.length, before.sessions.length + 1);
+          assert.ok(after.sessions.some((row) => row.token === result.value.response.token));
+        } else {
+          assert.ok(rejected("INVALID_CREDENTIALS")(result.reason));
+          assert.deepEqual(after.sessions, before.sessions);
+        }
+      });
+    }
+
     for (const kind of ["password-change", "reset", "verification", "email-proof", "verification-clear"]) {
       await t.test(`${kind}: sign-in holds locks after credential read and through stored session; writer waits then revokes`, async () => {
         const account = await fixture(["email-proof", "verification-clear"].includes(kind));
