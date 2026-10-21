@@ -6,10 +6,11 @@ import { diagnosticVersion, type QuestionKey } from "../../domain/laptop-diagnos
 import { laptopDraftSchema, validatedDraftCondition, type LaptopDraftSnapshot } from "../laptop-draft-validation.ts";
 import { getPrisma } from "../prisma.ts";
 import { createAccountAuth } from "./auth.ts";
+import { draftCutoff, type DraftPhoto } from "../../domain/draft-photo-policy.ts";
 
 const createSchema = z.strictObject({ requestId: z.uuid(), draft: laptopDraftSchema });
 const saveSchema = createSchema.extend({ expectedRevision: z.number().int().positive().max(2147483646) });
-type DraftDatabase = Pick<ReturnType<typeof getPrisma>, "$queryRaw" | "userAccount" | "listing" | "listingRevision" | "accountMarketplaceRestriction">;
+export type DraftDatabase = Pick<ReturnType<typeof getPrisma>, "$queryRaw" | "$executeRaw" | "userAccount" | "listing" | "listingRevision" | "accountMarketplaceRestriction" | "draftPhoto" | "draftPhotoReference" | "draftPhotoAttempt" | "draftPhotoEvent" | "draftRetentionHold">;
 
 export class LaptopDraftRejected extends Error {
   readonly code: "INVALID_INPUT" | "UNAUTHORIZED" | "ACTION_RESTRICTED" | "NOT_FOUND" | "INVALID_STATE" | "INTERNAL_ERROR";
@@ -25,18 +26,20 @@ export class LaptopDraftRejected extends Error {
 const revisionSelect = {
   id: true, listingId: true, version: true, createdAt: true, title: true, description: true,
   listingType: true, category: true, diagnosticSchemaVersion: true, conditionSummary: true,
-  priceExpectation: true, fulfillment: true,
+  priceExpectation: true, fulfillment: true, photoCommand: true,
+  draftPhotos: { orderBy: { sortOrder: "asc" as const }, select: { photoId: true, sortOrder: true,
+    photo: { select: { status: true, approvedAttemptId: true, deletedAt: true } } } },
   itemGroups: { select: { quantity: true, brand: true, model: true, approximateAge: true,
     answers: { select: { schemaVersion: true, questionKey: true, answer: true, detail: true } } } },
 } as const;
 type Revision = NonNullable<Awaited<ReturnType<typeof loadRevision>>>;
 
-function loadRevision(database: DraftDatabase, id: string, sellerId: string) {
+function loadRevision(database: DraftDatabase, id: string, sellerId: string, now = new Date()) {
   return database.listingRevision.findFirst({ where: { id, authoredById: sellerId,
-    listing: { sellerId, status: "DRAFT", publicationCycles: { none: {} } } }, select: revisionSelect });
+    listing: { sellerId, status: "DRAFT", updatedAt: { gt: draftCutoff(now) }, publicationCycles: { none: {} } } }, select: revisionSelect });
 }
 
-function snapshot(revision: Revision): LaptopDraftSnapshot {
+export function snapshot(revision: Revision): LaptopDraftSnapshot {
   const group = revision.itemGroups[0];
   if (revision.listingType !== "SINGLE_ITEM" || revision.category !== "LAPTOPS" ||
       revision.diagnosticSchemaVersion !== diagnosticVersion || revision.itemGroups.length !== 1 || group.quantity !== 1) {
@@ -63,11 +66,11 @@ function snapshot(revision: Revision): LaptopDraftSnapshot {
   return parsed.data;
 }
 
-async function appendRevision(database: DraftDatabase, sellerId: string, listingId: string,
-  version: number, requestId: string, draft: LaptopDraftSnapshot) {
+export async function appendRevision(database: DraftDatabase, sellerId: string, listingId: string,
+  version: number, requestId: string, draft: LaptopDraftSnapshot, photoIds: string[] = [], photoCommand: string | null = null) {
   const condition = validatedDraftCondition(draft);
   await database.listingRevision.create({ data: {
-    id: requestId, listingId, authoredById: sellerId, version,
+    id: requestId, listingId, authoredById: sellerId, version, photoCommand,
     listingType: "SINGLE_ITEM", category: "LAPTOPS", title: draft.title, description: draft.description,
     barangayCode: null, priceExpectation: draft.privatePriceExpectation || null,
     fulfillment: draft.fulfillment || null,
@@ -81,6 +84,15 @@ async function appendRevision(database: DraftDatabase, sellerId: string, listing
         { schemaVersion: diagnosticVersion, questionKey: "included", answer: draft.included, detail: draft.includedNotes },
       ] } } },
   }, select: { id: true } });
+  if (photoIds.length) await database.draftPhotoReference.createMany({ data: photoIds.map((photoId, sortOrder) => ({
+    revisionId: requestId, listingId, ownerId: sellerId, photoId, sortOrder,
+  })) });
+}
+
+export function projectDraftPhotos(listingId: string, revision: Revision): DraftPhoto[] {
+  return revision.draftPhotos.map(({ photoId, sortOrder, photo }) => ({ id: photoId, position: sortOrder + 1,
+    status: photo.status, src: photo.status === "APPROVED" && photo.approvedAttemptId && !photo.deletedAt
+      ? `/api/laptop-drafts/${listingId}/photos/${photoId}?revision=${revision.version}` : null }));
 }
 
 /** Local synthetic slice only. Authentication authorizes private draft work,
@@ -143,7 +155,7 @@ export function createLaptopDraftOperations(
 
   async function lockDraft(transaction: DraftDatabase, id: string, sellerId: string) {
     await transaction.$queryRaw`SELECT id FROM listing WHERE id = ${id}::uuid AND "sellerId" = ${sellerId}::uuid FOR UPDATE`;
-    const listing = await transaction.listing.findFirst({ where: { id, sellerId, status: "DRAFT",
+    const listing = await transaction.listing.findFirst({ where: { id, sellerId, status: "DRAFT", updatedAt: { gt: draftCutoff(clock()) },
       publicationCycles: { none: {} } }, select: { id: true, currentRevisionNumber: true,
       createdAt: true, updatedAt: true, currentRevision: { select: revisionSelect } } });
     if (!listing || !listing.currentRevision) throw new LaptopDraftRejected("NOT_FOUND");
@@ -151,6 +163,19 @@ export function createLaptopDraftOperations(
   }
 
   return {
+    // Internal repository seam. Never accept a callback from HTTP/client input.
+    async withDraft<T>(headers: Headers, id: string,
+      work: (transaction: DraftDatabase, listing: Awaited<ReturnType<typeof lockDraft>>, owner: string) => Promise<T>,
+      apply: (headers: Headers) => void = () => {}, write = false) {
+      if (!z.uuid().safeParse(id).success) throw new LaptopDraftRejected("INVALID_INPUT");
+      return withOwner(headers, async (transaction, owner) => {
+        const listing = await lockDraft(transaction, id, owner);
+        const result = await work(transaction, listing, owner);
+        if (listing.updatedAt <= draftCutoff(clock())) throw new LaptopDraftRejected("NOT_FOUND");
+        return result;
+      },
+        apply, write ? "EDIT_LAPTOP_DRAFT" : undefined);
+    },
     async review(headers: Headers, listingId: unknown, revision: unknown,
       applySessionHeaders: (headers: Headers) => void = () => {}) {
       const id = z.uuid().safeParse(listingId);
@@ -163,13 +188,14 @@ export function createLaptopDraftOperations(
           listing: { sellerId, status: "DRAFT", publicationCycles: { none: {} } },
         }, select: revisionSelect });
         if (!saved) throw new LaptopDraftRejected("NOT_FOUND");
-        return buildLaptopDraftReview(listing.id, saved.version, listing.currentRevisionNumber!, saved.createdAt, snapshot(saved));
+        return { ...buildLaptopDraftReview(listing.id, saved.version, listing.currentRevisionNumber!, saved.createdAt, snapshot(saved)),
+          photos: projectDraftPhotos(listing.id, saved) };
       }, applySessionHeaders);
     },
     async list(headers: Headers, applySessionHeaders: (headers: Headers) => void = () => {}) {
       return withOwner(headers, async (transaction, sellerId) => {
         const listings = await transaction.listing.findMany({
-          where: { sellerId, status: "DRAFT", publicationCycles: { none: {} },
+          where: { sellerId, status: "DRAFT", updatedAt: { gt: draftCutoff(clock()) }, publicationCycles: { none: {} },
             currentRevision: { category: "LAPTOPS", listingType: "SINGLE_ITEM", diagnosticSchemaVersion: diagnosticVersion } },
           orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
           // Minimal owner-private summary. Never load answers or price expectation.
@@ -186,9 +212,9 @@ export function createLaptopDraftOperations(
       if (!parsed.success) throw new LaptopDraftRejected("INVALID_INPUT");
       const { requestId, draft } = parsed.data;
       return withOwner(headers, async (transaction, sellerId) => {
-        const previous = await loadRevision(transaction, requestId, sellerId);
+        const previous = await loadRevision(transaction, requestId, sellerId, clock());
         if (previous) {
-          if (previous.version !== 1 || !isDeepStrictEqual(snapshot(previous), draft)) throw new LaptopDraftRejected("INVALID_STATE");
+          if (previous.version !== 1 || previous.photoCommand || !isDeepStrictEqual(snapshot(previous), draft)) throw new LaptopDraftRejected("INVALID_STATE");
           return { id: previous.listingId, revision: previous.version };
         }
         const listing = await transaction.listing.create({ data: { sellerId, status: "DRAFT" }, select: { id: true } });
@@ -205,14 +231,15 @@ export function createLaptopDraftOperations(
       return withOwner(headers, async (transaction, sellerId) => {
         const listing = await lockDraft(transaction, id.data, sellerId);
         snapshot(listing.currentRevision!); // Guard this slice's category/type/version before editing.
-        const previous = await loadRevision(transaction, requestId, sellerId);
+        const previous = await loadRevision(transaction, requestId, sellerId, clock());
         if (previous) {
-          if (previous.listingId !== listing.id || previous.version !== expectedRevision + 1 ||
+          if (previous.photoCommand || previous.listingId !== listing.id || previous.version !== expectedRevision + 1 ||
               !isDeepStrictEqual(snapshot(previous), draft)) throw new LaptopDraftRejected("INVALID_STATE");
           return { id: listing.id, revision: previous.version };
         }
         if (listing.currentRevisionNumber !== expectedRevision) throw new LaptopDraftRejected("INVALID_STATE");
-        await appendRevision(transaction, sellerId, listing.id, expectedRevision + 1, requestId, draft);
+        await appendRevision(transaction, sellerId, listing.id, expectedRevision + 1, requestId, draft,
+          listing.currentRevision!.draftPhotos.map((ref) => ref.photoId));
         const updated = await transaction.listing.updateMany({ where: { id: listing.id, sellerId,
           status: "DRAFT", currentRevisionNumber: expectedRevision }, data: { currentRevisionNumber: expectedRevision + 1 } });
         if (updated.count !== 1) throw new LaptopDraftRejected("INVALID_STATE");
@@ -226,7 +253,8 @@ export function createLaptopDraftOperations(
         const listing = await lockDraft(transaction, id.data, sellerId);
         return { id: listing.id, status: "DRAFT" as const, revision: listing.currentRevisionNumber!,
           createdAt: listing.createdAt, updatedAt: listing.updatedAt,
-          condition: listing.currentRevision!.conditionSummary, draft: snapshot(listing.currentRevision!) };
+          condition: listing.currentRevision!.conditionSummary, draft: snapshot(listing.currentRevision!),
+          photos: projectDraftPhotos(listing.id, listing.currentRevision!) };
       }, applySessionHeaders);
     },
   };

@@ -5,6 +5,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { deriveCondition, validateDraft, type Draft } from "../../domain/laptop-diagnostics";
 import { fulfillmentOptions } from "../../domain/laptop-listing";
 import LaptopDiagnosticFields from "../laptop-diagnostic-fields";
+import DraftPhotos from "./photos";
+import type { DraftPhoto } from "../../domain/draft-photo-policy";
 
 const primary = "min-h-12 rounded-md bg-[#176b59] px-5 py-3 font-semibold text-white hover:bg-[#105746] disabled:bg-[#53615c]";
 const secondary = "min-h-12 rounded-md border border-[#75837c] bg-white px-4 py-2 font-semibold hover:bg-[#e7f2ee]";
@@ -13,7 +15,7 @@ const conditions: Record<string, string> = { FULLY_FUNCTIONAL: "Fully functional
   NOT_FUNCTIONAL: "Not functional", UNTESTED_UNKNOWN: "Untested/unknown" };
 type Snapshot = Draft & { privatePriceExpectation: string; fulfillment: string };
 type Summary = { id: string; title: string; revision: number; updatedAt: string; condition: string | null };
-type Detail = Summary & { draft: Snapshot };
+type Detail = Summary & { draft: Snapshot; photos: DraftPhoto[] };
 type Phase = "loading" | "ready" | "pending" | "signed-out" | "error" | "uncertain" | "conflict" | "missing";
 type Command = { requestId: string; draft: Snapshot | Record<string, never>; expectedRevision?: number };
 const time = (value: string) => new Intl.DateTimeFormat("en-PH", {
@@ -28,6 +30,7 @@ export default function DraftWorkspace({ listingId }: { listingId?: string }) {
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState("");
   const [priceError, setPriceError] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const feedback = useRef<HTMLDivElement>(null);
   const pending = useRef<Command | null>(null);
   const working = useRef(false);
@@ -48,12 +51,12 @@ export default function DraftWorkspace({ listingId }: { listingId?: string }) {
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
-    if (dirty || phase === "uncertain") window.addEventListener("beforeunload", warn);
+    if (dirty || photoBusy || phase === "uncertain") window.addEventListener("beforeunload", warn);
     // A restored browser document must obtain a new authorized response.
     const restore = (event: PageTransitionEvent) => { if (event.persisted) window.location.reload(); };
     window.addEventListener("pageshow", restore);
     return () => { window.removeEventListener("beforeunload", warn); window.removeEventListener("pageshow", restore); };
-  }, [dirty, phase]);
+  }, [dirty, phase, photoBusy]);
 
   useEffect(() => {
     const abort = new AbortController();
@@ -87,7 +90,7 @@ export default function DraftWorkspace({ listingId }: { listingId?: string }) {
 
   async function write(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-    if (working.current || phase === "conflict") return;
+    if (working.current || photoBusy || phase === "conflict") return;
     working.current = true;
     // Keep this exact replacement body and UUID until the result is certain.
     pending.current ??= { requestId: crypto.randomUUID(), draft: listingId ? structuredClone(draft!) : {},
@@ -134,7 +137,7 @@ export default function DraftWorkspace({ listingId }: { listingId?: string }) {
   }
 
   const problem = ["error", "uncertain", "conflict", "missing"].includes(phase) || priceError;
-  const locked = phase !== "ready";
+  const locked = phase !== "ready" || photoBusy;
   const diagnostics = draft && deriveCondition(draft);
   const valid = draft && Object.keys(validateDraft(draft)).length === 0;
 
@@ -150,6 +153,7 @@ export default function DraftWorkspace({ listingId }: { listingId?: string }) {
     <main id="workspace" className="mx-auto w-full max-w-4xl px-5 py-10 sm:px-8">
       <h1 className="text-3xl font-semibold tracking-tight">{listingId ? "Edit private laptop draft" : "Your laptop drafts"}</h1>
       <p className="mt-3 max-w-2xl text-[#53615c]">Local synthetic validation only. Use made-up details. Drafts are private to your account. Saving never publishes a listing.</p>
+      <p className="mt-2 text-sm text-[#53615c]">Drafts and their revision/photo history expire after 30 days without a successful content or photo change. Opening a draft does not extend this period.</p>
       <div ref={feedback} tabIndex={-1} role={problem ? "alert" : "status"} aria-atomic="true"
         className="my-5 break-words font-medium">{message}</div>
       {phase === "loading" && <p role="status">Loading your private {listingId ? "draft" : "drafts"}…</p>}
@@ -213,6 +217,10 @@ export default function DraftWorkspace({ listingId }: { listingId?: string }) {
             {priceError && <p id="price-error" className="mt-2 font-medium text-[#a83232]">Use an exact PHP amount with at most two decimal places, within the current storage precision.</p>}
           </section>
         </fieldset>
+        <DraftPhotos listingId={listingId} revision={detail.revision} initialPhotos={detail.photos} locked={phase !== "ready"} dirty={dirty}
+          onBusy={setPhotoBusy} onRevision={(revision) => setDetail((current) => ({ ...current!, revision }))}
+          onConflict={() => { setPhase("conflict"); setMessage("This draft or photo revision changed. Your unsaved text is preserved. Reload before editing again."); }}
+          onUnauthorized={() => { setDetail(null); setDraft(null); setDirty(false); setPhotoBusy(false); setPhase("signed-out"); }} />
         <section aria-label="Condition feedback" className="mt-8 border-t border-[#d9dfda] pt-5">
           <h2 className="text-xl font-semibold">Condition from your answers</h2>
           <p role="status" aria-atomic="true" className="mt-2">{diagnostics?.safety === "blocked" || diagnostics?.safety === "hold" ? "Stop testing. No ordinary condition." : valid ? diagnostics?.condition : "Condition not yet validated. Incomplete answers can still be saved."}</p>

@@ -135,6 +135,35 @@ Architecture consequences:
 
 #### Local synthetic draft boundary (updated 2026-10-21 PHT)
 
+ADR-095's later accepted photo slice supersedes older media-unimplemented statements
+below. POST `/api/laptop-drafts/{id}/photos` admits one bounded upload; PUT
+`/photos/{photoId}` finalizes binary bytes and atomically appends a revision,
+processing-requested outbox event and PostgreSQL job state. PATCH `/photos`
+removes/orders current references by expected revision and request UUID. GET
+`/photos?revision=N` and GET `/photos/{photoId}?revision=N` reauthorize exact
+revision membership; only approved safe derivative bytes can be returned. DELETE
+`/photos/{photoId}` cancels an unfinished upload. No original-byte path exists.
+Owner/session/restriction locks and explicit no-store projections apply. Normal
+saves carry immutable references forward; history keeps its original order.
+
+Private filesystem blobs live outside static/source/build paths; signature/full
+decode, local ClamAV and metadata-free sharp encoding gate display approval.
+Asset state owns the durable job; immutable execution/outbox records preserve
+attempt provenance. Policy `synthetic-laptop-photo-v1` sets two-minute fenced
+leases, 30-second renewal/processing timeout, five executions and 30/60/120/240-second
+backoff. A manual run recovers/cleans and handles at most one job. No scheduler or
+account-email job reuse is added. Missing scanning fails closed. Staff retry and
+hold-review tools remain unmounted. Synthetic processing never establishes real
+publication evidence. See [local testing](docs/DRAFT_PHOTO_LOCAL_TESTING.md).
+
+ADR-095 expires whole never-published synthetic drafts after 30 inactive elapsed
+days and pending originals at their original 24-hour admission cutoff. Reads and
+worker/retry activity never renew retention. Current-photo removal creates history;
+it does not erase prior references. Guarded deletion intents precede blob erasure;
+cleanup retries missing objects idempotently, fences workers and honors scoped
+holds. Expired reads fail even before physical cleanup. General deletion, hosted
+cadence and backup/restore deletion propagation remain operational gates.
+
 Saved revision review adds GET `/api/laptop-drafts/[listingId]/review?revision=N`
 and an empty-shell page at `/drafts/[listingId]/review?revision=N`. It reuses the
 identity/domain, stored-session and owner-listing locks, rejecting non-drafts,
@@ -766,6 +795,10 @@ These decisions must be recorded rather than inferred in code. Some are needed b
 **Deployment, infrastructure, and operations**
 
 - Web and worker hosting/deployment, PostgreSQL hosting/connection model, backup/restore implementation, object storage and image/evidence processing providers, and observability/analytics implementation.
+
+  ADR-095 selects only private local synthetic draft-photo filesystem storage,
+  sharp and local ClamAV, validation budgets, bounded cleanup and its versioned
+  run-once worker policy. It does not select hosted storage/processing or scheduling.
 - Hosted worker deployment, polling cadence, alert thresholds, rollout compatibility and recovery runbook remain unselected. ADR-088 sets account-email lease/retry behavior; other job classes need policies. Hosted operations remain local/manual until separately approved. Session/token/counter cleanup, restricted staff reconciliation, secret provisioning/rotation, production origin and trusted client-IP configuration require review with the selected host. No proxy/provider is assumed. Exact dependency/runtime patches are pinned; PostgreSQL minor patch and upgrade policy must be verified when hosting is selected.
 - Early validation uses local/private environments and synthetic data. Real participant data and public-pilot deployment are gated on documented privacy, backup/restore (RPO ≤24h/RTO ≤24h), retention/deletion, worker-recovery, availability, and quota checks or an explicitly approved, costed exception (ADRs 071, 081, 082).
 

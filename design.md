@@ -124,6 +124,19 @@ The architecture handoff names eight screen groups. The details below decompose 
 
 ### 5.3 Listing wizard, review, and publication outcome
 
+Local synthetic photo implementation (2026-10-21 PHT, ADR-095): the existing draft
+editor adds labeled JPEG/PNG selection, byte progress, separate processing status,
+exact-request recovery, unfinished-upload discard, refresh, Remove and Move
+earlier/later buttons. Save text edits before photo mutations; conflicts preserve
+text. Keyboard actions announce outcomes/position, retain the moved asset's control
+and focus file selection after removal/upload. Approved derivatives have synthetic
+image alternatives; originals never become object-URL previews. Explain limits,
+non-qualifying synthetic status, historical references, 30-day expiry and manual
+physical cleanup. Saved review shows only that revision's private ordered
+references/derivatives; pending/rejected/failed/deleted files have text states.
+This extends existing styling without accepting proposed tokens or launch
+readiness. Human screen-reader and paired Cebuano/Bisaya review remain separate.
+
 - **Goal:** seller creates an evidence-rich eligible listing without guessing value or selecting a condition label.
 - **Hierarchy:** six steps (wireframe proposal): (1) single item/bundle and supported category/family; (2) item identity/groups, brand/model or Unknown, age, quantities; (3) applicable diagnostics, safety, battery, lock; (4) contents, barangay, buyer pickup/meetup availability, private price expectation; (5) actual photos and description; (6) public preview, private-data summary, ownership declaration and submit. Each bundle group records condition and facts; whole-bundle offers only.
 - **Actions:** back/continue, save draft and leave, add/edit bundle group, upload/remove/reorder photos, review/edit answer, submit/publish. Exact step grouping is inherited from the low-fidelity wireframe and may be adjusted for usability without changing required data or policy.

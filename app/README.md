@@ -1,5 +1,13 @@
 # Halaga local laptop listing prototype
 
+Latest photo update (2026-10-21 PHT): owner-approved ADR-095 adds synthetic JPEG/PNG
+upload, private safe derivatives, immutable ordered references, keyboard recovery/
+removal/reordering and a run-once processing/cleanup worker. Whole synthetic drafts
+expire after 30 inactive days; originals after processing or their 24-hour window.
+Runtime approval requires real local ClamAV setup. This supersedes older no-images
+status below; publication remains unavailable. See
+[DRAFT_PHOTO_LOCAL_TESTING.md](../docs/DRAFT_PHOTO_LOCAL_TESTING.md).
+
 Latest account update (2026-10-21 PHT): protected POST `/api/auth/change-password`
 and its existing form support local synthetic validation through the guarded
 operation/plugin. `/account/security` reads only the

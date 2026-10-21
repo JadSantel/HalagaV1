@@ -1,5 +1,13 @@
 # Server repository boundary
 
+Latest photo boundary (2026-10-21 PHT): ADR-095 adds scoped owner admission/upload/
+list/derivative/remove/order/cancel repositories and a separate manual durable
+worker. The shared draft authorization callback seam is internal only. Composite
+references enforce owner/listing/revision membership; readers expose safe
+derivatives without original keys/hashes/metadata. Retention cutoffs, fenced jobs,
+deletion intents and scoped-hold checks apply. No staff grant or public image reader
+is added. See `docs/DRAFT_PHOTO_LOCAL_TESTING.md`; older no-media status is superseded.
+
 Latest document boundary (2026-10-21 PHT): account Terms/Privacy review pages read
 only static draft content, without repository/database access. ADR-092 accepts
 future agreement capture after final document approval; the current strict signup

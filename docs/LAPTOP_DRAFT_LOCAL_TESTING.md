@@ -1,5 +1,12 @@
 # Local synthetic laptop draft workspace: bounded Slice 3
 
+Later photo supplement (2026-10-21 PHT): accepted ADR-095 and
+[DRAFT_PHOTO_LOCAL_TESTING.md](DRAFT_PHOTO_LOCAL_TESTING.md) supersede older
+media-unimplemented statements here. Owner-private synthetic upload, derivatives,
+ordered immutable references and a bounded processing/cleanup worker are present.
+Whole synthetic drafts now expire after 30 inactive days, including text-only
+history. Actual-item publication evidence and real-data readiness remain gated.
+
 Updated 2026-10-21 PHT. Synthetic data only, on a local/private installation.
 No public deployment, real participant data or completion of a launch gate.
 

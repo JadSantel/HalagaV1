@@ -2,6 +2,16 @@
 
 The files in this directory preserve decisions in chronological order.
 
+Latest photo decision (2026-10-21 PHT): the owner explicitly accepted groups A/B/C
+in [ADR-095](ADR-095-private-synthetic-draft-photo-processing.md). Private synthetic
+photo paths, immutable ordered references, safe derivatives and a local run-once
+PostgreSQL worker implement the limits, recovery and cleanup policy. Whole drafts,
+including text-only history, expire after 30 inactive days; originals expire after
+processing or their original 24-hour window. Runtime approval requires local
+ClamAV setup. Synthetic images never qualify as actual-item publication evidence.
+No public image path, paid service, hosted schedule or launch grant is added.
+See [local testing](../DRAFT_PHOTO_LOCAL_TESTING.md).
+
 Latest saved laptop revision review (2026-10-21 PHT): ADR-084's implementation
 supplement adds an owner-authorized, server-derived saved-version review with
 separate proposed-content/private-expectation projections, correction links and

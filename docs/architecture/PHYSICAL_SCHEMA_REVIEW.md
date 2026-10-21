@@ -1,5 +1,24 @@
 # First Physical Domain Schema: Review Draft
 
+## Later synthetic-photo supplement (2026-10-21 PHT)
+
+Accepted ADR-095 is implemented by
+`app/prisma/migrations/20261021150000_private_draft_photos/migration.sql`.
+The original foundation/SQL suffix and legacy `ListingMedia` rows are unchanged.
+`draft_photo` owns private upload identity/hash, owner/listing scope, byte/type/quota,
+original cutoff, processing state and fenced job data. Immutable composite revision
+references preserve exact order. Revision `photoCommand` stores normalized retry
+identity/order, never bytes/metadata. Ordinary text saves carry references forward.
+Attempts allow one final outcome; immutable events preserve minimized outbox/audit
+history. Checks constrain types, bytes/order, executions, policy and lease/status
+shape. Authorization, quota/count and eligibility remain server responsibilities.
+
+Scoped retention holds preserve immutable authorizer/purpose/start/review facts and
+one attributed release. No staff reader/review/write endpoint or role grant exists.
+Overdue holds block erasure, not expired owner reads. Cleanup erases eligible blobs
+before deleting references/jobs/draft history and never cascades unsupported legacy
+or published records. See [verification](../DRAFT_PHOTO_LOCAL_TESTING.md).
+
 - Status: Foundation migrated and verified locally; application commands pending
 - Date: 2026-10-12
 - Candidate: `app/prisma/schema.prisma`

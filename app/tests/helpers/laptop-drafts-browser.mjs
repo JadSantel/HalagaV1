@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
+import { writeFile } from "node:fs/promises";
+import sharp from "sharp";
+import { openPhotoStore, PhotoInvalid } from "../../src/server/draft-photo-processing.ts";
+import { createDraftPhotoWorker } from "../../src/server/repositories/draft-photo-worker.ts";
 import { samples } from "../../src/domain/laptop-diagnostics.ts";
 
 /** Real browser -> mounted routes -> disposable synthetic database. */
@@ -29,6 +33,7 @@ export async function checkLaptopDraftBrowser(origin, database, auth) {
   const wait = (source) => run(["wait", "--fn", source]);
   const follow = async (selector) => { await run(["focus", selector]); await run(["press", "Enter"]); };
   const button = (name) => run(["find", "role", "button", "click", "--name", name, "--exact"]);
+  const focusButton = (name) => evaluate(`([...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(name)}).focus(),true)`);
   const id = randomUUID(), email = `${id}@example.invalid`, password = "synthetic-drafts-browser-password";
   const { password: hashing } = await auth.$context;
   await database.user.create({ data: { id, name: "Synthetic workspace owner", email, emailVerified: false } });
@@ -226,6 +231,65 @@ export async function checkLaptopDraftBrowser(origin, database, auth) {
         await evaluate("document.documentElement.style.fontSize = ''; true");
       }
     }
+    // Separate draft: real file input/XHR -> mounted handlers -> durable rows ->
+    // internal fake scanner (test-only) -> authorized derivative -> keyboard UI.
+    const photoDraft = await evaluate(`(async()=>{const r=await fetch('/api/laptop-drafts',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestId:crypto.randomUUID(),draft:{}})});return r.json()})()`);
+    await run(["open", `${origin}/drafts/${photoDraft.id}`]);
+    await run(["wait", "#draft-photo-file"]);
+    await run(["snapshot", "-i"]);
+    const fixturePath = resolve(process.env.DRAFT_PHOTO_ROOT, "synthetic-fixture.jpg");
+    await writeFile(fixturePath, await sharp(Buffer.from('<svg width="320" height="200"><rect width="320" height="200" fill="#eef2ee"/><path d="M50 40h220v110H50z" fill="#36443f"/><path d="M35 150h250l20 20H15z" fill="#75837c"/></svg>')).jpeg().toBuffer());
+    await run(["upload", "#draft-photo-file", fixturePath]);
+    await evaluate(`window.photoSend=XMLHttpRequest.prototype.send; XMLHttpRequest.prototype.send=function(...args){
+      this.upload.onprogress?.({lengthComputable:true,loaded:50,total:100});
+      this.onload=()=>this.onerror?.(new Event('error'));
+      window.releasePhotoUpload=()=>window.photoSend.apply(this,args);
+    }; true`);
+    await focusButton("Upload synthetic photo");
+    await run(["press", "Enter"]);
+    await wait(`document.querySelector('#photo-progress')?.value === 50`);
+    assert.equal(await evaluate("document.querySelector('fieldset').disabled"), true);
+    await evaluate("window.releasePhotoUpload(); true");
+    await wait(`document.querySelector('#photo-feedback')?.textContent.includes('could not be confirmed')`);
+    assert.equal(await database.draftPhoto.count({ where: { listingId: photoDraft.id } }), 1);
+    await evaluate("XMLHttpRequest.prototype.send=window.photoSend; true");
+    await focusButton("Retry same photo request");
+    await run(["press", "Enter"]);
+    await wait(`document.querySelector('#photo-feedback')?.textContent.includes('Upload saved')`);
+    assert.equal(await database.draftPhoto.count({ where: { listingId: photoDraft.id } }), 1);
+    const photoStore = await openPhotoStore(process.env.DRAFT_PHOTO_ROOT);
+    await createDraftPhotoWorker(database, photoStore, async () => { throw new PhotoInvalid(); }).runOnce();
+    await button("Refresh photo status");
+    await wait(`document.querySelector('#photos')?.textContent.includes('File rejected')`);
+    await focusButton("Retry with a new upload");
+    await run(["press", "Enter"]);
+    assert.equal(await evaluate("document.activeElement.id"), "draft-photo-file");
+    await run(["upload", "#draft-photo-file", fixturePath]);
+    await focusButton("Upload synthetic photo");
+    await run(["press", "Enter"]);
+    await wait(`document.querySelector('#photo-feedback')?.textContent.includes('Upload saved') && document.querySelector('#photos')?.textContent.includes('2 of 10')`);
+    await createDraftPhotoWorker(database, photoStore, async () => {}).runOnce();
+    await button("Refresh photo status");
+    await wait(`document.querySelector('#photos img')?.complete && document.querySelector('#photos img')?.naturalWidth > 0`);
+    const imageId = (await database.draftPhoto.findFirst({ where: { listingId: photoDraft.id, status: "APPROVED" }, select: { id: true } })).id;
+    await run(["focus", '[aria-label="Move photo 2 earlier"]']); await run(["press", "Enter"]);
+    await wait(`document.querySelector('#photo-feedback')?.textContent.includes('position 1')`);
+    assert.equal(await evaluate("document.activeElement.id"), `photo-control-${imageId}`);
+    await run(["focus", '[aria-label="Remove photo 2"]']); await run(["press", "Enter"]);
+    await wait(`document.querySelector('#photo-feedback')?.textContent.includes('Photo removed')`);
+    assert.equal(await evaluate("document.activeElement.id"), "draft-photo-file");
+    assert.equal((await database.listing.findUnique({ where: { id: photoDraft.id } })).currentRevisionNumber, 5);
+    assert.equal(await database.draftPhotoReference.count({ where: { listingId: photoDraft.id, revision: { version: 3 } } }), 2);
+    const photoAudit = await run(["a11y", "--tags", "wcag2a,wcag2aa,wcag21a,wcag21aa,wcag22aa"]);
+    assert.equal(photoAudit.violations.length, 0, JSON.stringify(photoAudit.violations));
+    for (const [width, height] of [[1440, 900], [375, 812], [320, 800]]) {
+      await run(["set", "viewport", String(width), String(height)]);
+      assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+      if (width !== 320) await run(["screenshot", resolve(`.next/draft-photos-${width}.png`)]);
+    }
+    await evaluate("document.documentElement.style.fontSize='200%'; true");
+    assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+    await evaluate("document.documentElement.style.fontSize=''; true");
     await run(["open", `${origin}/drafts/${listingId}`]);
     await run(["wait", "#privatePriceExpectation"]);
     await database.session.deleteMany({ where: { userId: id } });

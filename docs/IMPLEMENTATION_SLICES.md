@@ -6,6 +6,17 @@ This tracker maps the approved MVP to implementation work. Product behavior come
 
 ## Implemented
 
+### Private synthetic draft photos (2026-10-21 PHT)
+
+Owner-approved ADR-095 adds authorized upload/view/remove/order, immutable revision
+references, metadata-free derivatives, local ClamAV/sharp processing, durable
+attempts/recovery and bounded original/whole-draft cleanup. Keyboard progress,
+response-loss retry, rejection recovery, focus, ordering and removal were verified
+through mounted routes and disposable synthetic storage. Runtime approval requires
+real ClamAV setup; actual-item evidence/publication, staff recovery, general deletion
+and operational/launch gates remain. This supersedes older media-unimplemented
+status, without accepting geography. See [the record](DRAFT_PHOTO_LOCAL_TESTING.md).
+
 ### Saved laptop revision review (2026-10-21 PHT)
 
 The local synthetic draft editor links to an owner-only review pinned to a saved

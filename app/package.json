@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test:diagnostics": "node --test tests/laptop-diagnostics.test.mjs",
     "test:listing": "node --test tests/laptop-listing.test.mjs",
-    "test:laptop-drafts": "node --conditions=react-server --test tests/laptop-drafts-database.test.mjs",
+    "test:laptop-drafts": "node --conditions=react-server --test tests/laptop-drafts-database.test.mjs tests/draft-photos.test.mjs",
     "test:photos": "node --test tests/sample-laptop-photos.test.mjs",
     "test:logging": "node --conditions=react-server --test tests/operational-logging.test.mjs",
     "test:auth": "node --conditions=react-server --test tests/auth-policy.test.mjs tests/auth-rate-limit-database.test.mjs tests/account-access.test.mjs",
@@ -23,6 +23,7 @@
     "test:account-email-intents": "node --conditions=react-server --test tests/account-email-intents-database.test.mjs",
     "test:account-email": "node --conditions=react-server --test tests/account-email-delivery-database.test.mjs tests/account-email-http-database.test.mjs tests/account-email-link.test.mjs",
     "jobs:account-email": "node --conditions=react-server scripts/account-email-worker.mjs",
+    "jobs:draft-photos": "node --conditions=react-server scripts/draft-photo-worker.mjs",
     "db:check": "node scripts/check-database.mjs",
     "db:generate": "prisma generate --config prisma7.config.ts",
     "db:migrate:local": "node scripts/migrate-local.mjs",
@@ -40,6 +41,7 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "0.0.1",
+    "sharp": "0.35.5",
     "zod": "4.6.6"
   },
   "devDependencies": {

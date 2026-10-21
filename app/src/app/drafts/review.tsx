@@ -4,8 +4,10 @@
 import { useEffect, useRef, useState } from "react";
 import { safeTestingGuidance } from "../../domain/laptop-diagnostics";
 import type { LaptopDraftReview } from "../../server/laptop-draft-review";
+import { DraftPhotoGallery } from "./photos";
+import type { DraftPhoto } from "../../domain/draft-photo-policy";
 
-type Review = Omit<LaptopDraftReview, "savedAt"> & { savedAt: string };
+type Review = Omit<LaptopDraftReview, "savedAt"> & { savedAt: string; photos: DraftPhoto[] };
 const link = "inline-block min-h-11 py-2 font-medium text-[#176b59] underline underline-offset-4";
 const section = "mt-9 border-t border-[#d9dfda] pt-7";
 
@@ -93,6 +95,10 @@ export default function DraftReview({ listingId, revision }: { listingId: string
           <p className="mt-2">Private price expectation (optional). Only you see this personal benchmark; buyers do not. It is not an asking price or platform valuation.</p>
           <p className="mt-3 font-semibold">{review.ownerPrivate.privatePriceExpectation ? new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(Number(review.ownerPrivate.privatePriceExpectation)) : "No private price expectation saved"}</p>
           <a href={`${editor}#privatePriceExpectation`} className={link}>Change private price expectation</a>
+          <h3 className="mt-6 text-xl font-semibold">Synthetic photo history for revision {review.revision}</h3>
+          <p className="mt-2">Private processed copies only. Synthetic photos never qualify as actual-item publication evidence. Removed photos may remain in earlier revisions until draft expiry.</p>
+          <DraftPhotoGallery photos={review.photos ?? []} />
+          <a href={`${editor}#photos`} className={link}>Manage current photos</a>
         </section>
         <a href={editor} className={`${link} mt-7`}>Return to current editor</a>
       </>}

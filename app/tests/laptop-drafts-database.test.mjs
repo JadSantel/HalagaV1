@@ -416,7 +416,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
       assert.equal(saved.itemGroups[0].condition, null);
       assert.equal(saved.priceExpectation.toFixed(2), "987654.32");
       const detail = await read(await send(owner, "GET", undefined, listingId), 200);
-      assert.deepEqual(Object.keys(detail).sort(), ["id", "status", "revision", "createdAt", "updatedAt", "condition", "draft"].sort());
+      assert.deepEqual(Object.keys(detail).sort(), ["id", "status", "revision", "createdAt", "updatedAt", "condition", "draft", "photos"].sort());
       assert.deepEqual(detail.draft, laptopDraftSchema.parse(create.draft));
       assert.equal(detail.condition, null);
       for (const secret of [owner.userId, owner.accountId, other.accountId, owner.actor.session.token, create.requestId]) {

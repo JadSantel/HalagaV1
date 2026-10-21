@@ -89,6 +89,7 @@ model UserAccount {
   declarations          OwnershipDeclaration[]
   publicationCycles     PublicationCycle[]
   authUser              User                    @relation(fields: [authUserId], references: [id], onDelete: Restrict)
+  draftPhotoAssets      DraftPhoto[]
 
   @@map("user_account")
 }
@@ -263,8 +264,10 @@ model Listing {
   revisions         ListingRevision[]  @relation("ListingRevisions")
   currentRevision   ListingRevision?   @relation("CurrentListingRevision", fields: [id, currentRevisionNumber], references: [listingId, version], onDelete: NoAction, onUpdate: NoAction)
   publicationCycles PublicationCycle[]
+  draftPhotoAssets  DraftPhoto[]
 
   @@unique([id, currentRevisionNumber])
+  @@unique([id, sellerId], map: "draft_photo_listing_owner")
   @@index([sellerId, status])
   @@map("listing")
 }
@@ -287,6 +290,7 @@ model ListingRevision {
   conditionSummary        ItemCondition?
   diagnosticSchemaVersion String?
   material                Boolean         @default(true)
+  photoCommand            String?
   createdAt               DateTime        @default(now()) @db.Timestamptz(3)
 
   listing              Listing               @relation("ListingRevisions", fields: [listingId], references: [id], onDelete: Restrict)
@@ -296,8 +300,10 @@ model ListingRevision {
   itemGroups           ListedItemGroup[]
   ownershipDeclaration OwnershipDeclaration?
   media                ListingMedia[]
+  draftPhotos          DraftPhotoReference[]
 
   @@unique([listingId, version])
+  @@unique([id, listingId, authoredById], map: "draft_photo_revision_scope")
   @@index([listingId, createdAt])
   @@map("listing_revision")
 }
@@ -406,4 +412,88 @@ model ListingMedia {
 
   @@unique([revisionId, sortOrder])
   @@map("listing_media")
+}
+
+// ADR-095: original bytes never have a serving URL. Keys derive from UUIDs.
+model DraftPhoto {
+  id                String   @id @db.Uuid
+  listingId         String   @db.Uuid
+  ownerId           String   @db.Uuid
+  expectedRevision  Int
+  resultRevision    Int?
+  contentSha256     String
+  byteSize          Int
+  mediaType         String
+  status            String   @default("UPLOADING")
+  reservedBytes     Int
+  derivativeBytes   Int      @default(0)
+  approvedAttemptId String?  @db.Uuid
+  originalDeletedAt DateTime? @db.Timestamptz(3)
+  deletedAt         DateTime? @db.Timestamptz(3)
+  expiresAt         DateTime @db.Timestamptz(3)
+  nextAttemptAt     DateTime @default(now()) @db.Timestamptz(3)
+  executions        Int      @default(0)
+  leaseId           String?  @db.Uuid
+  leaseUntil        DateTime? @db.Timestamptz(3)
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+  references        DraftPhotoReference[]
+  attempts          DraftPhotoAttempt[]
+  events            DraftPhotoEvent[]
+  listing           Listing @relation(fields: [listingId, ownerId], references: [id, sellerId], onDelete: Restrict, onUpdate: NoAction)
+  owner             UserAccount @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  @@unique([id, listingId, ownerId])
+  @@index([ownerId])
+  @@index([status, nextAttemptAt])
+  @@map("draft_photo")
+}
+
+model DraftPhotoReference {
+  revisionId String @db.Uuid
+  photoId    String @db.Uuid
+  listingId  String @db.Uuid
+  ownerId    String @db.Uuid
+  sortOrder  Int
+  revision   ListingRevision @relation(fields: [revisionId, listingId, ownerId], references: [id, listingId, authoredById], onDelete: Restrict, onUpdate: NoAction)
+  photo      DraftPhoto @relation(fields: [photoId, listingId, ownerId], references: [id, listingId, ownerId], onDelete: Restrict, onUpdate: NoAction)
+  @@id([revisionId, photoId])
+  @@unique([revisionId, sortOrder])
+  @@map("draft_photo_reference")
+}
+
+model DraftPhotoAttempt {
+  id         String @id @db.Uuid
+  photoId    String @db.Uuid
+  execution  Int
+  outcome    String @default("PROCESSING")
+  policy     String @default("synthetic-laptop-photo-v1")
+  startedAt  DateTime @default(now()) @db.Timestamptz(3)
+  finishedAt DateTime? @db.Timestamptz(3)
+  photo      DraftPhoto @relation(fields: [photoId], references: [id], onDelete: Restrict)
+  @@unique([photoId, execution])
+  @@map("draft_photo_attempt")
+}
+
+// Minimized immutable outbox/audit: no object keys, names, metadata or bytes.
+model DraftPhotoEvent {
+  id        String @id @default(uuid()) @db.Uuid
+  photoId   String @db.Uuid
+  kind      String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  photo     DraftPhoto @relation(fields: [photoId], references: [id], onDelete: Restrict)
+  @@unique([photoId, kind])
+  @@map("draft_photo_event")
+}
+
+// Scoped retention records only. No staff grant or hold-write endpoint exists.
+model DraftRetentionHold {
+  id             String @id @default(uuid()) @db.Uuid
+  listingId      String @db.Uuid
+  authorizedById String @db.Uuid
+  purpose        String
+  startedAt      DateTime @db.Timestamptz(3)
+  reviewAt       DateTime @db.Timestamptz(3)
+  releasedAt     DateTime? @db.Timestamptz(3)
+  releasedById   String? @db.Uuid
+  @@index([listingId, releasedAt])
+  @@map("draft_retention_hold")
 }

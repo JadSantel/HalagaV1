@@ -48,7 +48,7 @@ export function buildLaptopDraftReview(listingId: string, revision: number, curr
     missingRequirements,
     unavailableRequirements: [
       { field: "geography", message: "Barangay is missing. Controlled CDO registry selection awaits an accepted decision; fictional practice geography cannot be used." },
-      { field: "photos", message: "At least two clear actual-item photos are required. Upload, processing, metadata removal and evidence checks are unavailable. Practice images do not qualify. Unknown brand/model also requires the applicable markings or multiple-angle evidence." },
+      { field: "photos", message: "At least two clear actual-item photos are required. Private synthetic uploads can be managed in the editor, but synthetic and practice images never qualify as actual-item evidence. Pending, failed and rejected files cannot count. Actual-item identity, clarity, defect coverage and publication evidence checks remain unavailable. Unknown brand/model also requires the applicable markings or multiple-angle evidence." },
       { field: "ownership", message: "An ownership or owner-authorization declaration is required before submission. This increment does not collect it or establish proof of ownership." },
       { field: "publication-checks", message: "Publication eligibility, taxonomy, evidence, sensitive-content, risk and moderation checks have not run. Private draft access does not establish adult/email eligibility, account clearance or operational readiness for publication." },
       { field: "language", message: "Accepted English laptop prototype only. Usability validation, human-reviewed paired Cebuano/Bisaya and launch readiness remain required." },

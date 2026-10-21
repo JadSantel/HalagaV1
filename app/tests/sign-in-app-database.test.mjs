@@ -4,6 +4,9 @@ import { createServer, request } from "node:http";
 import { registerHooks } from "node:module";
 import test from "node:test";
 import next from "next";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 // This harness runs Next in its normal React environment. Only trusted fixture
 // imports need the server-only marker bypass; application bundles retain it.
@@ -24,6 +27,7 @@ test("actual Next account routes use only a disposable synthetic schema", { time
   const counts = () => Promise.all([database.user.count(), database.account.count(), database.userAccount.count(),
     database.verification.count(), database.outboxEvent.count(), database.accountEmailDelivery.count(), database.session.count()]);
   const environment = { ...process.env };
+  const photoRoot = await mkdtemp(join(tmpdir(), "halaga-synthetic-browser-photos-"));
   let app;
   let server;
   try {
@@ -32,6 +36,7 @@ test("actual Next account routes use only a disposable synthetic schema", { time
     process.env.BETTER_AUTH_SECRET = "synthetic-signup-secret-for-local-tests-only";
     process.env.ACCOUNT_EMAIL_SENDING_ENABLED = "false";
     process.env.HALAGA_PUBLIC_ORIGIN = origin;
+    process.env.DRAFT_PHOTO_ROOT = photoRoot;
     process.env.HALAGA_ACCOUNT_INTEGRATION_TEST = "true";
     delete process.env.BETTER_AUTH_TRUSTED_ORIGINS;
     process.env.AUTH_TRUSTED_IP_HEADER = "x-synthetic-ip";
@@ -408,6 +413,7 @@ test("actual Next account routes use only a disposable synthetic schema", { time
       for (const key of Object.keys(process.env)) if (!(key in environment)) delete process.env[key];
       Object.assign(process.env, environment);
       await sandbox.close();
+      await rm(photoRoot, { recursive: true, force: true });
     }
   }
 });

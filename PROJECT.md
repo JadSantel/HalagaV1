@@ -400,6 +400,22 @@ Halaga records monetary amounts exactly to two decimal places, including centavo
 
 ### 11.1 Photos
 
+Local synthetic photo supplement (2026-10-21 PHT, owner-approved ADR-095): owners
+can upload, view processed derivatives, remove and order private laptop draft
+photos through authorized server paths. Photo mutations append immutable ordered
+revision references; ordinary saves carry current references forward. Cross-owner
+and cross-listing attachment is forbidden. Originals have no serving endpoint.
+Only fully validated, metadata-free derivatives with committed processing approval
+can be displayed. Pending, failed, rejected, quarantined, missing and deleted
+derivatives cannot qualify as evidence. Synthetic images never satisfy actual-item
+publication evidence, even after technical approval.
+
+Accepted synthetic limits are JPEG/single-frame PNG, 10 current slots, 10 MiB per
+file, 24 million decoded pixels, 10,000 pixels per axis and 256 MiB aggregate storage
+per owner including reservations/history. ADR-095 defines private local storage,
+ClamAV plus sharp processing, derivative settings and bounded jobs. These are local
+synthetic limits, not pilot capacity or a hosted provider decision.
+
 - At least two clear photos of the actual item are required.
 - Stock images, catalog images, and screenshots alone do not qualify.
 - Known visible defects must not be intentionally omitted.
@@ -425,6 +441,11 @@ IMEI entry is optional but strongly encouraged for smartphones and cellular-capa
 - Providing an IMEI does not prove ownership, authenticity, or theft-free status.
 
 ### 11.4 Local synthetic draft implementation boundary (2026-10-19 PHT)
+
+ADR-095's later photo implementation supersedes media-unavailable statements in
+this historical boundary: owner-private synthetic photo handling now exists.
+Actual-item evidence assessment/publication remains unavailable. See
+[DRAFT_PHOTO_LOCAL_TESTING.md](docs/DRAFT_PHOTO_LOCAL_TESTING.md).
 
 Saved revision review supplement (2026-10-21 PHT): owners can open
 `/drafts/[listingId]/review?revision=N` from the editor's saved-revision link.
@@ -928,6 +949,28 @@ exceptions remain private and audited; provider/backup evidence, restore safegua
 and exception enforcement remain prerequisites for real data. No indefinite
 retention or physical-erasure guarantee during worker outages is authorized.
 
+### 28.6 Local synthetic draft retention (ADR-095)
+
+Entire never-published synthetic drafts, including text-only content, revisions,
+photo references, derivatives, processing provenance and retry records, expire
+after 30 elapsed days without a successful owner content/photo mutation. Reads,
+committed-request retries and worker activity never restart the clock. Expired
+drafts are unavailable immediately; the explicitly invoked local photo worker
+performs physical erasure and can resume after failure. No hosted cadence or
+bounded physical-erasure latency during downtime is promised.
+
+Original bytes are deleted after approved processing or permanent rejection;
+pending/transiently failed originals expire 24 elapsed hours from admission,
+without retry extensions. Incomplete/canceled uploads and crash artifacts receive
+idempotent cleanup. Removing a current photo appends a revision; it never rewrites
+earlier references. Earlier safe derivatives remain private under the draft cutoff,
+not forever. Scoped exceptions prevent physical deletion without making expired
+data owner-readable; overdue holds require authorized review. Eligible explicit
+deletion must erase sooner under its workflow safeguards when those commands are
+implemented. This does not replace transaction, negotiation, case or verification
+retention, or authorize adopting draft assets into those workflows without their
+classification. See ADR-095 for the cleanup and recovery contract.
+
 ## 29. Core Domain Model
 
 The implementation must represent these concepts explicitly rather than collapsing them into a single listing status or chat record:
@@ -1112,6 +1155,11 @@ These items are intentionally not invented in this specification. They require a
 - Diagnostic question wording and safe-testing guidance for supported categories other than the accepted laptop prototype.
 - Provider-specific backup purge timing and deletion propagation.
 - Remaining hosting, deployment, database, storage, processing, worker, observability, and analytics choices listed in `architecture.md` section 8.2.
+
+ADR-095 resolves private local synthetic draft-photo storage/processing, limits,
+30-day draft and 24-hour original cleanup, and its versioned manual worker policy.
+Hosted storage, scanner setup verification, public evidence assessment/publication,
+staff/hold-review tools, general deletion and real-data readiness remain gated.
 
 ADR-090 resolves renewal (at most two renewals, no post-expiry grace, and
 `Newest` changes only after materially changed republication), appointment

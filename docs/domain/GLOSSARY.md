@@ -2,7 +2,25 @@
 
 This glossary records agreed meanings for product and domain terms. It should be updated when interviews establish or change a term.
 
+## Synthetic Draft Photo Asset
+
+An owner/listing-bound private upload with a hash, bounded original lifetime and
+separate durable processing attempts. Only an approved metadata-free derivative
+may be displayed through authorized draft paths. Technical approval never makes
+synthetic images actual-item publication evidence (ADR-095).
+
+## Draft Photo Revision Reference
+
+An immutable link from a saved listing revision to its own owner's/listing's photo
+asset and order. Removal/reordering appends a new snapshot; earlier references keep
+their identity/order. Missing or deleted bytes yield unavailable history, never an
+original fallback or another asset. Whole synthetic draft history expires after
+30 elapsed days without a successful owner content/photo mutation (ADR-095).
+
 ## Saved Laptop Revision Review
+
+ADR-095 adds owner-private ordered synthetic photo references and safe derivatives
+for the exact revision, without qualifying actual-item publication evidence.
 
 An account-private, read-only view of one immutable saved laptop revision, identified
 by listing and revision number. Proposed public fields and private price expectation
