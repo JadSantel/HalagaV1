@@ -46,7 +46,7 @@ The MVP application is a modular monolith in one repository and codebase. The ac
 
 Tailwind CSS 4 is the selected utility-first styling framework (ADR-083). Tailwind supplies styling utilities; it does not settle Halaga's visual design, component system, or design tokens, which remain governed by `design.md` and accepted design decisions.
 
-The database access and migration tool is Prisma ORM 7, with `prisma` schema and checked-in Prisma Migrate migrations as the versioned database change path. Zod 4 is the shared TypeScript runtime validation library. The initial stable release lines are Node.js 24 LTS, Next.js 16, React 19, TypeScript 5.9, Prisma ORM 7, PostgreSQL 18, Better Auth 1.x, Zod 4, and Tailwind CSS 4 (ADR-083). Exact patch versions must be recorded in the package manifest, runtime pin, and lockfile when the runnable application is bootstrapped, and maintained with security updates. Choosing Next.js does not choose Vercel, and choosing PostgreSQL does not choose a database host. MVP listing search uses PostgreSQL under ADR-076; query tuning and performance targets remain open.
+The database access and migration tool is Prisma ORM 7, with `prisma` schema and checked-in Prisma Migrate migrations as the versioned database change path. Zod 4 is the shared TypeScript runtime validation library. The initial stable release lines are Node.js 24 LTS, Next.js 16, React 19, TypeScript 5.9, Prisma ORM 7, PostgreSQL 18, Better Auth 1.x, Zod 4, and Tailwind CSS 4 (ADR-083). Exact patch versions must be recorded in the package manifest, runtime pin, and lockfile when the runnable application is bootstrapped, and maintained with security updates. Choosing Next.js does not choose Vercel, and choosing PostgreSQL does not choose a database host. MVP listing search uses PostgreSQL under ADR-076; query tuning must meet the service targets in ADR-091.
 
 Prisma's schema and checked-in migration history must be kept aligned, with any intentionally SQL-only database features documented as schema exceptions. Migrations may contain reviewed PostgreSQL SQL for constraints and indexes that the Prisma schema cannot represent; the database remains authoritative for those invariants, and a later generated migration must not silently remove them. Do not use schema-push workflows against shared or persistent environments. Use parameterized raw SQL only where a reviewed query needs PostgreSQL-specific behavior or Prisma cannot express the required atomic operation. Zod validates untrusted inputs at server boundaries and may provide client feedback, but it does not replace domain-command checks, authorization, database constraints, or safe projections.
 
@@ -670,13 +670,13 @@ This is an architecture working draft, not an implementation-ready specification
 - The application is a modular monolith; PostgreSQL is the relational system of record (ADRs 069–070).
 - PostgreSQL-backed outbox and durable jobs, bounded retries, expiring leases, idempotency, failed-job handling, and controlled retries are accepted. A separate Node.js worker remains the proposed runtime, not a final deployment decision (ADR-073).
 - Better Auth and Brevo Free are selected for authentication and transactional email (ADRs 074–075).
-- ADR-086 sets seven-day rolling sessions with daily renewal, 15-minute sign-in freshness for sensitive changes, host-only secure production cookies, and explicit endpoint rate limits. ADR-087 sets atomic signup, adult attestation, verification, reset and email-change behavior. ADR-088 sets encrypted account-email handoff, templates/links, delivery retries/recovery and retention. Slice 2 implements internal account transactions, six protected email-only routes, fragment forms and a local run-once Node.js dispatcher. Signup/sign-in/password change stay closed; hosted worker scheduling, password-change notice writes, sign-in races, staff recovery and provider/readiness setup remain gates. Restrictions and full command authorization are separate gates. See `docs/IMPLEMENTATION_SLICES.md` and `app/README.md` for implemented versus gated boundaries.
+- ADR-086 sets session, freshness, cookie, and endpoint rate-limit policies. ADR-087 sets signup, adult attestation, verification, reset, email-change, and credential-flow behavior. ADR-088 sets encrypted account-email handoff and dispatch/recovery rules; ADR-089 sets password-change email and retention rules. Signup, sign-in, and password change have protected local synthetic integrations. Six email-only account commands and fragment forms are mounted for synthetic validation; provider sending remains off by default. Hosted worker scheduling, audited staff recovery, restriction enforcement, full marketplace authorization, provider setup, and ADR-081 readiness remain gates. See `docs/IMPLEMENTATION_SLICES.md` and `app/README.md` for current boundaries.
 - MVP search uses PostgreSQL, not a separate search service (ADR-076).
 - Prisma ORM 7 and versioned migrations follow ADR-083. ADR-084 settles the first foundation's UUIDs, exact centavo money and versioned per-question JSON diagnostic storage. The first account/listing migration enforces revision FKs, storage checks and publication history constraints; the physical review records SQL-only triggers and the native `btree_gist` availability exclusion. Marketplace commands and their authorization/audit/outbox gates remain unimplemented.
 - Public-pilot recovery targets are RPO ≤24 hours and RTO ≤24 hours; these must be demonstrated in a restore test, not assumed from a provider's marketing (ADR-082).
 - Uncompleted private negotiation content has six-month retention (ADR-077); retention exceptions are narrowly scoped and periodically reviewed (ADR-079).
 - Moderation and verification decisions have one bounded internal appeal (ADR-078); pilot operations require a trained alternate and a coverage gate (ADR-080).
-- Completion reminders and mismatch deadlines follow ADR-063. Appointment reminder timing remains an open, separate policy because ADR-063 addresses completion confirmations only.
+- Completion reminders and mismatch deadlines follow ADR-063. ADR-090 sets no appointment-specific reminders.
 
 ### 8.2 Open decisions before implementation or public pilot
 
@@ -684,26 +684,26 @@ These decisions must be recorded rather than inferred in code. Some are needed b
 
 **Product, policy, and operations**
 
-- Listing renewal limits, grace period, and the `Newest` timestamp behavior after renewal/material republication.
-- Whether to send appointment reminders and, if so, their timing and delivery rules (separate from ADR-063 completion reminders).
-- Handling an account discovered to be underage.
-- Password-change readiness: accepted ADR-089 resolves the email/retention brief's event-specific policy gaps and supplements ADR-087/088. Implementation and synthetic verification must precede mounting; provider/backup evidence, hold enforcement, audited staff recovery, protected HTTP/client integration and operational/ADR-081 readiness remain gates. No schedule or real sending is selected.
-- Category-request waitlist behavior and diagnostic questions/safe-testing guidance for supported categories beyond the laptop prototype.
-- External emergency or law-enforcement escalation procedure.
-- Service availability, performance, browser support, PWA position, and storage-capacity targets.
+- ADR-090 sets a two-renewal maximum, no post-expiry grace, and updates `Newest` only after materially changed republication.
+- ADR-090 sets no appointment-specific reminders; ADR-063 completion reminders remain in force.
+- ADR-090 defines restricted review, correction/appeal, workflow safeguarding, and ordinary retention for later-discovered underage accounts.
+- Password-change behavior and email/retention are accepted in ADR-087/089 and protected HTTP/client integration is implemented for local synthetic validation. Provider/backup evidence, hold enforcement, audited staff recovery and ADR-081 operational readiness remain launch gates.
+- ADR-090 rejects unsupported categories without a waitlist. Validated category diagnostics and safe-testing guidance remain required before publication in each category.
+- ADR-090 defines narrow urgent external escalation criteria and audit controls; jurisdiction-specific legal obligations still require qualified counsel.
+- ADR-091 sets 99.5% monthly availability, p95 render/response targets, browser support, responsive-web-only scope, and quota-based capacity.
 - Backup purge timing and deletion propagation under the eventual providers.
-- IMEI/device-identifier blocklist integration remains deferred unless a pilot requirement is established.
+- ADR-090 defers external IMEI/device-identifier blocklists for the MVP; user reports receive human review.
+- ADR-090 defines scoped restrictions and suspension: only affected marketplace actions are blocked; sign-in remains available for notices, appeals, account security and deletion; active workflows follow their existing safeguards.
 
 **Deployment, infrastructure, and operations**
 
 - Web and worker hosting/deployment, PostgreSQL hosting/connection model, backup/restore implementation, object storage and image/evidence processing providers, and observability/analytics implementation.
-- Final Node.js worker deployment, polling schedule, alert thresholds, rollout compatibility and recovery runbook. ADR-088 sets the account-email two-minute lease and bounded 429 retry policy; other job classes still need policies.
-- ADR-087 settles signup, adult attestation, verification (24-hour single-use), password reset (one-hour single-use), email change, generic account-request responses, and session-revocation behavior. ADR-088 settles encrypted private handoff, account email content/links, dispatch and terminal retention. Session, cookie, freshness and endpoint/IP limits remain as accepted in ADR-086. The six email-only routes and cookie/link integration are implemented. Signup, sign-in and password-change mounting still require their remaining flow protection, notice writes and sign-in race work. Session/token/counter cleanup, password-change notice writes, restricted staff reconciliation and production secret provisioning/rotation remain open. Production origin and trusted client-IP header require deployment review; no proxy/provider is assumed. Endpoint limits do not cover direct `auth.api` calls, so future external wrappers need equivalent protection. Exact dependency/runtime patches are pinned at application bootstrap; provider-supported PostgreSQL minor patch and upgrade policy are verified when hosting is selected.
+- Hosted worker deployment, polling cadence, alert thresholds, rollout compatibility and recovery runbook remain unselected. ADR-088 sets account-email lease/retry behavior; other job classes need policies. Hosted operations remain local/manual until separately approved. Session/token/counter cleanup, restricted staff reconciliation, secret provisioning/rotation, production origin and trusted client-IP configuration require review with the selected host. No proxy/provider is assumed. Exact dependency/runtime patches are pinned; PostgreSQL minor patch and upgrade policy must be verified when hosting is selected.
 - Early validation uses local/private environments and synthetic data. Real participant data and public-pilot deployment are gated on documented privacy, backup/restore (RPO ≤24h/RTO ≤24h), retention/deletion, worker-recovery, availability, and quota checks or an explicitly approved, costed exception (ADRs 071, 081, 082).
 
 **Validation and design completeness**
 
-- Wireframes and domain boundaries exist as drafts, but have not been validated with users, tested across desktop/mobile/accessibility criteria, or expanded into complete state-transition tables.
+- Wireframes and domain boundaries exist as drafts, but have not been validated with users or tested across desktop/mobile/accessibility criteria, or expanded into complete state-transition tables.
 - The logical model is not a physical schema; privacy projections, constraints, and race requirements still need implementation-level verification.
 
 ## 9. Remaining architecture deliverables
@@ -714,7 +714,7 @@ Several deliverables from the original sequence now exist in draft form; their v
 | --- | --- | --- |
 | Critical user/operator flows | Section 4; detailed policy is in `PROJECT.md` and ADRs | Validate flow comprehension with intended users; resolve open policy decisions before affected implementation |
 | Mobile-first screen design | `docs/design/WIREFRAMES.md`, low-fidelity specification | Usability tests, desktop layouts, keyboard/screen-reader/zoom/reflow checks, and accessibility verification |
-| Laptop condition prototype | `docs/design/LAPTOP_DIAGNOSTICS.md`, accepted first English prototype | Test task comprehension and safe completion with sellers; other supported categories still need validated question sets before pilot |
+| Laptop condition prototype | `docs/design/LAPTOP_DIAGNOSTICS.md`, accepted first English prototype | Test task comprehension and safe completion with sellers; each other category needs accepted, validated questions and safe-testing guidance before it pilots (ADR-018, ADR-090) |
 | Domain model and boundaries | `docs/architecture/DOMAIN_MODEL.md`, initial logical model and diagrams | Complete state-transition tables, refine physical constraints/projections, and validate privacy and concurrency requirements |
 | Architecture decisions | ADR-069 through ADR-082 plus earlier product ADRs | Decide remaining providers/operations through evidence-based ADRs; reconcile accepted choices here and in `PROJECT.md` where product policy changes |
 | Thin end-to-end slice | Acceptance path identified below; not implemented or tested | Build and verify listing creation -> private offer -> seller acceptance -> appointment -> matching completion confirmations, including durable-job and authorization behavior |

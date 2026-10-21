@@ -158,10 +158,12 @@ Active workflows must still reach a terminal state through cancellation, complet
 Local account-guard record (2026-10-20 PHT): the protected sign-in operation now
 rereads account deletion under identity/domain locks and rejects deleted accounts
 before creating a session, enforcing ADR-074's existing deletion-disables-login
-rule. Existing account-command deletion guards remain in place. This slice does
-not define suspension effects on authentication or recovery; scoped marketplace
-restrictions and suspension still need action-specific policy before those guards
-can be implemented. See `docs/SIGN_IN_LOCAL_TESTING.md` for scope and verification.
+rule. Existing account-command deletion guards remain in place. That implementation
+record did not define suspension effects on authentication or recovery; ADR-090
+now settles these effects. Scoped restrictions block only affected marketplace actions.
+Suspended accounts retain sign-in for notices, appeals, account security and
+eligible deletion, while active workflows continue under their existing rules.
+See `docs/SIGN_IN_LOCAL_TESTING.md` for scope and verification.
 
 Latest local implementation record (2026-10-20 PHT, after ADR-089): the owner
 explicitly authorizes protected POST `/api/auth/change-password` and the existing
@@ -1053,16 +1055,23 @@ Usage and quota consumption must be observable. Where a provider supports them, 
 These items are intentionally not invented in this specification. They require a focused product, policy, legal, operational, design, or architecture decision before the affected behavior is implemented or the pilot launches:
 
 - Diagnostic question wording and safe-testing guidance for supported categories other than the accepted laptop prototype.
-- Whether unsupported category attempts are only rejected or may join a category-request waitlist.
-- Renewal limits and any post-expiry renewal grace period.
-- The exact timestamp behavior for `Newest` after renewal or material republication.
 - Provider-specific backup purge timing and deletion propagation.
-- Treatment of an account later found to be underage.
-- Password-change readiness: ADR-087 settles trigger, eligibility and atomic binding; owner-approved ADR-089 resolves the email/retention brief's event-specific copy, delivery, retention, cleanup and deletion rules. Implement and verify them before mounting. Provider/backup evidence, hold enforcement, protected password-change integration and operational/ADR-081 readiness remain gates; no real sending, participant data, deployment or schedule is authorized.
-- External emergency or law-enforcement escalation procedure.
-- IMEI or device-identifier blocklist integrations.
-- Availability, performance, browser-support, PWA, and storage-capacity targets.
 - Remaining hosting, deployment, database, storage, processing, worker, observability, and analytics choices listed in `architecture.md` section 8.2.
+
+ADR-090 resolves renewal (at most two renewals, no post-expiry grace, and
+`Newest` changes only after materially changed republication), appointment
+reminders (none), unsupported-category handling (reject without waitlist),
+later-discovered underage accounts, urgent external escalation, and external
+device-identifier blocklists (none in MVP), plus scoped restrictions and
+suspension access behavior. Category-specific diagnostics and
+safe-testing guidance remain governed by ADR-018 and the accepted laptop
+prototype; no category may publish using a condition claim unsupported by its
+validated checks. Hosting and provider choices remain pending owner review.
+
+ADR-091 sets pilot availability and latency targets, browser support, no PWA
+commitment, and quota-based capacity. It does not select a provider or authorize
+hosted operations; those remain local/manual until separately approved and
+verified under ADR-081.
 
 These deferred items do not authorize arbitrary defaults. Record the decision before relying on it.
 
