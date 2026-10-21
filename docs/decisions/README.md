@@ -2,6 +2,12 @@
 
 The files in this directory preserve decisions in chronological order.
 
+Pending geography proposal (2026-10-21 PHT): [ADR-094](ADR-094-controlled-cdo-barangay-registry.md)
+proposes a PSA PSGC source, identifiers, versioned provenance, maintenance ownership
+and historical/retry behavior for owner-private laptop drafts. It is **not accepted**;
+dependent registry and selection implementation remains paused for owner review.
+Current drafts still store null barangay; no map provider or geocoding is selected.
+
 Latest age-data decision (2026-10-21 PHT): [ADR-093](ADR-093-check-age-without-retaining-birth-date.md)
 supersedes DOB retention/repeated age checks in ADR-042/087. Check transient DOB
 once at signup in PHT, discard it on success and rejection, and retain only the
