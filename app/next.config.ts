@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Keep synthetic account-route tests separate from an existing dev server.
+  distDir: process.env.HALAGA_ACCOUNT_INTEGRATION_TEST === "true" ? ".next/account-integration" : ".next",
   async headers() {
     return ["/account/:path*", "/api/auth/:path*", "/drafts/:path*"].map((source) => ({ source, headers: [
       { key: "Referrer-Policy", value: "no-referrer" },

@@ -1,6 +1,7 @@
 # ADR-042: Restrict MVP Marketplace Participation to Adults
 
 - Status: Accepted
+- DOB-retention supersession: ADR-093 (2026-10-21 PHT) replaces retained DOB with transient signup checking and minimal passed-check/attestation evidence. Adults-only eligibility and the separate attestation remain.
 - Date: 2026-10-06
 
 ## Context

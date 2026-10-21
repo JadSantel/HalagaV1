@@ -1,6 +1,7 @@
 # ADR-087: Define Account Onboarding and Email/Credential Flows
 
 - Status: Accepted
+- DOB-retention supersession: ADR-093 (owner-approved 2026-10-21 PHT) checks DOB once then discards it; store only passed-check time and the unchanged attestation version/time. Older retained-DOB statements below are historical.
 - Date: 2026-10-14
 - Password-change notice supplement approved by owner: 2026-10-15 PHT
 - Account email delivery supplement: ADR-088, accepted 2026-10-15 PHT on explicit owner request

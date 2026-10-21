@@ -149,10 +149,10 @@ export function createAccountEmailDispatcher(
       }
       const accountRows = await tx.$queryRaw<Array<{
         userId: string; email: string; emailVerified: boolean; accountId: string;
-        emailVerifiedAt: Date | null; deletedAt: Date | null; dateOfBirth: Date | null; adultAttestedAt: Date | null;
+        emailVerifiedAt: Date | null; deletedAt: Date | null; adultEligibilityCheckedAt: Date | null; adultAttestedAt: Date | null;
       }>>`
         SELECT u.id AS "userId", u.email, u."emailVerified", a.id AS "accountId", a."emailVerifiedAt",
-               a."deletedAt", a."dateOfBirth", a."adultAttestedAt"
+               a."deletedAt", a."adultEligibilityCheckedAt", a."adultAttestedAt"
         FROM "user" u JOIN "user_account" a ON a."authUserId" = u.id
         WHERE a.id = ${event.accountId}::uuid FOR UPDATE OF u, a
       `;
@@ -206,7 +206,7 @@ export function createAccountEmailDispatcher(
         catch { binding = { success: false as const }; }
         if (!binding.success || binding.data.accountId !== event.accountId || binding.data.currentEmail !== account.email ||
             !account.emailVerified || !account.emailVerifiedAt || account.emailVerifiedAt > now ||
-            !hasAdultEligibility(account.dateOfBirth, account.adultAttestedAt, now) ||
+            !hasAdultEligibility(account.adultEligibilityCheckedAt, account.adultAttestedAt, now) ||
             await tx.user.findUnique({ where: { email: binding.data.proposedEmail }, select: { id: true } })) {
           await tx.accountEmailDelivery.updateMany({ where: { id: job.id, state: "LEASED", leaseId: job.leaseId }, data: {
             state: "SUPPRESSED", leaseId: null, leaseExpiresAt: null, terminalAt: now,

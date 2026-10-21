@@ -54,7 +54,7 @@ test("isolated PostgreSQL email-change transactions", async (t) => {
   const state = async ({ userId, accountId }) => ({
     identity: await database.user.findUnique({ where: { id: userId }, select: { id: true, name: true, email: true, emailVerified: true, createdAt: true, updatedAt: true } }),
     account: await database.userAccount.findUnique({ where: { id: accountId }, select: { id: true, authUserId: true, displayName: true,
-      dateOfBirth: true, adultAttestedAt: true, adultAttestationVersion: true, emailVerifiedAt: true, deletedAt: true, createdAt: true, updatedAt: true } }),
+      adultEligibilityCheckedAt: true, adultAttestedAt: true, adultAttestationVersion: true, emailVerifiedAt: true, deletedAt: true, createdAt: true, updatedAt: true } }),
     credentials: await database.account.findMany({ where: { userId }, orderBy: { id: "asc" }, select: { id: true, userId: true, accountId: true, password: true, updatedAt: true } }),
     sessions: await database.session.findMany({ where: { userId }, orderBy: { id: "asc" }, select: { id: true, userId: true, createdAt: true, updatedAt: true, expiresAt: true } }),
     tokens: await database.verification.findMany({ where: { identifier: { in: [namespace + userId, "halaga-email-verification:" + userId, "halaga-password-reset:" + userId] } },
@@ -261,7 +261,7 @@ test("isolated PostgreSQL email-change transactions", async (t) => {
     });
 
     await t.test("deleted, missing, remapped and ineligible accounts reject requests and proof without repairs", async () => {
-      for (const change of ["deleted", "missing-account", "missing-identity", "remapped", "underage", "no-attestation", "future-attestation", "unverified", "no-domain-verification", "future-verification", "current-address"]) {
+      for (const change of ["deleted", "missing-account", "missing-identity", "remapped", "no-age-check", "future-age-check", "no-attestation", "future-attestation", "unverified", "no-domain-verification", "future-verification", "current-address"]) {
         const account = await fixture();
         const issued = await issue(account);
         if (change === "deleted") await database.userAccount.update({ where: { id: account.accountId }, data: { deletedAt: now } });
@@ -270,9 +270,10 @@ test("isolated PostgreSQL email-change transactions", async (t) => {
           await database.userAccount.delete({ where: { id: account.accountId } });
           if (change === "missing-identity") await database.user.delete({ where: { id: account.userId } });
           if (change === "remapped") await database.userAccount.create({ data: { authUserId: account.userId, displayName: "Synthetic remapping",
-            dateOfBirth: new Date("2000-01-01"), adultAttestedAt: now, emailVerifiedAt: now } });
+            adultEligibilityCheckedAt: now, adultAttestedAt: now, emailVerifiedAt: now } });
         }
-        if (change === "underage") await database.userAccount.update({ where: { id: account.accountId }, data: { dateOfBirth: new Date("2020-01-01") } });
+        if (change === "no-age-check") await database.userAccount.update({ where: { id: account.accountId }, data: { adultEligibilityCheckedAt: null } });
+        if (change === "future-age-check") await database.userAccount.update({ where: { id: account.accountId }, data: { adultEligibilityCheckedAt: new Date(now.getTime() + 1) } });
         if (change === "no-attestation") await database.userAccount.update({ where: { id: account.accountId }, data: { adultAttestedAt: null } });
         if (change === "future-attestation") await database.userAccount.update({ where: { id: account.accountId }, data: { adultAttestedAt: new Date(now.getTime() + 1) } });
         if (change === "unverified") await database.user.update({ where: { id: account.userId }, data: { emailVerified: false } });

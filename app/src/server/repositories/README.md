@@ -44,7 +44,7 @@ exists; the browser practice form remains memory-only. See
 Latest signup boundary (2026-10-18 PHT, after sign-in): `signup-http.ts` exposes
 only protected POST `/sign-up/email`; application dispatch adds that exact pathname
 alongside sign-in and six email commands. The existing atomic signup operation
-owns identity/credential/mapping/private DOB/attestation/token/encrypted delivery
+owns identity/credential/mapping/passed age-check/attestation/token/encrypted delivery
 intent writes. Configured-origin, first-login CSRF, endpoint/IP limits, generic
 response and no-session behavior remain enforced. No account/private response
 reader or synchronous send is added. This supersedes prior signup route/client
@@ -103,7 +103,7 @@ jobs. Keep the operation and owner detail unmounted; sending defaults off.
 | `src/server/prisma.ts` | Construct and share the generated Prisma client using the installed PostgreSQL adapter and validated server configuration. This is infrastructure, not an authorization service. |
 | `src/server/repositories/auth.ts` | Construct the unmounted Better Auth account instance with ADR-086 policy and the infrastructure adapter. Better Auth owns private identity/session/token/counter tables; this is not a domain authorization grant or a public data reader. |
 | `src/server/repositories/accounts.ts` | Stored-session owner resolution and explicit account-private prerequisite projection; no DOB/email/token output, cache, staff access or action grant. Cookie headers remain private auth transport. |
-| `src/server/repositories/signup.ts` | Internal account-owned transaction coordinating identity/credential, password limits, mapped account, private DOB/attestation, initial verification token/digest, encrypted delivery payload and minimized outbox intent. No session, route, Server Action or synchronous email. |
+| `src/server/repositories/signup.ts` | Internal account-owned transaction coordinating identity/credential, password limits, mapped account, transient DOB validation then discard, private passed-check/attestation evidence, initial verification token/digest, encrypted delivery payload and minimized outbox intent. No session, route, Server Action or synchronous email. |
 | `src/server/repositories/email-verification.ts` | Internal account-owned, namespaced token issue/replacement with encrypted delivery payload and minimized intent; suppresses queued replaced work in the same transaction. Consumption atomically verifies both stores and revokes sessions. No route, Server Action or synchronous email. |
 | `src/server/repositories/password-reset.ts` | Internal account-owned, one-hour reset-token issue/replacement with encrypted delivery payload and minimized intent; suppresses queued replaced work atomically. Credential replacement, token consumption and session revocation remain atomic. No route or synchronous email. |
 | `src/server/repositories/email-change.ts` | Internal account-owned, fresh-session 24-hour bound-token replacement with encrypted delivery payload; proof atomically switches the address, revokes sessions and records an old-address notice plus seven-day delivery job. No route or synchronous email. |

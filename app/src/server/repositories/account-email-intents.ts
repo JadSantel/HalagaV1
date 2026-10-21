@@ -136,9 +136,9 @@ export function createAccountEmailIntentInspector(
               binding.data.currentEmail !== account.email || !account.emailVerified ||
               !account.emailVerifiedAt || account.emailVerifiedAt > now) return { status: "STALE" };
           const eligibility = await transaction.userAccount.findUnique({
-            where: { id: intent.accountId }, select: { dateOfBirth: true, adultAttestedAt: true },
+            where: { id: intent.accountId }, select: { adultEligibilityCheckedAt: true, adultAttestedAt: true },
           });
-          if (!eligibility || !hasAdultEligibility(eligibility.dateOfBirth, eligibility.adultAttestedAt, now) ||
+          if (!eligibility || !hasAdultEligibility(eligibility.adultEligibilityCheckedAt, eligibility.adultAttestedAt, now) ||
               await transaction.user.findUnique({ where: { email: binding.data.proposedEmail }, select: { id: true } })) {
             return { status: "STALE" };
           }

@@ -55,7 +55,7 @@ test("isolated PostgreSQL password-reset transactions", async (t) => {
   const state = async ({ userId, accountId }) => ({
     identity: await database.user.findUnique({ where: { id: userId }, select: { email: true, emailVerified: true, updatedAt: true } }),
     account: await database.userAccount.findUnique({ where: { id: accountId },
-      select: { emailVerifiedAt: true, deletedAt: true, dateOfBirth: true, adultAttestedAt: true, adultAttestationVersion: true, updatedAt: true } }),
+      select: { emailVerifiedAt: true, deletedAt: true, adultEligibilityCheckedAt: true, adultAttestedAt: true, adultAttestationVersion: true, updatedAt: true } }),
     credentials: await database.account.findMany({ where: { userId }, orderBy: { id: "asc" },
       select: { id: true, accountId: true, providerId: true, password: true, updatedAt: true } }),
     sessions: await database.session.findMany({ where: { userId }, orderBy: { id: "asc" },

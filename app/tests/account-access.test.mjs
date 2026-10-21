@@ -7,22 +7,33 @@ import { prismaAdapter } from "@better-auth/prisma-adapter";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client.ts";
 import { createAuthPolicy } from "../src/server/auth-policy.ts";
-import { hasAdultEligibility, requireAccountPrerequisites } from "../src/server/account-access.ts";
+import { hasAdultEligibility, isAtLeast18, requireAccountPrerequisites } from "../src/server/account-access.ts";
 import { createAccountAccessReader } from "../src/server/repositories/accounts.ts";
 import { openLocalDatabase } from "../scripts/local-database.mjs";
 
-test("adult prerequisites require DOB and attestation, with the eighteenth birthday evaluated in PHT", () => {
+test("signup checks transient DOB with the eighteenth birthday evaluated in PHT", () => {
   const birth = new Date("2008-10-14T00:00:00Z");
-  const attested = new Date("2026-10-01T00:00:00Z");
   const before = new Date("2026-10-13T15:59:59.999Z");
   const birthday = new Date("2026-10-13T16:00:00Z");
-  assert.equal(hasAdultEligibility(birth, attested, before), false);
-  assert.equal(hasAdultEligibility(birth, attested, birthday), true);
-  for (const [dob, attestation] of [[null, attested], [birth, null], [new Date(NaN), attested],
-    [birth, new Date(NaN)], [birth, new Date("2026-10-15")], [new Date("2027-01-01"), attested]]) {
-    assert.equal(hasAdultEligibility(dob, attestation, birthday), false);
+  assert.equal(isAtLeast18(birth, before), false);
+  assert.equal(isAtLeast18(birth, birthday), true);
+  assert.equal(isAtLeast18(new Date(NaN), birthday), false);
+  assert.equal(isAtLeast18(birth, new Date(NaN)), false);
+  assert.equal(isAtLeast18(new Date("2027-01-01"), birthday), false);
+  assert.equal(isAtLeast18(new Date("2008-02-29"), new Date("2026-02-28T15:59:59.999Z")), false);
+  assert.equal(isAtLeast18(new Date("2008-02-29"), new Date("2026-02-28T16:00:00Z")), true);
+  assert.equal(isAtLeast18(new Date("2000-02-29"), birthday), true);
+});
+
+test("stored adult prerequisites require a passed check and valid attestation without DOB", () => {
+  const now = new Date("2026-10-14T00:00:00Z");
+  const checked = new Date("2026-10-01T00:00:00Z");
+  assert.equal(hasAdultEligibility(checked, checked, now), true);
+  for (const [passed, attested] of [[null, checked], [checked, null], [new Date(NaN), checked],
+    [checked, new Date(NaN)], [new Date("2026-10-15"), checked], [checked, new Date("2026-10-15")]]) {
+    assert.equal(hasAdultEligibility(passed, attested, now), false);
   }
-  assert.equal(hasAdultEligibility(new Date("2000-02-29"), attested, birthday), true);
+  assert.equal(hasAdultEligibility(checked, checked, new Date(NaN)), false);
 });
 
 test("all three action prerequisites fail closed without granting target or restriction authorization", () => {
@@ -52,6 +63,7 @@ test("stored sessions resolve only their own account with private projections, r
     const migration = await readFile(new URL("../prisma/migrations/20261012130000_account_listing_foundation/migration.sql", import.meta.url), "utf8");
     await connection.query(migration);
     await connection.query(await readFile(new URL("../prisma/migrations/20261014090000_signup_transaction/migration.sql", import.meta.url), "utf8"));
+    await connection.query(await readFile(new URL("../prisma/migrations/20261021110000_minimize_age_eligibility/migration.sql", import.meta.url), "utf8"));
     database = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }, { schema }), log: [] });
     const auth = betterAuth({
       ...createAuthPolicy({ NODE_ENV: "development", BETTER_AUTH_URL: "http://127.0.0.1:3000",
@@ -77,11 +89,11 @@ test("stored sessions resolve only their own account with private projections, r
     assert.equal(await read(headers, collectHeaders), null, "No domain mapping means no account access; reading never creates it");
     const now = new Date();
     const account = await database.userAccount.create({ data: {
-      authUserId: user.id, displayName: "Synthetic chosen display name", dateOfBirth: new Date("2000-01-02"), adultAttestedAt: now,
+      authUserId: user.id, displayName: "Synthetic chosen display name", adultEligibilityCheckedAt: now, adultAttestedAt: now,
     } });
     await database.user.create({ data: { id: "synthetic-unrelated", name: "Unrelated private name", email: "unrelated@example.invalid" } });
     const unrelated = await database.userAccount.create({ data: {
-      authUserId: "synthetic-unrelated", displayName: "Unrelated", dateOfBirth: new Date("1990-01-01"), adultAttestedAt: now, emailVerifiedAt: now,
+      authUserId: "synthetic-unrelated", displayName: "Unrelated", adultEligibilityCheckedAt: now, adultAttestedAt: now, emailVerifiedAt: now,
     } });
     let access = await read(headers, collectHeaders);
     assert.deepEqual(access, { accountId: account.id, displayName: account.displayName, adultEligible: true, emailVerified: false, recentSignIn: true });
@@ -90,7 +102,7 @@ test("stored sessions resolve only their own account with private projections, r
     assert.equal((await read(headers, collectHeaders)).accountId, account.id, "Caller-supplied IDs cannot select another account");
     for (const query of queries) {
       assert.deepEqual(query, { where: { authUserId: user.id }, select: {
-        id: true, displayName: true, dateOfBirth: true, adultAttestedAt: true, emailVerifiedAt: true, deletedAt: true,
+        id: true, displayName: true, adultEligibilityCheckedAt: true, adultAttestedAt: true, emailVerifiedAt: true, deletedAt: true,
       } });
     }
     assert.deepEqual(Object.keys(access).sort(), ["accountId", "adultEligible", "displayName", "emailVerified", "recentSignIn"]);
@@ -101,10 +113,10 @@ test("stored sessions resolve only their own account with private projections, r
     assert.equal((await read(headers, collectHeaders)).emailVerified, false, "Both records must agree until verification integration exists");
     await database.userAccount.update({ where: { id: account.id }, data: { emailVerifiedAt: now } });
     assert.equal((await read(headers, collectHeaders)).emailVerified, true);
-    for (const data of [{ dateOfBirth: null }, { dateOfBirth: new Date("2015-01-01") }, { adultAttestedAt: null }]) {
+    for (const data of [{ adultEligibilityCheckedAt: null }, { adultEligibilityCheckedAt: new Date(Date.now() + 86400000) }, { adultAttestedAt: null }]) {
       await database.userAccount.update({ where: { id: account.id }, data });
       assert.equal((await read(headers, collectHeaders)).adultEligible, false);
-      await database.userAccount.update({ where: { id: account.id }, data: { dateOfBirth: account.dateOfBirth, adultAttestedAt: account.adultAttestedAt } });
+      await database.userAccount.update({ where: { id: account.id }, data: { adultEligibilityCheckedAt: account.adultEligibilityCheckedAt, adultAttestedAt: account.adultAttestedAt } });
     }
     const old = new Date(Date.now() - 2 * 86400000);
     await database.session.updateMany({ where: { userId: user.id }, data: { createdAt: old, updatedAt: old, expiresAt: new Date(old.getTime() + 7 * 86400000) } });

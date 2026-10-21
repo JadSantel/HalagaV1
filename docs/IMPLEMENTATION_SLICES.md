@@ -6,6 +6,20 @@ This tracker maps the approved MVP to implementation work. Product behavior come
 
 ## Implemented
 
+### Latest Slice 2 age-data minimization (2026-10-21 PHT)
+
+ADR-093 records the owner's “age check only” decision: check DOB once at signup
+in PHT, then discard it on success and rejection. Current signup stores only the
+passed-check time and existing adult-attestation version/time. Account and email-
+change command/intent/dispatch guards use that minimal evidence. A forward migration
+converts only supported legacy synthetic checks at their original attestation date,
+then drops DOB. The signup form clears submitted DOB and explains the boundary.
+This supersedes retained-DOB wording below, without changing the separate final
+document/processing review and conditional ADR-092 capture gates. JCA is informal/
+unregistered, joint team decisions are confirmed, a Privacy Lead is planned, the
+shared inbox remains under setup, and no physical address has been supplied.
+See `SLICE_2_CLOSEOUT.md` for verification and remaining blockers.
+
 ### Latest Slice 2 verification and document review (2026-10-21 PHT)
 
 Current mounted account functions and laptop draft scope/suspension guards pass

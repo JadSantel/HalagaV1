@@ -73,7 +73,7 @@ model UserAccount {
   id                      String    @id @default(uuid()) @db.Uuid
   authUserId              String    @unique
   displayName             String
-  dateOfBirth             DateTime? @db.Date
+  adultEligibilityCheckedAt DateTime? @db.Timestamptz(3)
   adultAttestedAt         DateTime? @db.Timestamptz(3)
   adultAttestationVersion String?
   emailVerifiedAt         DateTime? @db.Timestamptz(3)

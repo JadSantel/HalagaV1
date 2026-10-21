@@ -68,13 +68,26 @@ Prisma's schema and checked-in migration history must be kept aligned, with any 
 | Scope | Examples | Permitted readers |
 | --- | --- | --- |
 | Public marketplace | title, category, derived condition, disclosed defects, approved photos, barangay | anyone |
-| Account-private | date of birth, email, private contact details, private price expectation | account owner; authorized staff only when required |
+| Account-private | passed adult-check/attestation evidence, email, private contact details, private price expectation; transient signup DOB is discarded | account owner; authorized staff only when required |
 | Negotiation-private | inquiry messages, proposals, intended use, acknowledged listing revision | that buyer, the seller, purpose-authorized staff |
 | Reserved-transaction-private | exact appointment location, voluntary contact details, reserved price, confirmations | reserved buyer, seller, purpose-authorized staff |
 | Restricted evidence | IMEI, verification documents, dispute evidence, safety reports | submitting user where appropriate and explicitly authorized staff |
 | Staff/audit | review notes, findings, restrictions, prior/new state, access records | role-authorized staff and system auditors |
 
 Every read path must select an explicit projection for one of these scopes. Public API responses, rendered metadata, search documents, logs, analytics, notifications, and caches must be treated as possible disclosure surfaces.
+
+ADR-093 supersedes older private-DOB storage and repeated age-calculation statements.
+Signup validates transient DOB once against the PHT calendar and discards it on all
+outcomes. `user_account` stores only `adultEligibilityCheckedAt` and the existing
+adult-attestation version/time, atomically with signup. Prerequisite and email-change
+command/intent/dispatch guards use valid, non-future passed-check and attestation
+evidence, with existing account/session/deletion/restriction checks unchanged. No
+DOB field exists after the forward migration. Legacy synthetic evidence qualifies
+only if adulthood was established on its original PHT attestation date with the
+accepted attestation version; missing/inconsistent evidence fails closed. The
+original DOB is then dropped, not copied to history or jobs. Minimal eligibility
+evidence follows active-account/eligible-deletion/scoped-exception retention in
+PROJECT.md §8.1/28.4. Privacy grounds, final documents and ADR-081 remain gates.
 
 Latest account-security reader record (2026-10-21 PHT): the owner-private
 `/account/security` view lists password-change notices within ADR-089's original

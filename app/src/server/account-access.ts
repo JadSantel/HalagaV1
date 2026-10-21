@@ -19,10 +19,9 @@ export class AccountAccessRejected extends Error {
   }
 }
 
-/** Evaluate a private SQL date against the current PHT calendar date, without exposing DOB. */
-export function hasAdultEligibility(dateOfBirth: Date | null, attestedAt: Date | null, now: Date): boolean {
-  if (!dateOfBirth || !attestedAt || !Number.isFinite(dateOfBirth.getTime()) ||
-      !Number.isFinite(attestedAt.getTime()) || attestedAt > now) return false;
+/** Signup only: evaluate transient DOB against the current PHT calendar date. */
+export function isAtLeast18(dateOfBirth: Date, now: Date): boolean {
+  if (!Number.isFinite(dateOfBirth.getTime()) || !Number.isFinite(now.getTime())) return false;
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
   }).formatToParts(now);
@@ -33,6 +32,13 @@ export function hasAdultEligibility(dateOfBirth: Date | null, attestedAt: Date |
   const years = part("year") - birthYear;
   return years > 18 || (years === 18 &&
     (part("month") > birthMonth || (part("month") === birthMonth && part("day") >= birthDay)));
+}
+
+/** Stored passed-check evidence; never recalculate age or retain DOB (ADR-093). */
+export function hasAdultEligibility(checkedAt: Date | null, attestedAt: Date | null, now: Date): boolean {
+  return checkedAt !== null && attestedAt !== null && Number.isFinite(checkedAt.getTime()) &&
+    Number.isFinite(attestedAt.getTime()) && Number.isFinite(now.getTime()) &&
+    attestedAt <= checkedAt && checkedAt <= now;
 }
 
 /** Required by these commands; restrictions, blocks and target/state guards are still separate. */

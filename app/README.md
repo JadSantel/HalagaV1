@@ -238,17 +238,21 @@ unique existing domain account. Callers cannot choose an account ID. Missing map
 deleted accounts, invalid/expired/revoked sessions deny access. Reads do not create
 mappings or collect DOB/attestations. No account routes, UI or domain writes are mounted.
 
-The explicit account-private guard query selects ID, display name, DOB, attestation
+The explicit account-private guard query selects ID, display name, passed-check time, attestation
 timestamp, email-verification timestamp and deletion timestamp. The returned owner-only
 projection contains ID, display name and adult, email-verification and recent-sign-in
 flags. It excludes DOB, email, credentials, session/token material and staff data.
 Do not use it as a public profile, cache it, or pass it to unrelated users, metadata
 or analytics. No staff reader is implemented.
 
-Adult eligibility requires DOB showing at least 18 on the current PHT calendar date
-and a non-future attestation timestamp. This is self-declared eligibility, not verified
-age. Signup rejects an under-18 DOB without retaining it. Treatment of an existing
-account later found underage remains deferred. Email
+ADR-093 checks transient DOB once at signup against the current PHT calendar date
+and discards it on success and rejection. Adult prerequisites require the stored
+passed-check time and non-future attestation. This is self-declared eligibility,
+not verified age. The forward migration derives only supported legacy synthetic
+checks at their original attestation date, then drops DOB. Apply through the
+existing reviewed local migration workflow before manual persistence; this task
+does not migrate persistent/shared storage. Later-discovered underage accounts
+follow ADR-090's restricted review/correction/appeal safeguards. Email
 prerequisites require agreement between the current auth identity and domain verification
 timestamp; disagreement fails closed until verification integrates them. Freshness
 uses session creation, never renewal time.

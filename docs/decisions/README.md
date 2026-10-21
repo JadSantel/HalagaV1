@@ -2,6 +2,15 @@
 
 The files in this directory preserve decisions in chronological order.
 
+Latest age-data decision (2026-10-21 PHT): [ADR-093](ADR-093-check-age-without-retaining-birth-date.md)
+supersedes DOB retention/repeated age checks in ADR-042/087. Check transient DOB
+once at signup in PHT, discard it on success and rejection, and retain only the
+passed-check time plus existing adult-attestation version/time. Current account
+and email-change eligibility guards use that minimal private evidence. A forward
+migration conservatively derives supported legacy synthetic results at the original
+attestation date, then drops DOB. Final privacy grounds/documents, operational
+contact readiness and real-data/launch gates remain open.
+
 Latest account-document decision (2026-10-21 PHT): [ADR-092](ADR-092-account-document-agreement-capture.md)
 accepts a separate unchecked Terms agreement and atomic server-owned document
 versions/time after final documents are approved. The minimal private agreement

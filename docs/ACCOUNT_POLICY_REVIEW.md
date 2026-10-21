@@ -5,9 +5,17 @@
 - Owner instruction: Draft from accepted project rules. Latest supplied team/brand:
   “JCA”, superseding the earlier “Halaga business team” description. The owner
   requests no individual names in the drafts. `support@halaga.ph` is confirmed
-  for both support and privacy requests; a responsible privacy handler is not
-  yet assigned. Legal operator identity, correspondence address and operational
-  privacy-request responsibility remain publication blockers.
+  for both support and privacy requests, but the inbox is still being set up.
+  JCA is informal/unregistered; the team jointly decides data uses. A team member
+  will take responsibility as Privacy Lead, with no individual public name supplied.
+  No physical mailing address was supplied. Legal operator disclosure, address
+  and operational privacy handling remain publication blockers.
+
+Latest accepted age-data decision: [ADR-093](decisions/ADR-093-check-age-without-retaining-birth-date.md).
+The owner confirmed “age check only” and approved checking DOB once then discarding
+it. Signup stores only passed-check time and the existing adult-attestation
+version/time. This supersedes the earlier retained-DOB consent/withdrawal proposal;
+it does not approve a processing basis, final policy text or real-data use.
 
 ## Reviewable implementation
 
@@ -53,15 +61,15 @@ choose a legal basis, assert compliance or waive rights.
 
 ## Decisions needed for approved content
 
-The current processing-map and age-consent/withdrawal proposal is in
-[ACCOUNT_PRIVACY_DECISIONS.md](ACCOUNT_PRIVACY_DECISIONS.md). It remains proposed;
-it does not silently change the accepted DOB policy or approve a processing basis.
+The current processing review and historical age-consent/withdrawal proposal are in
+[ACCOUNT_PRIVACY_DECISIONS.md](ACCOUNT_PRIVACY_DECISIONS.md). ADR-093 supersedes the
+retained-DOB proposal; processing grounds remain unapproved.
 
 | Item | Current state | Required next step |
 | --- | --- | --- |
-| Responsible operator | Team/brand “JCA”; owner requests no individual names | Do not infer that a brand is the legal controller. Responsible legal operator and correspondence address remain unresolved. |
-| Support and privacy contact | `support@halaga.ph` confirmed for both uses; privacy handler unavailable | Establish monitoring, confidential handling and an accountable privacy role before real requests. No responsible person or role is invented. |
-| Processing grounds | Private-DOB design retained; specific-consent review selected | Review the purpose and basis for each data category, consent wording, withdrawal behavior and retention. The owner selected a review direction, not final processing approval. |
+| Responsible operator | Informal, unregistered team/brand “JCA”; joint team decisions; no public individual names supplied | Do not infer that the brand is a legal entity. Responsible operator disclosure and physical correspondence address remain unresolved. |
+| Support and privacy contact | `support@halaga.ph` still being set up; a team member will take the Privacy Lead role | Verify inbox monitoring, confidential handling and accountable operation before real requests. Planned responsibility is not operational readiness. |
+| Processing grounds | ADR-093 accepts transient DOB checking and minimal passed-check/attestation evidence | Review the basis and disclosures for transient age checking and retained evidence, alongside the bounded processing map. No ongoing retained-DOB consent/withdrawal flow is authorized. |
 | Terms agreement | ADR-092 accepted; implementation conditional | After final document approval, add the separate unchecked agreement and atomic server-owned versions/time. Erase the minimal record on eligible deletion unless a scoped exception applies. Notice viewing is not consent. |
 | Final text and effective versions | Drafts prepared | Review the rendered wording, approve changes and assign effective versions/date only after dependencies are settled. |
 

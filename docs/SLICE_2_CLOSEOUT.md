@@ -4,11 +4,74 @@
 - Scope: local/private synthetic accounts and currently mounted actions
 - Status: current account implementation verified; final document approval blocked
 
+## Latest age-data implementation (ADR-093, 2026-10-21 PHT)
+
+The owner confirmed birthdays are for “age check only” and approved checking once
+then discarding them. Signup now validates transient DOB in PHT and atomically
+stores only `adultEligibilityCheckedAt` with the existing attestation version/time.
+The account, email-change command, intent-inspection and dispatcher guards all use
+that evidence. Missing/invalid/future evidence denies eligibility. Strict signup
+rejects client-supplied result/time fields. The submitted date field clears on
+completed responses, including errors and uncertain outcomes.
+
+The forward migration `20261021110000_minimize_age_eligibility` derives supported
+legacy synthetic checks only where the original finite DOB, accepted attestation
+version/time and original PHT date establish adulthood. It never grants eligibility
+just because someone became 18 later. It then drops DOB for every row. Existing
+migrations are unchanged. No persistent/shared migration was applied; the reviewed
+local workflow is required before manually using the updated app against storage.
+This is not evidence of backup/provider erasure or complete retention execution.
+
+ADR-093, PROJECT.md, architecture, design, glossary, schema review, policy-review
+documents, signup/integration guides and tracker now reflect the decision. The
+rendered Terms/Notice remain drafts and describe both minimization and the actual
+contact status. No Terms agreement or new consent has been activated. The earlier
+retained-DOB consent/withdrawal proposal is explicitly superseded; processing
+grounds for transient age checking and retained evidence remain under review.
+
+Latest verification (from `app`; synthetic dedicated DB/fake delivery only):
+
+| Command | Result |
+| --- | --- |
+| `npm.cmd run db:generate` | Passed |
+| `npm.cmd run test:signup` | 8 passed, including forward-migration PHT/leap-day/missing-version/evidence cases and absent DOB column |
+| `npm.cmd run test:auth` | 22 passed, including minimal stored-evidence prerequisites and explicit private projection |
+| `npm.cmd run test:verification` / `test:reset` / `test:email-change` | 11 / 12 / 16 passed |
+| `npm.cmd run test:password-change` / `test:sign-in` | 35 / 38 passed |
+| `npm.cmd run test:account-email-intents` / `test:account-email` | 13 / 27 passed |
+| `npm.cmd run test:laptop-drafts` / `test:foundation` / `test:logging` | 17 / 21 / 5 passed |
+| `npm.cmd run test:sign-in-app` with installed-browser opt-in | 19 passed, including date-field clearing, document navigation, focus, 1440/375/320px reflow, 200% text and zero automated WCAG-tagged violations |
+| `npm.cmd exec tsc -- --noEmit` / `npm.cmd run lint` / `npm.cmd run build` | Passed |
+| Impeccable detector over the two changed UI sources | Passed, `[]` |
+
+Total: 244 passing checks, no final failures/skips. Existing module-type warnings
+remain non-fatal. Two initial mounted-route launches exited before tests because
+an existing dev server held the default output lock. Passing `conf` to Next's
+custom server did not isolate its config loader; the existing config now selects
+the fixed `.next/account-integration` directory only for the harness's explicit
+`HALAGA_ACCOUNT_INTEGRATION_TEST=true` flag. Default app output is unchanged.
+The harness uses port 3102; avoid concurrent harnesses or a build cleaning `.next`.
+Next's additional TypeScript includes for that directory are retained. The existing
+development server was not manually stopped. No real participant data, email,
+deployment, new dependency or billing path was used. Human accessibility,
+translation, privacy review and all real-data readiness gates remain open.
+
+Desktop/mobile signup and both policy-document screenshots were inspected. A
+final browser rerun recaptured them after the production build cleaned the earlier
+`.next` images; all 19 checks passed again. The two empty disposable schemas left
+by Next's pre-test process exits were identified by the new age-check schema and
+zero records, then removed by exact name after locking and verifying every table
+was empty. An initial inspection raced normal successful-test cleanup, and the
+first removal attempt rejected a camel-case table name; neither attempt deleted
+data. The corrected conservative identifier check completed cleanup. The temporary
+inspection script was removed. Final `git diff --check` passed with existing
+LF/CRLF notices only.
+
 ## Acceptance inventory
 
 | Requirement | Implemented behavior / evidence | Status |
 | --- | --- | --- |
-| Registration and adult eligibility | Strict server validation, private DOB, separate versioned unchecked attestation, PHT age calculation, atomic signup and generic responses. | Implemented and verified locally |
+| Registration and adult eligibility | Strict server validation, transient DOB then discard, stored passed-check time, separate versioned unchecked attestation, PHT age calculation, atomic signup and generic responses (ADR-093). | Implemented and verified locally |
 | Sign-in and stored sessions | Transaction-bound credential/session writes, current deletion checks, fixed responses, origin/CSRF/rate protection and session/revocation races. | Implemented and verified locally |
 | Email verification | Single-use 24-hour proof, replacement, atomic verification synchronization and session revocation. | Implemented and verified locally |
 | Password reset | Single-use one-hour proof, atomic credential replacement and all-session revocation. | Implemented and verified locally |
@@ -28,7 +91,7 @@ tooling, deletion/retention execution, operator coverage, provider/hosting,
 backup/restore and ADR-081 real-data readiness remain separate gates. No accepted
 ADR, dependency, prototype, or passing test stands in for those capabilities.
 
-## Current changes
+## Earlier review-page changes (before ADR-093)
 
 `policy-content.ts` holds the two review drafts; `policy-document.tsx` and the
 explicit account `terms`/`privacy` pages render them. Existing registration,
@@ -47,7 +110,7 @@ records the owner's conditional agreement/retention approval. PROJECT.md,
 architecture, glossary, decision index and integration/slice documentation reflect
 the accepted policy and the remaining implementation boundary.
 
-## Verification
+## Earlier review-page verification (before ADR-093)
 
 Commands ran from `app`, except the repository diff check. The database launcher
 set `SIGNUP_TEST_DATABASE_URL` to the dedicated loopback `/halaga_signup_test`
@@ -101,13 +164,14 @@ and all real-data/public-launch checks remain outstanding.
 
 ## Remaining owner/content work
 
-Latest owner input (2026-10-21 PHT): team/brand “JCA” supersedes the earlier
-“Halaga business team” description. The owner requests no individual names and
-confirms `support@halaga.ph` for both support and privacy, without a designated
-privacy handler yet. The current private-DOB design remains selected for specific
-consent/withdrawal review. Responsible legal identity/address and operational
-privacy responsibility remain open. Processing wording/retention and final
-document approval remain open; these inputs do not complete the approval gate.
+Latest owner input (2026-10-21 PHT): JCA is an informal, unregistered team/brand;
+the team jointly decides data uses. A team member will serve as Privacy Lead;
+no public individual name is supplied. `support@halaga.ph` is intended for both
+support and privacy but is still being set up. No physical mailing address was
+supplied. Responsible operator disclosure/address and operational confidential
+handling remain open. ADR-093 supersedes the earlier retained-DOB review direction.
+Processing grounds, remaining retention execution and final document approval
+remain open; these facts do not complete the approval gate.
 
 The rendered drafts now show JCA and the confirmed shared email, omit individual
 names and retain explicit unresolved legal-operator/address/privacy-responsibility

@@ -35,7 +35,15 @@ A valid authentication session created less than 15 minutes ago. Required for se
 
 ## Adult Eligibility Attestation
 
-The explicit, versioned signup statement that a participant is at least 18 and eligible to participate. Halaga stores the accepted text version and timestamp alongside private self-declared DOB. `adult-eligibility-en-v1` is the current approved wording identifier (ADR-042, ADR-087).
+The explicit, versioned signup statement that a participant is at least 18 and eligible to participate. Halaga stores the accepted text version and timestamp alongside the server-owned passed age-check time, never the submitted DOB. `adult-eligibility-en-v1` remains the approved wording identifier. ADR-093 supersedes ADR-042/087's DOB retention.
+
+## Passed Adult Check
+
+A server-owned record that the transient, self-declared birth date established age
+18 or older at signup under the PHT calendar. Stored as `adultEligibilityCheckedAt`
+with the separate adult attestation; the birth date is discarded. Missing, invalid
+or future evidence fails closed. This is neither verified identity/age nor a general
+marketplace grant. Later restrictions and underage-review rules still apply (ADR-093).
 
 ## Account Document Agreement Record
 

@@ -31,10 +31,10 @@ export class EmailChangeRejected extends Error {
 async function lockAccount(database: Pick<ReturnType<typeof getPrisma>, "$queryRaw">, userId: string) {
   const rows = await database.$queryRaw<Array<{
     userId: string; email: string; emailVerified: boolean; accountId: string;
-    emailVerifiedAt: Date | null; deletedAt: Date | null; dateOfBirth: Date | null; adultAttestedAt: Date | null;
+    emailVerifiedAt: Date | null; deletedAt: Date | null; adultEligibilityCheckedAt: Date | null; adultAttestedAt: Date | null;
   }>>`
     SELECT u.id AS "userId", u.email, u."emailVerified", a.id AS "accountId",
-           a."emailVerifiedAt", a."deletedAt", a."dateOfBirth", a."adultAttestedAt"
+           a."emailVerifiedAt", a."deletedAt", a."adultEligibilityCheckedAt", a."adultAttestedAt"
     FROM "user" u JOIN "user_account" a ON a."authUserId" = u.id
     WHERE u.id = ${userId} FOR UPDATE OF u, a
   `;
@@ -43,7 +43,7 @@ async function lockAccount(database: Pick<ReturnType<typeof getPrisma>, "$queryR
 
 function eligible(account: Awaited<ReturnType<typeof lockAccount>>, now: Date) {
   return account && !account.deletedAt && account.emailVerified && account.emailVerifiedAt &&
-    account.emailVerifiedAt <= now && hasAdultEligibility(account.dateOfBirth, account.adultAttestedAt, now);
+    account.emailVerifiedAt <= now && hasAdultEligibility(account.adultEligibilityCheckedAt, account.adultAttestedAt, now);
 }
 
 function currentTime(clock: () => Date) {

@@ -58,7 +58,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
     await database.account.create({ data: { id: randomUUID(), userId: id, accountId: id,
       providerId: "credential", password: await hashing.hash(password) } });
     const account = mapped ? await database.userAccount.create({ data: { authUserId: id,
-      displayName: "Synthetic owner", dateOfBirth: new Date("2000-01-01"), adultAttestedAt: new Date() } }) : null;
+      displayName: "Synthetic owner", adultEligibilityCheckedAt: new Date(), adultAttestedAt: new Date() } }) : null;
     const signedIn = await auth.api.signInEmail({ body: { email, password }, returnHeaders: true });
     const headers = cookieHeaders(signedIn);
     const actor = await auth.api.getSession({ headers });

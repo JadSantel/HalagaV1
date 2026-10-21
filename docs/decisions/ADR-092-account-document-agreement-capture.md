@@ -52,6 +52,14 @@ grounds and any purpose-specific consent remain unresolved; no defaults are adde
 
 ## Related review
 
+Later owner decisions are recorded in ADR-093 and supersede the retained-DOB and
+unknown-team-status statements in the historical paragraph below: JCA is informal/
+unregistered, the team jointly decides data uses, and a team member will serve as
+Privacy Lead. The shared mailbox is still being set up and no physical address was
+supplied. DOB will be checked once then discarded. Final documents, processing
+grounds and operational privacy handling remain unresolved; agreement capture
+is still conditional.
+
 Latest owner follow-up (2026-10-21 PHT): team/brand “JCA” supersedes the earlier
 “Halaga business team” description, with no individual names to be specified.
 `support@halaga.ph` is confirmed for both support and privacy. A responsible

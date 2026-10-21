@@ -11,7 +11,7 @@ const inputs = [
   { name: "password", label: "Password", type: "password", autoComplete: "new-password",
     hint: "Use 8 to 128 characters. You can paste a password or use your password manager." },
   { name: "dateOfBirth", label: "Date of birth", type: "date", autoComplete: "bday",
-    hint: "Private. Used to check that you are at least 18 years old." },
+    hint: "Used once to check that you are at least 18, then discarded. We save only the passed check and your adult confirmation." },
 ] as const;
 type FieldName = typeof inputs[number]["name"] | "adultAttestationAccepted";
 type Feedback = {
@@ -79,6 +79,7 @@ export function AccountSignupForm() {
       setFeedback({ kind: "error", message: uncertain });
     } finally {
       control("password").value = "";
+      control("dateOfBirth").value = "";
       submitting.current = false;
     }
   }

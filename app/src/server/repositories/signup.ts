@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
-import { hasAdultEligibility } from "../account-access.ts";
+import { isAtLeast18 } from "../account-access.ts";
 import { accountEmailTokenRecord } from "../account-email-crypto.ts";
 import { getPrisma } from "../prisma.ts";
 import { createAccountAuth } from "./auth.ts";
@@ -46,7 +46,7 @@ export function createSignupOperation(
     if (!Number.isFinite(now.getTime())) throw new SignupRejected("INTERNAL_ERROR");
     const dateOfBirth = new Date(`${data.dateOfBirth}T00:00:00.000Z`);
     // Reject before hashing, database access, identity creation or outbox writes.
-    if (!hasAdultEligibility(dateOfBirth, now, now)) {
+    if (!isAtLeast18(dateOfBirth, now)) {
       throw new SignupRejected("ADULT_ELIGIBILITY_REQUIRED");
     }
 
@@ -80,7 +80,7 @@ export function createSignupOperation(
           select: { id: true },
         });
         const account = await transaction.userAccount.create({
-          data: { authUserId, displayName: data.displayName, dateOfBirth,
+          data: { authUserId, displayName: data.displayName, adultEligibilityCheckedAt: now,
             adultAttestedAt: now, adultAttestationVersion },
           select: { id: true },
         });

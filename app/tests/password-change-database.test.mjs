@@ -92,7 +92,7 @@ test("isolated PostgreSQL password change with atomic notices and ADR-089 email 
     identity: await database.user.findUnique({ where: { id: userId }, select: {
       id: true, name: true, email: true, emailVerified: true, createdAt: true, updatedAt: true } }),
     account: await database.userAccount.findUnique({ where: { id: accountId }, select: {
-      id: true, authUserId: true, displayName: true, dateOfBirth: true, adultAttestedAt: true, adultAttestationVersion: true,
+      id: true, authUserId: true, displayName: true, adultEligibilityCheckedAt: true, adultAttestedAt: true, adultAttestationVersion: true,
       emailVerifiedAt: true, deletedAt: true, createdAt: true, updatedAt: true } }),
     credentials: await database.account.findMany({ where: { userId }, orderBy: { id: "asc" }, select: {
       id: true, accountId: true, providerId: true, userId: true, password: true, createdAt: true, updatedAt: true } }),
@@ -380,7 +380,7 @@ test("isolated PostgreSQL password change with atomic notices and ADR-089 email 
         const account = await fixture();
         await database.user.update({ where: { id: account.userId }, data: { emailVerified: identityVerified } });
         await database.userAccount.update({ where: { id: account.accountId }, data: {
-          emailVerifiedAt: identityVerified ? null : now, dateOfBirth: null, adultAttestedAt: null } });
+          emailVerifiedAt: identityVerified ? null : now, adultEligibilityCheckedAt: null, adultAttestedAt: null } });
         const before = await state(account);
         await perform(account);
         assertPreserved(before, await state(account));

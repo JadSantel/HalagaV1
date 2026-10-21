@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { createSignupOperation, SignupRejected, adultAttestationVersion } from "../src/server/repositories/signup.ts";
 import { openSignupSandbox } from "./helpers/signup-sandbox.mjs";
+import { openLocalDatabase } from "../scripts/local-database.mjs";
 
 export const syntheticSignup = {
   displayName: "Synthetic adult", email: "signup@example.invalid",
@@ -13,6 +16,56 @@ const received = { status: "SIGNUP_RECEIVED" };
 const rejects = (code) => (error) => error instanceof SignupRejected && error.code === code &&
   error.message === code && error.cause === undefined;
 
+test("forward age migration discards every DOB and preserves only evidence of adulthood at the original PHT check", async () => {
+  // Transaction-scoped synthetic schema: no persistent/shared application writes.
+  const connection = await openLocalDatabase({ DATABASE_URL: process.env.SIGNUP_TEST_DATABASE_URL });
+  const schema = `age_migration_${randomUUID().replaceAll("-", "")}`;
+  const replay = async (name) => {
+    const sql = await readFile(new URL(`../prisma/migrations/${name}/migration.sql`, import.meta.url), "utf8");
+    await connection.query(sql.replace(/^BEGIN;\r?\n/, "").replace(/COMMIT;\r?\n?$/, ""));
+  };
+  try {
+    await connection.query("BEGIN");
+    await connection.query(`CREATE SCHEMA "${schema}"`);
+    await connection.query(`SET LOCAL search_path TO "${schema}", public`);
+    await replay("20261012130000_account_listing_foundation");
+    await replay("20261014090000_signup_transaction");
+    const rows = [
+      ["2008-10-14", "2026-10-13T16:00:00Z", adultAttestationVersion, true],
+      ["2008-10-14", "2026-10-13T15:59:59.999Z", adultAttestationVersion, false],
+      ["2008-02-29", "2026-02-28T15:59:59.999Z", adultAttestationVersion, false],
+      ["2008-02-29", "2026-02-28T16:00:00Z", adultAttestationVersion, true],
+      ["2000-01-01", "2026-10-13T16:00:00Z", null, false],
+      ["2000-01-01", "2026-10-13T16:00:00Z", "unknown-version", false],
+      [null, "2026-10-13T16:00:00Z", adultAttestationVersion, false],
+      ["2000-01-01", null, adultAttestationVersion, false],
+      ["2000-01-01", new Date(Date.now() + 86400000).toISOString(), adultAttestationVersion, false],
+      ["infinity", "2026-10-13T16:00:00Z", adultAttestationVersion, false],
+    ];
+    for (const row of rows) {
+      const id = randomUUID();
+      row.push(id);
+      await connection.query('INSERT INTO "user" (id, name, email, "updatedAt") VALUES ($1, $2, $3, CURRENT_TIMESTAMP)',
+        [id, "Synthetic migration", `${id}@example.invalid`]);
+      await connection.query(`INSERT INTO "user_account" (id, "authUserId", "displayName", "dateOfBirth",
+        "adultAttestedAt", "adultAttestationVersion", "updatedAt") VALUES ($1::uuid, $1::text, $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
+        [id, "Synthetic migration", row[0], row[1], row[2]]);
+    }
+    await replay("20261021110000_minimize_age_eligibility");
+    const columns = await connection.query(`SELECT column_name FROM information_schema.columns
+      WHERE table_schema = $1 AND table_name = 'user_account' AND column_name = 'dateOfBirth'`, [schema]);
+    assert.equal(columns.rowCount, 0);
+    for (const [, attestedAt, version, passed, id] of rows) {
+      const { rows: [account] } = await connection.query('SELECT "adultEligibilityCheckedAt", "adultAttestationVersion" FROM "user_account" WHERE id = $1', [id]);
+      assert.equal(account.adultEligibilityCheckedAt?.toISOString() ?? null, passed ? new Date(attestedAt).toISOString() : null);
+      assert.equal(account.adultAttestationVersion, version, "Migration never invents an attestation");
+    }
+  } finally {
+    await connection.query("ROLLBACK");
+    await connection.end();
+  }
+});
+
 test("signup validation rejects underage and malformed data before auth or database access", async () => {
   const database = { $transaction() { assert.fail("Database must not be touched"); } };
   const auth = { get $context() { assert.fail("Auth must not be touched"); } };
@@ -22,7 +75,7 @@ test("signup validation rejects underage and malformed data before auth or datab
   }
   for (const patch of [{ dateOfBirth: "2000-02-30" }, { dateOfBirth: "2000-01-01T00:00:00Z" },
     { adultAttestationAccepted: false }, { adultAttestationAccepted: "true" }, { email: "invalid" },
-    { displayName: " " }, { extra: "private-input" }]) {
+    { displayName: " " }, { extra: "private-input" }, { adultEligibilityCheckedAt: now.toISOString() }, { adultEligible: true }]) {
     await assert.rejects(signup({ ...syntheticSignup, ...patch }), rejects("INVALID_INPUT"));
   }
 });
@@ -82,9 +135,12 @@ test("isolated PostgreSQL signup transaction", async (t) => {
       assert.notEqual(credential.password, syntheticSignup.password);
       assert.equal(await (await auth.$context).password.verify({ hash: credential.password, password: syntheticSignup.password }), true);
       const account = await database.userAccount.findUnique({ where: { authUserId: identity.id }, select: {
-        id: true, displayName: true, dateOfBirth: true, adultAttestedAt: true, adultAttestationVersion: true, emailVerifiedAt: true,
+        id: true, displayName: true, adultEligibilityCheckedAt: true, adultAttestedAt: true, adultAttestationVersion: true, emailVerifiedAt: true,
       } });
-      assert.equal(account.dateOfBirth.toISOString(), "2008-10-14T00:00:00.000Z");
+      assert.equal(account.adultEligibilityCheckedAt.toISOString(), now.toISOString());
+      const columns = await connection.query(`SELECT column_name FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'user_account' AND column_name = 'dateOfBirth'`);
+      assert.equal(columns.rowCount, 0, "The final account schema cannot retain DOB");
       assert.equal(account.adultAttestedAt.toISOString(), now.toISOString());
       assert.equal(account.adultAttestationVersion, adultAttestationVersion);
       assert.equal(account.displayName, syntheticSignup.displayName);

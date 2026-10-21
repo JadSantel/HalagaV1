@@ -1,5 +1,15 @@
 # Slice 2 account integration: local synthetic commands
 
+Latest age-data rule (2026-10-21 PHT): ADR-093 supersedes retained DOB in the
+historical records below. Signup checks transient DOB once in PHT then discards
+it; only passed-check time plus adult-attestation version/time persist atomically.
+All current adult-prerequisite/email-change command, intent and delivery readers
+use that evidence. Missing/future evidence fails closed; session/security and
+restriction/suspension policies do not change. A forward migration removes DOB
+after conservative legacy-synthetic conversion. See `SIGNUP_LOCAL_TESTING.md`
+and `SLICE_2_CLOSEOUT.md`. The older retained-DOB consent/withdrawal proposal is
+superseded; processing grounds/final notice review remain unresolved.
+
 Latest document review (2026-10-21 PHT): registration/footer links now open
 read-only Terms and Privacy Notice drafts. Operator/contact and final text remain
 unapproved. ADR-092 accepts the future separate unchecked Terms agreement,

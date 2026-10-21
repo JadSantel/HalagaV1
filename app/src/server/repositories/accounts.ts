@@ -22,7 +22,7 @@ export function createAccountAccessReader(
       const account = await database.userAccount.findUnique({
         where: { authUserId: identity.user.id },
         select: {
-          id: true, displayName: true, dateOfBirth: true, adultAttestedAt: true,
+          id: true, displayName: true, adultEligibilityCheckedAt: true, adultAttestedAt: true,
           emailVerifiedAt: true, deletedAt: true,
         },
       });
@@ -30,7 +30,7 @@ export function createAccountAccessReader(
       const result: AccountAccess = {
         accountId: account.id,
         displayName: account.displayName,
-        adultEligible: hasAdultEligibility(account.dateOfBirth, account.adultAttestedAt, now),
+        adultEligible: hasAdultEligibility(account.adultEligibilityCheckedAt, account.adultAttestedAt, now),
         // A stale domain verification timestamp cannot override an unverified auth identity.
         emailVerified: identity.user.emailVerified === true && account.emailVerifiedAt !== null && account.emailVerifiedAt <= now,
         recentSignIn: now.getTime() - identity.session.createdAt.getTime() < 15 * 60 * 1000,

@@ -118,10 +118,16 @@ Revenue is not an MVP success criterion. Monetization is deferred until the core
 
 Marketplace participation is restricted to users age 18 or older. Ordinary users provide:
 
-- A self-declared date of birth.
+- A self-declared date of birth, used transiently at signup to check age 18 or older in PHT, then discarded.
 - An explicit 18+ eligibility attestation.
 
-This is self-declared eligibility, not government-ID-verified age. Date of birth is private.
+This is self-declared eligibility, not government-ID-verified age. Do not retain the
+date of birth, including after a successful signup. Store only the passed-check
+timestamp and the adult-attestation version/time atomically with signup (ADR-093).
+Missing or future check/attestation evidence fails closed. Keep this minimal
+account-private evidence while active, then erase on eligible deletion unless a
+documented scoped exception applies under §28.4. Later-discovered underage claims
+still follow ADR-090; the saved check does not override restrictions or suspension.
 
 ### 8.2 Email verification
 
@@ -208,7 +214,7 @@ Authentication sessions use a seven-day rolling lifetime, renewed on use at most
 
 Cookies remain host-only for the single application, with HttpOnly and SameSite=Lax protection. Production requires HTTPS and Secure cookies; local loopback HTTP development remains supported. Registration allows three requests per 15-minute inactivity window, sign-in five per minute, password-reset requests and verification-email resends each three per 15 minutes, and other authentication endpoints 60 per minute. Limits are per resolved client IP and endpoint, with shared PostgreSQL counters outside local development. Shared-IP participants may need to wait (ADR-086).
 
-Session, cookie, freshness, and endpoint-rate-limit policies are accepted under ADR-086. Signup requires private DOB and the explicit, unchecked attestation “I confirm that I am at least 18 years old and eligible to participate in Halaga.” Store its version (`adult-eligibility-en-v1`) and timestamp. Reject under-18 DOB at signup before creating either account record, and discard that DOB. Signup atomically creates the Better Auth identity, mapped domain account, eligibility data, initial verification token digest, encrypted private delivery payload, and email intent. An unverified adult may sign in and browse.
+Session, cookie, freshness, and endpoint-rate-limit policies are accepted under ADR-086. Signup checks transient private DOB and requires the explicit, unchecked attestation “I confirm that I am at least 18 years old and eligible to participate in Halaga.” Store its version (`adult-eligibility-en-v1`), timestamp and the server-owned passed-check timestamp, never DOB (ADR-093 supersedes ADR-042/087's DOB retention). Reject under-18 DOB before creating either account record; discard submitted DOB on success and rejection. Signup atomically creates the Better Auth identity, mapped domain account, minimal eligibility evidence, initial verification token digest, encrypted private delivery payload, and email intent. An unverified adult may sign in and browse.
 
 ADR-087 sets verification and email-change tokens to 24 hours and password-reset tokens to one hour; all are single-use and replaced by a newer request. Verification synchronizes the Better Auth identity and domain timestamp atomically, then requires a fresh sign-in. A successful password reset atomically changes the password and revokes every session; an authenticated password change requires recent sign-in and revokes other sessions while keeping the current one. Email changes require recent sign-in; the old verified address remains active until the new address is proved, then the switch is atomic, all sessions are revoked, and the old address receives a privacy-reviewed notice. Signup, verification resend, and reset request responses do not disclose email/account status. ADR-088 defines encrypted delivery transport, approved account-email templates and fragment links, stale-intent suppression, dispatch/recovery, and bounded cleanup. The six email request/completion endpoints and fragment forms are implemented for local synthetic validation. Registration, sign-in and authenticated password change were closed at the time of this implementation snapshot; current status is recorded above. ADR-081 still gates real participant use.
 

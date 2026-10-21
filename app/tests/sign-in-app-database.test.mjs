@@ -32,6 +32,7 @@ test("actual Next account routes use only a disposable synthetic schema", { time
     process.env.BETTER_AUTH_SECRET = "synthetic-signup-secret-for-local-tests-only";
     process.env.ACCOUNT_EMAIL_SENDING_ENABLED = "false";
     process.env.HALAGA_PUBLIC_ORIGIN = origin;
+    process.env.HALAGA_ACCOUNT_INTEGRATION_TEST = "true";
     delete process.env.BETTER_AUTH_TRUSTED_ORIGINS;
     process.env.AUTH_TRUSTED_IP_HEADER = "x-synthetic-ip";
     // Existing Next development reuse seam; no application test endpoint or
@@ -162,7 +163,8 @@ test("actual Next account routes use only a disposable synthetic schema", { time
       for (const patch of [{ dateOfBirth: "2009-01-01" }, { dateOfBirth: "2099-01-01" },
         { dateOfBirth: "2000-02-30" }, { adultAttestationAccepted: false }, { adultAttestationAccepted: "true" },
         { adultAttestationVersion: "invented-client-version" }, { password: "short" },
-        { termsAccepted: true, termsVersion: "terms-en-draft-2026-10-21" }]) {
+        { termsAccepted: true, termsVersion: "terms-en-draft-2026-10-21" },
+        { adultEligibilityCheckedAt: new Date().toISOString() }, { adultEligible: true }]) {
         await read(await send("sign-up/email", { ...signup, ...patch }), 400, { code: "INVALID_INPUT" });
         assert.deepEqual(await counts(), [0, 0, 0, 0, 0, 0, 0]);
       }
@@ -189,7 +191,8 @@ test("actual Next account routes use only a disposable synthetic schema", { time
       assert.deepEqual(response.headers.getSetCookie(), []);
       await read(response, 200, { status: "REQUEST_RECEIVED" });
       assert.deepEqual(await counts(), [1, 1, 1, 1, 1, 1, 0]);
-      const account = await database.userAccount.findFirst({ select: { adultAttestationVersion: true, adultAttestedAt: true, emailVerifiedAt: true } });
+      const account = await database.userAccount.findFirst({ select: { adultAttestationVersion: true, adultAttestedAt: true, adultEligibilityCheckedAt: true, emailVerifiedAt: true } });
+      assert.deepEqual(account.adultEligibilityCheckedAt, account.adultAttestedAt);
       assert.equal(account.adultAttestationVersion, "adult-eligibility-en-v1");
       assert.ok(account.adultAttestedAt instanceof Date);
       assert.equal(account.emailVerifiedAt, null);

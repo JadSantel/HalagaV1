@@ -1,5 +1,25 @@
 # Local synthetic signup: Slice 2
 
+Latest age-data implementation (2026-10-21 PHT): accepted ADR-093 supersedes
+the DOB-storage/repeated-age-check statements below. The existing strict payload
+and PHT 18+ validation remain; successful signup now atomically saves only
+`adultEligibilityCheckedAt` and the unchanged attestation version/time. Both
+successful and rejected DOB are discarded, including clearing submitted form DOB.
+Server-owned eligibility fields in a client payload are rejected. Account access,
+email-change issue/consume, intent inspection and dispatch use the saved evidence.
+The forward migration `20261021110000_minimize_age_eligibility` conservatively
+derives supported earlier synthetic checks at their original attestation date,
+then drops the DOB column. Do not edit historical migrations. Use the existing
+reviewed migration workflow before manual persistence; no persistent/shared
+database was migrated in this task. Final policy approval and ADR-092 capture
+remain open. Verification is recorded in `SLICE_2_CLOSEOUT.md`.
+
+The actual Next harness now sets `HALAGA_ACCOUNT_INTEGRATION_TEST=true`, selecting
+the fixed `.next/account-integration` output directory in the existing config.
+It still requires port 3102 and must not run concurrently with another instance
+of itself or with a build cleaning `.next`. This preserves the normal app config/
+default output and avoids stopping an existing default development server.
+
 Updated 2026-10-18 PHT, after local sign-in mounting. The owner authorizes local
 synthetic signup only. POST `/api/auth/sign-up/email` now uses the existing
 protected HTTP integration and `createSignupOperation`. `/account/register` has
@@ -29,7 +49,7 @@ bypasses, query input, aliases and unrelated commands stay rejected.
 
 Signup validates the strict payload and PHT-calendar adult eligibility on the
 server before hashing/persistence. It atomically creates identity, credential,
-domain mapping, private DOB, `adult-eligibility-en-v1` and server acceptance time,
+domain mapping, passed-check time, `adult-eligibility-en-v1` and server acceptance time,
 initial verification digest, encrypted token transport and delivery intent/job.
 A failed required write or deferred commit leaves none of those records. Retry
 uses the existing unique normalized-email arbiter. Duplicate signup creates no

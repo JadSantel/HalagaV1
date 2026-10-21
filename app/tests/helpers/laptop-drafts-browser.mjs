@@ -34,7 +34,7 @@ export async function checkLaptopDraftBrowser(origin, database, auth) {
   await database.account.create({ data: { id: randomUUID(), userId: id, accountId: id,
     providerId: "credential", password: await hashing.hash(password) } });
   const owner = await database.userAccount.create({ data: { authUserId: id, displayName: "Synthetic workspace owner",
-    dateOfBirth: new Date("2000-01-01"), adultAttestedAt: new Date() } });
+    adultEligibilityCheckedAt: new Date(), adultAttestedAt: new Date() } });
 
   try {
     await run(["open", `${origin}/drafts`]);

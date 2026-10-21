@@ -115,12 +115,14 @@ export async function checkSignupBrowser(origin, database) {
       assert.equal((await feedback()).focusedRole, "alert");
       assert.doesNotMatch((await feedback()).text, /private-browser-error-sentinel/);
       assert.equal(await evaluate("document.querySelector('#password').value"), "");
+      assert.equal(await evaluate("document.querySelector('#dateOfBirth').value"), "");
     }
     await evaluate("window.fetch = window.signupOriginalFetch; true");
     await fill();
     await evaluate("document.querySelector('#dateOfBirth').value = '2009-01-01'");
     await run(["click", "button[type=submit]"]);
     await wait(`document.querySelector('[role=alert]')?.textContent.includes('must establish age 18')`);
+    assert.equal(await evaluate("document.querySelector('#dateOfBirth').value"), "");
     await fill();
     await run(["click", "button[type=submit]"]);
     await wait(`document.querySelector('[role=alert]')?.textContent.includes('Too many signup attempts')`);
@@ -129,6 +131,7 @@ export async function checkSignupBrowser(origin, database) {
     for (const [width, height] of [[1440, 900], [375, 812], [320, 800]]) {
       await run(["set", "viewport", String(width), String(height)]);
       assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, `Viewport ${width}`);
+      if (width !== 320) await run(["screenshot", resolve(`.next/account-signup-${width}.png`)]);
     }
     await evaluate("document.documentElement.style.fontSize = '200%'; true");
     assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "200% text at 320px");
