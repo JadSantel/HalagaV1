@@ -17,13 +17,14 @@ const answers = z.partialRecord(z.enum(questionKeys), z.string()).superRefine((v
 });
 
 /** Full replacement snapshot, with omitted fields reset to unfinished values.
- * No seller, condition, lifecycle, geography, fulfillment, declaration or media input.
- * Those last four fields await their separate implementation/publication gates.
+ * No seller, condition, lifecycle, geography, exact location, declaration or media input.
+ * Availability is a method choice only; no appointment is created.
  */
 export const laptopDraftSchema = z.strictObject({
   diagnosticVersion: z.literal(diagnosticVersion).optional(),
   title: z.string().default(""), brand: z.string().default(""), model: z.string().default(""),
   description: z.string().default(""), approximateAge: z.string().default(""),
+  fulfillment: z.enum(["", "pickup", "meetup", "both"]).default(""),
   answers: answers.optional(), notes: z.partialRecord(z.enum(questionKeys), z.string()).optional(),
   behavior: z.array(z.enum(Object.keys(behaviorOptions) as [string, ...string[]])).optional(),
   behaviorNotes: z.string().default(""),

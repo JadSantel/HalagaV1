@@ -60,6 +60,13 @@ export async function checkLaptopDraftBrowser(origin, database, auth) {
     await button("Retry same create");
     await run(["wait", "#title"]);
     assert.equal(await database.listing.count({ where: { sellerId: owner.id } }), 1);
+    assert.equal(await evaluate("document.querySelector('#fulfillment').value"), "");
+    assert.equal(await evaluate("document.querySelector('#fulfillment').required"), false);
+    assert.equal(await evaluate("document.querySelector('#fulfillment').getAttribute('aria-describedby')"), "fulfillment-help");
+    await run(["focus", "#fulfillment"]);
+    await run(["press", "ArrowDown"]);
+    await run(["press", "Enter"]);
+    assert.equal(await evaluate("document.querySelector('#fulfillment').value"), "pickup");
     await run(["fill", "#title", "Synthetic browser unfinished laptop"]);
     await run(["fill", "#privatePriceExpectation", "2468135.79"]);
     await evaluate(`window.originalDraftFetch = window.fetch; window.draftBodies = [];
@@ -82,9 +89,11 @@ export async function checkLaptopDraftBrowser(origin, database, auth) {
     assert.equal(stored.status, "DRAFT");
     assert.equal(stored.currentRevision.conditionSummary, null);
     assert.equal(stored.currentRevision.priceExpectation.toFixed(2), "2468135.79");
+    assert.equal(stored.currentRevision.fulfillment, "pickup");
 
     // Commit the save, then lose its response. The UI must reuse the exact request.
     await run(["fill", "#model", "Synthetic retry model"]);
+    await run(["select", "#fulfillment", "meetup"]);
     await evaluate(`window.fetch = async (...args) => {
       if (args[1]?.method !== 'PUT') return window.originalDraftFetch(...args);
       window.draftBodies.push(args[1].body);
@@ -109,18 +118,23 @@ export async function checkLaptopDraftBrowser(origin, database, auth) {
     await run(["wait", "#model"]);
     assert.equal(await evaluate("document.querySelector('#model').value"), "Synthetic retry model");
     assert.equal(await evaluate("document.querySelector('#privatePriceExpectation').value"), "2468135.79");
+    assert.equal(await evaluate("document.querySelector('#fulfillment').value"), "meetup");
+    await run(["reload"]);
+    await wait(`document.querySelector('#fulfillment')?.value === 'meetup'`);
 
     // A second editor advances revision before this stale form submits.
     await evaluate(`(async () => {
       const detail = await (await fetch('/api/laptop-drafts/${listingId}')).json();
       const result = await fetch('/api/laptop-drafts/${listingId}', { method: 'PUT', headers: {'content-type':'application/json'},
-        body: JSON.stringify({requestId:crypto.randomUUID(),expectedRevision:detail.revision,draft:{...detail.draft,model:'Newer model'}}) });
+        body: JSON.stringify({requestId:crypto.randomUUID(),expectedRevision:detail.revision,draft:{...detail.draft,model:'Newer model',fulfillment:'both'}}) });
       return result.status;
     })()`);
     await run(["fill", "#model", "Stale model"]);
+    await run(["select", "#fulfillment", "pickup"]);
     await run(["click", "button[type=submit]"]);
     await wait(`document.querySelector('[role=alert]')?.textContent.includes('newer revision')`);
     assert.equal(await evaluate("document.querySelector('#model').value"), "Stale model");
+    assert.equal(await evaluate("document.querySelector('#fulfillment').value"), "pickup");
     assert.equal(await database.listingRevision.count({ where: { listingId } }), 4);
     await evaluate("window.confirm = () => true; true");
     // Disarm only the test browser's native leave prompt after asserting retained stale edits.
@@ -128,13 +142,20 @@ export async function checkLaptopDraftBrowser(origin, database, auth) {
     await button("Reload saved draft");
     await run(["dialog", "accept"]).catch(() => {});
     await wait(`document.querySelector('#model')?.value === 'Newer model'`);
+    assert.equal(await evaluate("document.querySelector('#fulfillment').value"), "both");
     await run(["fill", "#privatePriceExpectation", "12.345"]);
     await run(["click", "button[type=submit]"]);
     await wait(`document.querySelector('[aria-invalid=true]')?.id === 'privatePriceExpectation'`);
     assert.equal(await evaluate("document.querySelector('#privatePriceExpectation').getAttribute('aria-describedby').includes('price-error') && Boolean(document.querySelector('#price-error'))"), true);
     await run(["fill", "#privatePriceExpectation", "2468135.79"]);
+    await run(["select", "#fulfillment", ""]);
     await run(["click", "button[type=submit]"]);
     await wait(`document.querySelector('[role=status]')?.textContent.includes('saved at revision 5')`);
+    await run(["reload"]);
+    await run(["wait", "#fulfillment"]);
+    assert.equal(await evaluate("document.querySelector('#fulfillment').value"), "");
+    const revisions = await database.listingRevision.findMany({ where: { listingId }, orderBy: { version: "asc" }, select: { fulfillment: true } });
+    assert.deepEqual(revisions.map(({ fulfillment }) => fulfillment), [null, "pickup", "meetup", "both", null]);
 
     await run(["check", 'input[name="safety"][value="clear"]']);
     await run(["wait", "#power"]);

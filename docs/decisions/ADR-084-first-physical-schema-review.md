@@ -72,6 +72,24 @@ unimplemented as applicable. Retention/deletion remains separately gated; histor
 is not authorized for indefinite retention. See
 [LAPTOP_DRAFT_LOCAL_TESTING.md](../LAPTOP_DRAFT_LOCAL_TESTING.md).
 
+## Local synthetic availability supplement (2026-10-21 PHT)
+
+The owner's bounded availability request implements ADR-014's existing buyer
+pickup, mutually agreed meetup or both choices within private laptop drafts.
+`20261021120000_draft_fulfillment_availability` adds nullable revision content
+`fulfillment`, constrained by SQL to `pickup`, `meetup` or `both`. Null represents
+unselected availability, including all pre-existing revisions; no history is
+rewritten. Owner detail represents null as an empty selection, and full replacement
+omission clears it. The same immutable revision write, expected-version guard,
+snapshot retry comparison, ownership and current restriction/session checks apply.
+
+The owner editor reuses the existing availability choices and save/retry controls.
+No exact pickup address, meeting location or precise coordinates are collected.
+No appointment, public reader, publication or notification behavior is implemented.
+This supersedes only the earlier record's deferred fulfillment-input status;
+geography, media, ownership submission, publication and operational gates remain.
+It implements existing product policy without accepting a new policy decision.
+
 ## Source
 
 - `PROJECT.md` sections 11, 17, 20, and 34

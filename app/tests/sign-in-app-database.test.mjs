@@ -241,7 +241,7 @@ test("actual Next account routes use only a disposable synthetic schema", { time
         method, headers: { origin, cookie, "content-type": "application/json" },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
-      const create = { requestId: randomUUID(), draft: { title: "Synthetic owner-private laptop", privatePriceExpectation: "7654321.98" } };
+      const create = { requestId: randomUUID(), draft: { title: "Synthetic owner-private laptop", privatePriceExpectation: "7654321.98", fulfillment: "pickup" } };
       await read(await sendDraft("POST", create, undefined, ""), 401, { code: "UNAUTHORIZED" });
       const created = await sendDraft("POST", create);
       assert.equal(created.status, 200);
@@ -254,12 +254,14 @@ test("actual Next account routes use only a disposable synthetic schema", { time
       assert.equal(privateResponse.headers.get("x-robots-tag"), "noindex, nofollow");
       const detail = await privateResponse.json();
       assert.equal(detail.draft.privatePriceExpectation, "7654321.98");
+      assert.equal(detail.draft.fulfillment, "pickup");
       assert.equal(detail.condition, null);
       assert.equal(detail.status, "DRAFT");
-      const save = { requestId: randomUUID(), expectedRevision: 1, draft: { title: "Synthetic private correction" } };
+      const save = { requestId: randomUUID(), expectedRevision: 1, draft: { title: "Synthetic private correction", fulfillment: "both" } };
       await read(await sendDraft("PUT", save, draftId), 200, { id: draftId, revision: 2 });
       await read(await sendDraft("PUT", save, draftId), 200, { id: draftId, revision: 2 });
       await read(await sendDraft("PUT", { ...save, requestId: randomUUID() }, draftId), 409, { code: "INVALID_STATE" });
+      assert.equal((await (await sendDraft("GET", undefined, draftId)).json()).draft.fulfillment, "both");
       await read(await sendDraft("GET", undefined, draftId, ""), 401, { code: "UNAUTHORIZED" });
       await read(await fetch(target), 401, { code: "UNAUTHORIZED" });
       const summary = await sendDraft("GET");

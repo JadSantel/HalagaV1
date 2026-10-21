@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-html-link-for-pages -- Full document navigation clears private state and obtains fresh session-authorized reads. */
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { deriveCondition, validateDraft, type Draft } from "../../domain/laptop-diagnostics";
+import { fulfillmentOptions } from "../../domain/laptop-listing";
 import LaptopDiagnosticFields from "../laptop-diagnostic-fields";
 
 const primary = "min-h-12 rounded-md bg-[#176b59] px-5 py-3 font-semibold text-white hover:bg-[#105746] disabled:bg-[#53615c]";
@@ -10,7 +11,7 @@ const secondary = "min-h-12 rounded-md border border-[#75837c] bg-white px-4 py-
 const control = "mt-2 min-h-12 w-full rounded-md border border-[#75837c] bg-white px-3 py-2 text-base";
 const conditions: Record<string, string> = { FULLY_FUNCTIONAL: "Fully functional", FUNCTIONAL_WITH_ISSUES: "Functional with issues",
   NOT_FUNCTIONAL: "Not functional", UNTESTED_UNKNOWN: "Untested/unknown" };
-type Snapshot = Draft & { privatePriceExpectation: string };
+type Snapshot = Draft & { privatePriceExpectation: string; fulfillment: string };
 type Summary = { id: string; title: string; revision: number; updatedAt: string; condition: string | null };
 type Detail = Summary & { draft: Snapshot };
 type Phase = "loading" | "ready" | "pending" | "signed-out" | "error" | "uncertain" | "conflict" | "missing";
@@ -182,6 +183,16 @@ export default function DraftWorkspace({ listingId }: { listingId?: string }) {
             })}
           </div>
           <LaptopDiagnosticFields draft={draft} update={(next) => { setDraft({ ...draft, ...next }); setDirty(true); setMessage(""); }} />
+          <section aria-labelledby="availability-title" className="mt-9 border-t border-[#d9dfda] pt-7">
+            <h2 id="availability-title" className="text-xl font-semibold">Pickup or meetup availability</h2>
+            <label htmlFor="fulfillment" className="mt-5 block font-semibold">Available methods (optional in a draft)</label>
+            <p id="fulfillment-help" className="mt-2 text-sm text-[#53615c]">Choose buyer pickup, mutually agreed meetup, or both. You can leave this unselected and resume later. Do not enter an exact address, meeting location, or precise coordinates. Exact details belong in private coordination after reservation.</p>
+            <select id="fulfillment" value={draft.fulfillment} aria-describedby="fulfillment-help" className={control}
+              onChange={(event) => { setDraft({ ...draft, fulfillment: event.target.value }); setDirty(true); setMessage(""); }}>
+              <option value="">Not selected</option>
+              {Object.entries(fulfillmentOptions).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </section>
           <section aria-labelledby="private-title" className="mt-9 border-t border-[#d9dfda] pt-7">
             <h2 id="private-title" className="text-xl font-semibold">Private seller details</h2>
             <label htmlFor="privatePriceExpectation" className="mt-5 block font-semibold">Private price expectation (PHP, optional)</label>

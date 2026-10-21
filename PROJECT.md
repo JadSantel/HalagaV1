@@ -431,9 +431,12 @@ owner-private single-item laptop draft listing, creation, editing and resuming a
 `/drafts` and `/drafts/[listingId]`. Drafts may be incomplete
 and stay `DRAFT`; existing validated diagnostic answers determine any stored
 condition. Missing/invalid disclosures and safety stops store no derived condition.
-Immutable revisions preserve versioned answers and private expectation. The owner
+Immutable revisions preserve versioned answers, private expectation and pickup/meetup
+availability (`pickup`, `meetup` or `both`). Availability may remain unselected in
+an incomplete draft; omitted or cleared availability saves as unselected. Exact
+addresses, meeting locations and precise coordinates are not collected. The owner
 list contains only ID, title, revision, updated time and validated condition;
-answers and private expectation are available only in owner detail/editor. The seller
+answers, private expectation and availability are available only in owner detail/editor. The seller
 is server-owned. No public reader, metadata, publication/hold or marketplace grant
 is added. Unverified authenticated owners may use this private synthetic capability;
 publication eligibility and all evidence/safety requirements above remain unchanged.
@@ -446,7 +449,7 @@ draft list/detail, sign-in and account security remain available. Rejected write
 preserve saved state. This implements ADR-090 for synthetic drafts only; staff
 enforcement tools and other marketplace commands remain gated.
 
-Controlled CDO barangay input, media, fulfillment/declaration submission, publication
+Controlled CDO barangay input, media, declaration submission, publication
 risk/restriction checks, audit/outbox and operational readiness remain gated. The
 browser practice exercise remains separate and memory-only; its fictional geography
 is never accepted as real listing data. This is an implementation boundary for local

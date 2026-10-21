@@ -164,6 +164,11 @@ remain server-owned. Revisions, quantity-one item groups and versioned question
 answers append atomically; the current pointer advances in the same transaction.
 Missing/invalid disclosure or safety-stop answers store null conditions, never a
 placeholder derived label. Barangay remains null pending controlled geography.
+The revision-scoped nullable `fulfillment` field preserves buyer pickup, mutually
+agreed meetup or both. Owner detail maps null to an unselected control; omission
+in a replacement snapshot clears it. The server and SQL constrain the choices.
+Existing revision immutability, retry comparison and guards also cover availability.
+No exact pickup address, meeting location or precise coordinates are collected.
 
 An explicit account-private detail projection is the only persisted listing
 reader. No public projection, search, media, staff reader, notification or lifecycle

@@ -145,6 +145,11 @@ workspace uses the existing prototype styling and diagnostic controls at `/draft
 and `/drafts/[listingId]`. It supports incomplete saves/resume, status feedback,
 uncertain retry and stale-edit recovery. It is an English synthetic validation
 surface, not acceptance of proposed wizard layouts/tokens or publication readiness.
+The owner editor reuses the existing pickup/meetup select choices, with an explicit
+unselected option and associated help. Availability may be left incomplete, saved,
+cleared and resumed. The enclosing disabled fieldset freezes it during uncertain
+retries and stale conflicts. It collects no exact address, meeting location or
+precise coordinates; those belong only to later private reserved coordination.
 Human-reviewed paired Cebuano/Bisaya and full accessibility validation remain gates.
 
 ### 5.5 Private inquiry and negotiation thread

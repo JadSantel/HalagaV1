@@ -17,6 +17,10 @@ const rejects = (code) => (error) => error instanceof LaptopDraftRejected && err
 
 test("draft validation reuses accepted rules, permits incompleteness and never accepts owner/lifecycle overrides", () => {
   const blank = laptopDraftSchema.parse({});
+  assert.equal(blank.fulfillment, "");
+  for (const fulfillment of ["", "pickup", "meetup", "both"]) {
+    assert.equal(laptopDraftSchema.parse({ fulfillment }).fulfillment, fulfillment);
+  }
   assert.equal(validatedDraftCondition(blank), null);
   for (const sample of samples) {
     const draft = laptopDraftSchema.parse(sample.draft);
@@ -36,7 +40,10 @@ test("draft validation reuses accepted rules, permits incompleteness and never a
   for (const draft of [
     { sellerId: randomUUID() }, { accountId: randomUUID() }, { condition: "FULLY_FUNCTIONAL" }, { status: "PUBLISHED" },
     { barangay: "sample-a" }, { barangayCode: "sample-b" }, { barangayCode: "anything" }, { photos: [] },
-    { media: [] }, { ownershipDeclared: true }, { fulfillment: "both" }, { category: "SMARTPHONES_TABLETS" },
+    { media: [] }, { ownershipDeclared: true }, { category: "SMARTPHONES_TABLETS" },
+    ...[null, true, [], ["pickup", "meetup"], "shipping", "delivery", "exact synthetic location"].map((fulfillment) => ({ fulfillment })),
+    { exactAddress: "Synthetic address" }, { pickupAddress: "Synthetic address" },
+    { meetingLocation: "Synthetic meeting point" }, { latitude: 8.4, longitude: 124.6 }, { coordinates: [8.4, 124.6] },
     { listingType: "BUNDLE" }, { quantity: 2 }, { diagnosticVersion: "invented-v2" },
     { answers: { power: "invented" } }, { answers: { secret: "anything" } }, { notes: { secret: "anything" } },
     { privatePriceExpectation: 2.5 }, { privatePriceExpectation: "2.505" },
@@ -96,17 +103,62 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
     sessions: await database.session.findMany({ orderBy: { id: "asc" } }) });
 
   try {
+    await t.test("availability round-trips in incomplete immutable revisions with guarded retries and owner-only reads", async () => {
+      const account = await fixture(), stranger = await fixture();
+      for (const initial of [undefined, "", "pickup", "meetup", "both"]) {
+        const create = input(initial === undefined ? {} : { fulfillment: initial });
+        const created = await read(await send(account, "POST", create), 200);
+        assert.deepEqual(await read(await send(account, "POST", create), 200), created);
+        let detail = await read(await send(account, "GET", undefined, created.id), 200);
+        assert.equal(detail.draft.fulfillment, initial ?? "");
+        assert.equal(detail.condition, null);
+        assert.equal((await history(created.id))[0].fulfillment, initial || null);
+        for (const fulfillment of ["pickup", "meetup", "both", "", undefined]) {
+          const before = await history(created.id);
+          const draft = { title: "Synthetic availability laptop", privatePriceExpectation: "12.34",
+            ...(fulfillment === undefined ? {} : { fulfillment }) };
+          const save = { ...input(draft), expectedRevision: detail.revision };
+          const saved = await read(await send(account, "PUT", save, created.id), 200);
+          assert.deepEqual(await read(await send(account, "PUT", save, created.id), 200), saved);
+          const after = await history(created.id);
+          assert.deepEqual(after.slice(0, -1), before);
+          assert.equal(after.at(-1).fulfillment, fulfillment || null);
+          detail = await read(await send(account, "GET", undefined, created.id), 200);
+          assert.deepEqual(detail.draft, laptopDraftSchema.parse(draft));
+          // Availability alone cannot turn unfinished diagnostics into a condition.
+          assert.equal(detail.condition, null);
+          assert.equal(detail.status, "DRAFT");
+          await read(await send(account, "PUT", { ...save, requestId: randomUUID() }, created.id), 409, { code: "INVALID_STATE" });
+          await read(await send(account, "PUT", { ...save, draft: { ...draft, fulfillment: fulfillment === "pickup" ? "meetup" : "pickup" } }, created.id),
+            409, { code: "INVALID_STATE" });
+          await read(await send(stranger, "GET", undefined, created.id), 404, { code: "NOT_FOUND" });
+          await read(await send(stranger, "PUT", save, created.id), 404, { code: "NOT_FOUND" });
+          await read(await send(null, "GET", undefined, created.id), 401, { code: "UNAUTHORIZED" });
+          assert.deepEqual(await history(created.id), after);
+        }
+        assert.deepEqual(await read(await send(account, "POST", create), 200), created);
+        await assert.rejects(database.listingRevision.update({ where: { id: create.requestId }, data: { fulfillment: "pickup" } }));
+        for (const fulfillment of ["", "shipping", "Synthetic address"]) {
+          await assert.rejects(database.listingRevision.create({ data: { listingId: created.id, version: 100,
+            authoredById: account.accountId, listingType: "SINGLE_ITEM", category: "LAPTOPS",
+            title: "Synthetic invalid storage choice", description: "", fulfillment } }));
+        }
+      }
+      const summary = await read(await send(account, "GET"), 200);
+      for (const draft of summary.drafts) assert.equal(Object.hasOwn(draft, "fulfillment"), false);
+    });
+
     await t.test("each live scope blocks only matching writes; suspension blocks both; reads and rejected state remain intact", async () => {
       for (const scope of ["CREATE_LAPTOP_DRAFT", "EDIT_LAPTOP_DRAFT", "PUBLISH_LISTING", "SEND_INQUIRY", "SUBMIT_PROPOSAL", "SUSPENSION"]) {
         const account = await fixture();
-        const original = input({ title: "Synthetic restricted draft" });
+        const original = input({ title: "Synthetic restricted draft", fulfillment: "pickup" });
         const created = await operations.create(account.headers, original);
-        const firstSave = { ...input({ title: "Synthetic saved revision" }), expectedRevision: 1 };
+        const firstSave = { ...input({ title: "Synthetic saved revision", fulfillment: "both" }), expectedRevision: 1 };
         await operations.save(account.headers, created.id, firstSave);
         const decision = await restrict(account, scope);
         const detail = await read(await send(account, "GET", undefined, created.id), 200);
         assert.equal((await read(await send(account, "GET"), 200)).drafts.length, 1);
-        const create = input(), save = { ...input({ title: "Synthetic attempted edit" }), expectedRevision: 2 };
+        const create = input({ fulfillment: "meetup" }), save = { ...input({ title: "Synthetic attempted edit", fulfillment: "meetup" }), expectedRevision: 2 };
         for (const [method, body, id, blocked] of [
           ["POST", create, undefined, ["CREATE_LAPTOP_DRAFT", "SUSPENSION"].includes(scope)],
           ["PUT", save, created.id, ["EDIT_LAPTOP_DRAFT", "SUSPENSION"].includes(scope)],
@@ -381,7 +433,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
       const [a, b] = await Promise.all([operations.create(owner.headers, create), operations.create(owner.headers, create)]);
       assert.deepEqual(a, b);
       assert.equal((await history(a.id)).length, 1);
-      const same = { ...input({ title: "Synthetic same retry" }), expectedRevision: 1 };
+      const same = { ...input({ title: "Synthetic same retry", fulfillment: "both" }), expectedRevision: 1 };
       assert.deepEqual(...await Promise.all([operations.save(owner.headers, a.id, same), operations.save(owner.headers, a.id, same)]));
       const results = await Promise.allSettled(["A", "B"].map((title) => operations.save(owner.headers, a.id,
         { ...input({ title }), expectedRevision: 2 })));

@@ -281,6 +281,8 @@ model ListingRevision {
   description             String
   // Unselected in private drafts; publication still requires controlled geography.
   barangayCode            String?
+  // Unselected in incomplete drafts; supported choices enforced by SQL and Zod.
+  fulfillment             String?
   priceExpectation        Decimal?        @db.Decimal(12, 2)
   conditionSummary        ItemCondition?
   diagnosticSchemaVersion String?

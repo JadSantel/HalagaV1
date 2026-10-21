@@ -3,6 +3,61 @@
 Updated 2026-10-21 PHT. Synthetic data only, on a local/private installation.
 No public deployment, real participant data or completion of a launch gate.
 
+## Availability supplement (2026-10-21 PHT)
+
+Owner-private drafts now save/resume buyer pickup, mutually agreed meetup, both
+or an unselected value. This supersedes older fulfillment-input deferral in the
+original Slice 3 record below. Availability reuses the replacement snapshot,
+immutable revision, retry UUID, expected-version, owner/session and restriction
+controls. Only `DRAFT` and its owner-detail projection are affected; list, page
+shell, metadata, public, buyer, staff, search and notification boundaries are
+unchanged. No exact pickup address, meeting location or precise coordinates are
+collected. The English synthetic surface remains subject to human-reviewed paired
+Cebuano/Bisaya and full accessibility validation before launch.
+
+The additive `20261021120000_draft_fulfillment_availability` migration stores
+nullable revision `fulfillment` under a SQL choices check. Pre-existing revisions
+remain null; the reader maps null to the empty selection. No migration history is
+edited, and no existing snapshot is rewritten. Migration verification uses only
+disposable schemas; no persistent application migration is applied by this slice.
+
+Verification from `app`, using synthetic data only:
+
+| Command | Result |
+| --- | --- |
+| `npm.cmd run db:generate` | Passed; local Prisma client regenerated. |
+| `npm.cmd run test:laptop-drafts` | 18 passed, none skipped. All three choices, omission/clearing, unchanged prior snapshots, SQL choices and immutability, other-owner/signed-out reads and writes, stale saves, identical/changed-body retries, concurrent retries and current restrictions. |
+| `npm.cmd run test:sign-in-app` | 19 passed, none skipped, with installed Agent Browser and Chrome enabled. Actual private route persistence plus keyboard choice, saved/resumed meetup, both after conflict reload, unselected resume, lost-response exact-body retry and preserved stale availability. Existing axe WCAG checks found zero violations; 1440/375/320px and 200% text reflow checks passed. |
+| `npm.cmd run test:foundation` | 21 passed; existing foundation SQL, guarded commands and repository access boundary. |
+| `npm.cmd run test:listing` | 4 passed; existing practice choices and public-preview privacy contract. |
+| `npm.cmd exec tsc -- --noEmit` | Passed. |
+| `npm.cmd run lint` | Passed. |
+| `npm.cmd run build` | Passed; private draft APIs remain dynamic. |
+| `git diff --check` (repository root) | Passed; LF/CRLF notices only. |
+
+Draft and mounted-route suites used the existing launcher pattern to derive only
+the loopback `/halaga_signup_test` URL from local configuration, without printing
+credentials. Disposable schemas replayed all migrations and were cleaned up. The
+browser used the existing `SIGNUP_BROWSER_EXECUTABLE` and
+`AGENT_BROWSER_EXECUTABLE_PATH` opt-ins; no dependency/browser was downloaded.
+The first PowerShell inline `node --input-type=module -e` draft-suite launcher
+lost JavaScript quotes and failed before any test ran; stdin quoting corrected it.
+Existing Node module-type warnings remain non-fatal. Automated accessibility and
+keyboard checks do not complete manual screen-reader or translation review.
+No unresolved decision blocks this slice; the launch gates below remain.
+
+Changed files:
+
+- Storage: `app/prisma/schema.prisma` and
+  `app/prisma/migrations/20261021120000_draft_fulfillment_availability/migration.sql`.
+- Draft flow: `app/src/server/laptop-draft-validation.ts`,
+  `app/src/server/repositories/laptop-drafts.ts`, `app/src/app/drafts/workspace.tsx`.
+- Checks: `app/tests/laptop-drafts-database.test.mjs`,
+  `app/tests/sign-in-app-database.test.mjs`, `app/tests/helpers/laptop-drafts-browser.mjs`.
+- Synced implementation records: `PROJECT.md`, `architecture.md`, `design.md`,
+  `docs/domain/GLOSSARY.md`, `docs/decisions/ADR-084-first-physical-schema-review.md`,
+  `docs/decisions/README.md`, `docs/architecture/PHYSICAL_SCHEMA_REVIEW.md`, and this file.
+
 ## Latest restriction guard verification (2026-10-21 PHT)
 
 ADR-090 now applies to create/save, including successful-request retries. Current
@@ -94,6 +149,8 @@ unfinished defaults. It may be `{}`. Supported fields:
 
 - `diagnosticVersion`: optional; only `laptop-diagnostics-en-v1` is accepted.
 - `title`, `brand`, `model`, `description`, `approximateAge`: strings.
+- `fulfillment`: `"pickup"`, `"meetup"`, `"both"` or `""` (unselected). Omission
+  resets availability to unselected, consistent with full replacement semantics.
 - `answers`: partial map of accepted laptop question keys to defined choices or
   empty strings; `notes`: partial map of the same keys to strings.
 - `behavior`, `behaviorNotes`, `included`, `includedNotes`: the existing accepted
@@ -104,9 +161,11 @@ unfinished defaults. It may be `{}`. Supported fields:
 
 Unknown fields/choices/versions, numeric money, excess decimal precision, seller,
 account, author, lifecycle, condition, type/category, quantity, barangay, location,
-media, fulfillment and declaration inputs are rejected. No fictional practice
-barangay is persisted as geography. There is no controlled CDO registry yet;
-`barangayCode` remains null. Ownership submission/history and fulfillment are
+media, exact pickup address, meeting location, precise coordinates and declaration
+inputs are rejected. Unsupported fulfillment choices, including shipping, are
+rejected. No fictional practice barangay is persisted as geography.
+There is no controlled CDO registry yet;
+`barangayCode` remains null. Ownership submission/history remains
 later work, alongside media and publication validation.
 
 For a manual local request, while signed in on the configured local origin, use
@@ -281,8 +340,9 @@ usability and full manual accessibility validation remain gates.
 ## Remaining gates
 
 Publication is unavailable. Controlled CDO barangay data/maintenance, qualifying
-actual-item evidence and metadata-stripped safe image processing, fulfillment and
-ownership submission/history, sensitive-text/risk/restriction checks, held-review
+actual-item evidence and metadata-stripped safe image processing,
+ownership submission/history, sensitive-text/risk checks and restrictions beyond
+the implemented draft scopes, held-review
 workflow, audit/outbox and required operational readiness remain unimplemented.
 No provider, registry, geography, image upload, publication fallback, marketplace
 grant, worker schedule, retention schedule, public discovery or public projection

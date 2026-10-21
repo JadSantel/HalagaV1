@@ -219,7 +219,9 @@ A bundle-level summary shown when included items have more than one of the four 
 
 An owner's non-public, potentially incomplete listing. Saving a draft does not
 publish, hold or grant marketplace participation. The local synthetic laptop
-backend preserves immutable versioned snapshots; a missing or invalid diagnostic
+backend preserves immutable versioned snapshots, including pickup/meetup availability
+or an unselected value for an incomplete draft. Availability is a method choice,
+not an appointment or exact location. A missing or invalid diagnostic
 disclosure has no stored derived condition. Private draft access is limited to the
 authenticated owner, including an unverified owner, and does not satisfy later
 publication gates (architecture §4.1; ADR-084 implementation record).

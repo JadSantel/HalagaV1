@@ -24,7 +24,7 @@ export class LaptopDraftRejected extends Error {
 const revisionSelect = {
   id: true, listingId: true, version: true, title: true, description: true,
   listingType: true, category: true, diagnosticSchemaVersion: true, conditionSummary: true,
-  priceExpectation: true,
+  priceExpectation: true, fulfillment: true,
   itemGroups: { select: { quantity: true, brand: true, model: true, approximateAge: true,
     answers: { select: { schemaVersion: true, questionKey: true, answer: true, detail: true } } } },
 } as const;
@@ -57,7 +57,7 @@ function snapshot(revision: Revision): LaptopDraftSnapshot {
   const parsed = laptopDraftSchema.safeParse({ diagnosticVersion, title: revision.title,
     description: revision.description, brand: group.brand ?? "", model: group.model ?? "",
     approximateAge: group.approximateAge ?? "", privatePriceExpectation: revision.priceExpectation?.toFixed(2) ?? "",
-    answers, notes, behavior, behaviorNotes, included, includedNotes });
+    fulfillment: revision.fulfillment ?? "", answers, notes, behavior, behaviorNotes, included, includedNotes });
   if (!parsed.success) throw new LaptopDraftRejected("INVALID_STATE");
   return parsed.data;
 }
@@ -69,6 +69,7 @@ async function appendRevision(database: DraftDatabase, sellerId: string, listing
     id: requestId, listingId, authoredById: sellerId, version,
     listingType: "SINGLE_ITEM", category: "LAPTOPS", title: draft.title, description: draft.description,
     barangayCode: null, priceExpectation: draft.privatePriceExpectation || null,
+    fulfillment: draft.fulfillment || null,
     diagnosticSchemaVersion: diagnosticVersion, conditionSummary: condition,
     itemGroups: { create: { quantity: 1, brand: draft.brand, model: draft.model,
       approximateAge: draft.approximateAge, condition,

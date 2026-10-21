@@ -18,6 +18,15 @@ remains possible under PROJECT.md §28. See ADR-090's implementation record.
 
 ## Scope
 
+Availability supplement (2026-10-21 PHT): the additive
+`20261021120000_draft_fulfillment_availability` migration adds nullable text
+`ListingRevision.fulfillment`. Its SQL-only `listing_revision_fulfillment_choices`
+check permits only `pickup`, `meetup`, `both` or null (unselected). Empty client
+selection maps to null; existing revisions stay null without a history rewrite.
+The existing revision update trigger also protects this field. Preserve this
+constraint in future generated migrations; the original foundation SQL suffix
+remains unchanged. No exact location columns or appointment records are added.
+
 This foundation covers the domain account mapping, Better Auth core tables, listing identity and lifecycle, listing revisions, publication/renewal cycles and public-availability intervals, listed item groups, versioned diagnostic answers, ownership attestations, and listing media metadata. SQL triggers reject in-place updates to revision content and cycle history. Negotiations, reservations, cases, notifications, durable jobs, audit/access records, and retention exceptions remain for later slices.
 
 ADR-084 settled the physical choices. The Better Auth CLI-generated core models are aligned, and the SQL constraints are included in `app/prisma/migrations/20261012130000_account_listing_foundation/migration.sql`. The migration was verified with rolled-back synthetic data and applied to the loopback development database. This does not authorize real participant data or public deployment.

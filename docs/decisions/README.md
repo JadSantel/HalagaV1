@@ -69,6 +69,12 @@ listing reader, publication/hold or marketplace grant. Publication audit/outbox,
 evidence, safety and readiness gates remain.
 See [LAPTOP_DRAFT_LOCAL_TESTING.md](../LAPTOP_DRAFT_LOCAL_TESTING.md).
 
+Availability supplement (2026-10-21 PHT): ADR-084's later record implements
+ADR-014's pickup/meetup/both choices in owner-private laptop draft revisions.
+Incomplete drafts may leave availability unselected. Existing revision/retry,
+ownership and restriction guards apply. This supersedes older fulfillment-input
+deferral only; no exact location, appointment or publication behavior is added.
+
 Use the ADRs to understand why a rule exists and what tradeoffs were accepted. Add or update an ADR when a decision changes product behavior, domain semantics, operational responsibility, privacy, retention, or safety controls.
 
 Do not silently resolve items listed in `PROJECT.md` under **Deferred Decisions**.
