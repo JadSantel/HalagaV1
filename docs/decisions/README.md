@@ -37,6 +37,12 @@ ADR-091 sets service targets, browser support, responsive web scope, and
 quota-based capacity. Provider selection and hosted operations remain pending;
 [ADR-091](ADR-091-pilot-service-and-browser-targets.md).
 
+Latest draft guard integration (2026-10-21 PHT): ADR-090's implementation record
+covers current scoped restrictions and suspension on create/save, including
+retries and concurrent updates. Owner list/detail, sign-in and account security
+remain available. This supersedes older draft-restriction-unimplemented status;
+staff tools, other marketplace enforcement and launch gates remain pending.
+
 Current listing boundary (2026-10-19 PHT): ADR-084's implementation record covers
 the owner's requested local synthetic, authenticated owner-private laptop drafts.
 Incomplete snapshots append immutable revisions and versioned diagnostic answers;

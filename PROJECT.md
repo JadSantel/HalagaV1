@@ -418,6 +418,14 @@ is server-owned. No public reader, metadata, publication/hold or marketplace gra
 is added. Unverified authenticated owners may use this private synthetic capability;
 publication eligibility and all evidence/safety requirements above remain unchanged.
 
+Local restriction enforcement (2026-10-21 PHT): creation and editing now check
+current matching marketplace scopes and suspension under account locks, including
+retries. A creation restriction does not block editing; an editing restriction
+does not block creation. Suspension blocks both writes. Existing owner-private
+draft list/detail, sign-in and account security remain available. Rejected writes
+preserve saved state. This implements ADR-090 for synthetic drafts only; staff
+enforcement tools and other marketplace commands remain gated.
+
 Controlled CDO barangay input, media, fulfillment/declaration submission, publication
 risk/restriction checks, audit/outbox and operational readiness remain gated. The
 browser practice exercise remains separate and memory-only; its fictional geography

@@ -1,7 +1,47 @@
 # Local synthetic laptop draft workspace: bounded Slice 3
 
-Updated 2026-10-19 PHT. Synthetic data only, on a local/private installation.
+Updated 2026-10-21 PHT. Synthetic data only, on a local/private installation.
 No public deployment, real participant data or completion of a launch gate.
+
+## Latest restriction guard verification (2026-10-21 PHT)
+
+ADR-090 now applies to create/save, including successful-request retries. Current
+`CREATE_LAPTOP_DRAFT` and `EDIT_LAPTOP_DRAFT` scopes block only their corresponding
+action; unrelated publication/inquiry/proposal scopes permit both. `SUSPENSION`
+blocks both writes. Existing draft list/detail, sign-in and password changes remain
+available. An active denial returns only `{code: "ACTION_RESTRICTED"}` with status
+403 and existing private headers, without enforcement metadata or cookies. The
+workspace retains unsaved edits and reports that nothing was saved.
+
+The additive `20261021090000_draft_marketplace_restrictions` migration stores
+scoped staff/audit decisions. SQL changes serialize on the account row; guards
+read current state after lock waits and recheck before commit. Decision history
+is immutable except explicit, attributed revocation and authorized retention
+deletion. Start time is inclusive; review time does not automatically lift a
+restriction. No staff reader, staff writer or notice delivery is mounted.
+
+Checks run from `app` (database suites use only local synthetic data):
+
+| Command | Result |
+| --- | --- |
+| `npm.cmd run db:generate` | Passed; Prisma client regenerated. |
+| `npm.cmd run test:laptop-drafts` | 17 passed. Includes allowed/blocked/combined scopes, suspension, reads, explicit revocation, start boundaries, unchanged listing/revision/answer/session state after rejection, no rolling refresh on denial, retry checks, observed concurrent account-lock waits and guarded sign-in/password changes. |
+| `npm.cmd run test:foundation` | 21 passed. |
+| `npm.cmd run test:sign-in` | 38 passed. |
+| `npm.cmd run test:password-change` | 35 passed. |
+| `npm.cmd exec tsc -- --noEmit` | Passed. |
+| `npm.cmd run lint` | Passed. |
+| `npm.cmd run build` | Passed; draft API routes remain dynamic. |
+| `git diff --check` (repository root) | Passed; existing LF/CRLF notices only. |
+
+The draft/sign-in/password suites use the existing launcher to set
+`SIGNUP_TEST_DATABASE_URL` to the dedicated loopback `/halaga_signup_test`
+database without printing credentials. They replay migrations into disposable
+schemas and clean up. No persistent database migration, deployment, real data,
+email or browser run was performed in this slice. Existing Node module-type
+warnings remain non-fatal. Staff authorization/access auditing, retention execution,
+other marketplace commands and ADR-081 readiness remain gates. This record
+supersedes older claims that draft restriction checks are unimplemented.
 
 ## Authority, affected flows and boundaries
 
@@ -43,7 +83,8 @@ Origin trust never comes from Host or proxy headers. No CORS grant is added.
 when retrying an uncertain response. The server generates the listing ID and
 chooses the seller/author exclusively from the authenticated mapping. Request IDs
 become immutable revision IDs; do not reuse them across operations. An identical
-successful retry returns its original ID/version even after later edits. Reusing
+successful retry returns its original ID/version even after later edits, provided
+the account's current matching restriction/suspension guards still permit it. Reusing
 an owned request ID for a different snapshot/target or a stale expected revision
 returns `INVALID_STATE`. Global UUID collisions roll back and yield a fixed
 internal error without inspecting another owner's content.

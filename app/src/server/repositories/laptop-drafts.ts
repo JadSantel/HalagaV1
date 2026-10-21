@@ -8,10 +8,10 @@ import { createAccountAuth } from "./auth.ts";
 
 const createSchema = z.strictObject({ requestId: z.uuid(), draft: laptopDraftSchema });
 const saveSchema = createSchema.extend({ expectedRevision: z.number().int().positive().max(2147483646) });
-type DraftDatabase = Pick<ReturnType<typeof getPrisma>, "$queryRaw" | "userAccount" | "listing" | "listingRevision">;
+type DraftDatabase = Pick<ReturnType<typeof getPrisma>, "$queryRaw" | "userAccount" | "listing" | "listingRevision" | "accountMarketplaceRestriction">;
 
 export class LaptopDraftRejected extends Error {
-  readonly code: "INVALID_INPUT" | "UNAUTHORIZED" | "NOT_FOUND" | "INVALID_STATE" | "INTERNAL_ERROR";
+  readonly code: "INVALID_INPUT" | "UNAUTHORIZED" | "ACTION_RESTRICTED" | "NOT_FOUND" | "INVALID_STATE" | "INTERNAL_ERROR";
 
   constructor(code: LaptopDraftRejected["code"]) {
     super(code);
@@ -90,9 +90,10 @@ export function createLaptopDraftOperations(
   clock: () => Date = () => new Date(),
 ) {
   async function withOwner<T>(headers: Headers, work: (transaction: DraftDatabase, owner: string) => Promise<T>,
-    applySessionHeaders: (headers: Headers) => void): Promise<T> {
+    applySessionHeaders: (headers: Headers) => void, action?: "CREATE_LAPTOP_DRAFT" | "EDIT_LAPTOP_DRAFT"): Promise<T> {
     try {
-      const resolved = await auth.api.getSession({ headers, returnHeaders: true, query: { disableCookieCache: true } });
+      const resolved = await auth.api.getSession({ headers, returnHeaders: true,
+        query: { disableCookieCache: true, disableRefresh: action !== undefined } });
       const actor = resolved.response;
       if (!actor || actor.session.userId !== actor.user.id) throw new LaptopDraftRejected("UNAUTHORIZED");
       const result = await database.$transaction(async (transaction) => {
@@ -112,10 +113,22 @@ export function createLaptopDraftOperations(
           if (sessions.length !== 1 || sessions[0].createdAt > now || sessions[0].expiresAt <= now) {
             throw new LaptopDraftRejected("UNAUTHORIZED");
           }
+          return now;
         };
-        requireLiveSession();
+        const requireActionAllowed = async () => {
+          const now = requireLiveSession();
+          if (!action) return;
+          // Staff/audit data stays internal. The shared account lock also fences
+          // restriction writes; never trust session snapshots or client scopes.
+          const restriction = await transaction.accountMarketplaceRestriction.findFirst({
+            where: { accountId: owner.id, scope: { in: [action, "SUSPENSION"] },
+              startsAt: { lte: now }, revokedAt: null }, select: { id: true },
+          });
+          if (restriction) throw new LaptopDraftRejected("ACTION_RESTRICTED");
+        };
+        await requireActionAllowed();
         const value = await work(transaction, owner.id);
-        requireLiveSession(); // Includes time spent waiting on listing locks/writes.
+        await requireActionAllowed(); // Includes time spent waiting on listing locks/writes.
         return value;
       });
       applySessionHeaders(resolved.headers);
@@ -166,7 +179,7 @@ export function createLaptopDraftOperations(
         await transaction.listing.update({ where: { id: listing.id, sellerId, status: "DRAFT", currentRevisionNumber: null },
           data: { currentRevisionNumber: 1 }, select: { id: true } });
         return { id: listing.id, revision: 1 };
-      }, applySessionHeaders);
+      }, applySessionHeaders, "CREATE_LAPTOP_DRAFT");
     },
     async save(headers: Headers, listingId: unknown, input: unknown, applySessionHeaders: (headers: Headers) => void = () => {}) {
       const id = z.uuid().safeParse(listingId), parsed = saveSchema.safeParse(input);
@@ -187,7 +200,7 @@ export function createLaptopDraftOperations(
           status: "DRAFT", currentRevisionNumber: expectedRevision }, data: { currentRevisionNumber: expectedRevision + 1 } });
         if (updated.count !== 1) throw new LaptopDraftRejected("INVALID_STATE");
         return { id: listing.id, revision: expectedRevision + 1 };
-      }, applySessionHeaders);
+      }, applySessionHeaders, "EDIT_LAPTOP_DRAFT");
     },
     async read(headers: Headers, listingId: unknown, applySessionHeaders: (headers: Headers) => void = () => {}) {
       const id = z.uuid().safeParse(listingId);

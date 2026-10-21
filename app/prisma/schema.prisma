@@ -84,12 +84,32 @@ model UserAccount {
   listings              Listing[]
   outboxEvents          OutboxEvent[]
   passwordChangeNotices PasswordChangeNotice[]
+  marketplaceRestrictions AccountMarketplaceRestriction[]
   authoredRevisions     ListingRevision[]       @relation("RevisionAuthor")
   declarations          OwnershipDeclaration[]
   publicationCycles     PublicationCycle[]
   authUser              User                    @relation(fields: [authUserId], references: [id], onDelete: Restrict)
 
   @@map("user_account")
+}
+
+// Staff/audit scope only. No participant reader or staff command is mounted.
+// SQL validates scopes, preserves decision history and locks the affected account.
+model AccountMarketplaceRestriction {
+  id             String      @id @default(uuid()) @db.Uuid
+  accountId      String      @db.Uuid
+  scope          String
+  reason         String
+  startsAt       DateTime    @db.Timestamptz(3)
+  reviewAt       DateTime    @db.Timestamptz(3)
+  authorizedBy   String
+  appealRoute    String?
+  revokedAt      DateTime?   @db.Timestamptz(3)
+  revokedBy      String?
+  account        UserAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, scope, startsAt], map: "account_marketplace_restriction_account_scope_start_idx")
+  @@map("account_marketplace_restriction")
 }
 
 // Owner-private, synchronously materialized in-app security event. No recipient,

@@ -2,6 +2,21 @@
 
 This glossary records agreed meanings for product and domain terms. It should be updated when interviews establish or change a term.
 
+## Scoped Marketplace Restriction
+
+A reasoned, authorized restriction on specified marketplace actions. It does not
+block unrelated account security, privacy, appeal or eligible deletion actions
+(ADR-090). The laptop draft slice checks creation and editing separately; owner
+reads remain available. Review time requires review, rather than automatically
+lifting the restriction.
+
+## Account Suspension
+
+An authorized block on new marketplace activity, including laptop draft creation
+and editing. Sign-in remains available for notices, appeals, account security and
+eligible deletion. Existing workflows retain their own safeguards and history
+(ADR-090).
+
 ## Administratively Closed Transaction
 
 A transaction workflow closed after the original 72-hour completion-confirmation deadline because the other participant provided no completion confirmation. Total non-response closes without automatically creating a support case. An unresolved mismatch follows the bounded correction and support workflow instead. Administrative closure is not evidence of a successful exchange and is excluded from completed-sale and valuation data.

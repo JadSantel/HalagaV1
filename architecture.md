@@ -120,7 +120,19 @@ Architecture consequences:
 - Submission records the ownership declaration and the exact listing revision evaluated.
 - Immediate publication and held-for-review are outcomes of one validation policy; a held listing is never publicly searchable.
 
-#### Local synthetic draft boundary (2026-10-19 PHT)
+#### Local synthetic draft boundary (updated 2026-10-21 PHT)
+
+ADR-090 draft enforcement now reads matching active restriction/suspension
+decisions after the account lock and before writes or retry recognition. SQL
+restriction changes acquire that same account lock; a waiting draft command
+rechecks committed decisions. A final guard catches scheduled activation before
+commit. Rejections roll back all draft changes, and writes disable pre-transaction
+session refresh. Owner list/detail and account-security/sign-in remain available.
+Only decision IDs are selected for this internal guard; staff reason, actor,
+review and appeal data never enter draft projections or responses. Restriction
+decision/revocation history is immutable except authorized retention deletion.
+No staff surface or broader marketplace authorization is implemented. See
+ADR-090's implementation record.
 
 The bounded Slice 3 path mounts only owner-private laptop draft list/create/read/
 save and a local synthetic workspace at `/drafts` and `/drafts/[listingId]`.

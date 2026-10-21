@@ -6,6 +6,16 @@
 - Product authority: `PROJECT.md`
 - Logical model: `DOMAIN_MODEL.md`
 
+## Draft restriction supplement (2026-10-21 PHT)
+
+`20261021090000_draft_marketplace_restrictions` adds staff/audit-only scoped
+decisions with reason, start/review instants, authorizing staff reference, optional
+appeal route and paired revocation time/actor. SQL checks scope and metadata,
+preserves decision history, rejects revocation reversal and acquires the affected
+account row lock for all changes. The draft guard selects only matching decision
+IDs. No staff access or retention job is mounted; authorized retention deletion
+remains possible under PROJECT.md §28. See ADR-090's implementation record.
+
 ## Scope
 
 This foundation covers the domain account mapping, Better Auth core tables, listing identity and lifecycle, listing revisions, publication/renewal cycles and public-availability intervals, listed item groups, versioned diagnostic answers, ownership attestations, and listing media metadata. SQL triggers reject in-place updates to revision content and cycle history. Negotiations, reservations, cases, notifications, durable jobs, audit/access records, and retention exceptions remain for later slices.

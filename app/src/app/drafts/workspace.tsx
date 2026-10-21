@@ -96,6 +96,10 @@ export default function DraftWorkspace({ listingId }: { listingId?: string }) {
         pending.current = null; setPhase("conflict");
         setMessage("This draft has a newer revision. Your edits were not saved. Reload the saved draft before editing again."); return;
       }
+      if (response.status === 403) {
+        pending.current = null; setPhase("ready");
+        setMessage("This account cannot perform this draft action while a marketplace restriction is active. Nothing was saved. Existing drafts remain readable."); return;
+      }
       if (response.status === 404) {
         pending.current = null; setDetail(null); setDraft(null); setDirty(false); setPhase("missing");
         setMessage("This draft is unavailable for this account."); return;

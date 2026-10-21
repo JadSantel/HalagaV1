@@ -70,6 +70,39 @@ The MVP will not integrate an external IMEI or device-identifier blocklist. User
 - Restriction guards must check the specific action scope; suspension must not become an authentication lockout.
 - No blocklist vendor, paid service, provider, or external data transfer is authorized by this ADR.
 
+## Local synthetic draft enforcement record (2026-10-21 PHT)
+
+The owner-requested bounded implementation enforces this accepted policy on laptop
+draft creation and editing. `AccountMarketplaceRestriction` stores one scoped
+staff/audit decision with reason, start/review instants, authorizing staff reference,
+optional appeal route, and paired revocation time/actor. SQL preserves decision
+fields and prevents revocation reversal; corrections append a new decision.
+Authorized retention deletion remains possible under PROJECT.md §28. No staff
+reader, staff command, role grant, notice delivery or retention schedule is added.
+Staff operations, access auditing and retention execution remain gated before real data.
+
+The internal scopes `CREATE_LAPTOP_DRAFT` and `EDIT_LAPTOP_DRAFT` guard their
+respective commands. `PUBLISH_LISTING`, `SEND_INQUIRY` and `SUBMIT_PROPOSAL` name
+existing separate actions and do not block drafts; their enforcement awaits those
+commands. `SUSPENSION` blocks both draft writes as new marketplace activity.
+An unrevoked record applies at its start instant; review time is not expiry.
+Owner list/detail reads remain available. Sign-in and account-security commands
+do not consult these marketplace scopes.
+
+Restriction inserts, revocations and authorized retention deletes lock the same
+account row as draft commands. Commands read live decisions after acquiring that
+lock, before retry recognition or any write, and recheck time-sensitive guards
+before commit. Rejection rolls back draft/revision/answer changes. Draft writes
+disable pre-transaction rolling session refresh so rejection also preserves
+sessions. HTTP responses expose only fixed `ACTION_RESTRICTED` (403), without
+staff records; the editor retains unsaved work and reports the rejection.
+
+Synthetic PostgreSQL checks cover individual/unrelated/combined scopes, suspension,
+future starts and explicit revocation, retry denial, preserved reads and state,
+observed lock waits, activation during a write, and successful guarded sign-in and
+password changes. See [LAPTOP_DRAFT_LOCAL_TESTING.md](../LAPTOP_DRAFT_LOCAL_TESTING.md).
+This record implements ADR-090 without changing product policy or launch gates.
+
 ## Source
 
 - Owner decisions provided 2026-10-21

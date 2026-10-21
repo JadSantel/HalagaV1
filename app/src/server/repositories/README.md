@@ -1,5 +1,16 @@
 # Server repository boundary
 
+Latest draft guards (2026-10-21 PHT): `laptop-drafts.ts` reads only the IDs of
+matching active staff/audit restriction records under the account lock before
+create/save (including retries) and before commit. SQL restriction writes take
+the same lock. `CREATE_LAPTOP_DRAFT` and `EDIT_LAPTOP_DRAFT` are separate;
+`SUSPENSION` blocks both. Reads, sign-in and account security remain available.
+Writes suppress pre-transaction session refresh. Fixed 403 `ACTION_RESTRICTED`
+responses expose no enforcement details. No staff reader/writer is mounted;
+staff access auditing, retention and broader enforcement remain gates. See
+ADR-090 and `docs/LAPTOP_DRAFT_LOCAL_TESTING.md`. This supersedes earlier claims
+that draft restriction checks are unimplemented.
+
 Latest password-change boundary (2026-10-20 PHT): `password-change-http.ts` exposes
 only protected POST `/change-password` through the existing plugin/guarded operation;
 exact application dispatch and the existing form are authorized for synthetic data

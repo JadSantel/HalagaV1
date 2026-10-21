@@ -6,6 +6,8 @@ import { laptopDraftSchema, validatedDraftCondition } from "../src/server/laptop
 import { copyDraft, samples } from "../src/domain/laptop-diagnostics.ts";
 import { createLaptopDraftOperations, LaptopDraftRejected } from "../src/server/repositories/laptop-drafts.ts";
 import { createLaptopDraftHandler } from "../src/server/repositories/laptop-drafts-http.ts";
+import { createAccountSignInOperation } from "../src/server/repositories/sign-in.ts";
+import { createPasswordChangeOperation } from "../src/server/repositories/password-change.ts";
 import { openSignupSandbox } from "./helpers/signup-sandbox.mjs";
 
 const origin = "http://127.0.0.1:3000";
@@ -60,7 +62,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
     const signedIn = await auth.api.signInEmail({ body: { email, password }, returnHeaders: true });
     const headers = cookieHeaders(signedIn);
     const actor = await auth.api.getSession({ headers });
-    return { userId: id, accountId: account?.id, headers, actor };
+    return { userId: id, accountId: account?.id, headers, actor, email, password };
   };
   const send = (owner, method, body, id, extra = {}) => handler(new Request(`${origin}/api/laptop-drafts${id ? `/${id}` : ""}`, {
     method, headers: { origin, "content-type": "application/json", cookie: owner?.headers.get("cookie") ?? "", ...extra },
@@ -84,8 +86,139 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
     database.listedItemGroup.count(), database.diagnosticAnswer.count()]);
   const history = (id) => database.listingRevision.findMany({ where: { listingId: id }, orderBy: { version: "asc" },
     include: { itemGroups: { include: { answers: { orderBy: { questionKey: "asc" } } } } } });
+  const restrict = (account, scope, extra = {}) => database.accountMarketplaceRestriction.create({ data: {
+    accountId: account.accountId, scope, reason: "Synthetic private review reason",
+    startsAt: new Date(Date.now() - 120000), reviewAt: new Date(Date.now() - 60000),
+    authorizedBy: "synthetic-authorized-operator", appealRoute: "synthetic-private-appeal", ...extra,
+  } });
+  const state = async (id) => ({ counts: await counts(), history: await history(id),
+    listing: await database.listing.findUnique({ where: { id } }),
+    sessions: await database.session.findMany({ orderBy: { id: "asc" } }) });
 
   try {
+    await t.test("each live scope blocks only matching writes; suspension blocks both; reads and rejected state remain intact", async () => {
+      for (const scope of ["CREATE_LAPTOP_DRAFT", "EDIT_LAPTOP_DRAFT", "PUBLISH_LISTING", "SEND_INQUIRY", "SUBMIT_PROPOSAL", "SUSPENSION"]) {
+        const account = await fixture();
+        const original = input({ title: "Synthetic restricted draft" });
+        const created = await operations.create(account.headers, original);
+        const firstSave = { ...input({ title: "Synthetic saved revision" }), expectedRevision: 1 };
+        await operations.save(account.headers, created.id, firstSave);
+        const decision = await restrict(account, scope);
+        const detail = await read(await send(account, "GET", undefined, created.id), 200);
+        assert.equal((await read(await send(account, "GET"), 200)).drafts.length, 1);
+        const create = input(), save = { ...input({ title: "Synthetic attempted edit" }), expectedRevision: 2 };
+        for (const [method, body, id, blocked] of [
+          ["POST", create, undefined, ["CREATE_LAPTOP_DRAFT", "SUSPENSION"].includes(scope)],
+          ["PUT", save, created.id, ["EDIT_LAPTOP_DRAFT", "SUSPENSION"].includes(scope)],
+        ]) {
+          if (blocked) {
+            const before = await state(created.id);
+            await read(await send(account, method, body, id), 403, { code: "ACTION_RESTRICTED" });
+            // Successful request IDs cannot bypass current restrictions on retry.
+            await read(await send(account, method, method === "POST" ? original : firstSave, id),
+              403, { code: "ACTION_RESTRICTED" });
+            assert.deepEqual(await state(created.id), before);
+            assert.deepEqual(await read(await send(account, "GET", undefined, created.id), 200), detail);
+          } else {
+            const result = await read(await send(account, method, body, id), 200);
+            assert.equal(result.revision, method === "POST" ? 1 : 3);
+          }
+        }
+        assert.deepEqual(await database.accountMarketplaceRestriction.findUnique({ where: { id: decision.id } }), decision);
+        // Overdue review does not lift a restriction. Explicit revocation does.
+        await database.accountMarketplaceRestriction.update({ where: { id: decision.id },
+          data: { revokedAt: new Date(), revokedBy: "synthetic-review-operator" } });
+        await assert.rejects(database.accountMarketplaceRestriction.update({ where: { id: decision.id },
+          data: { revokedAt: null, revokedBy: null } }));
+        if (["CREATE_LAPTOP_DRAFT", "SUSPENSION"].includes(scope)) await read(await send(account, "POST", create), 200);
+        if (["EDIT_LAPTOP_DRAFT", "SUSPENSION"].includes(scope)) await read(await send(account, "PUT", save, created.id), 200);
+      }
+    });
+
+    await t.test("rejected writes do not renew an otherwise rolling session or change draft history", async () => {
+      const account = await fixture();
+      const draft = await operations.create(account.headers, input());
+      await restrict(account, "SUSPENSION");
+      const old = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+      await database.session.update({ where: { id: account.actor.session.id },
+        data: { createdAt: old, updatedAt: old, expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) } });
+      const before = await state(draft.id);
+      await read(await send(account, "POST", input()), 403, { code: "ACTION_RESTRICTED" });
+      await read(await send(account, "PUT", { ...input(), expectedRevision: 1 }, draft.id), 403, { code: "ACTION_RESTRICTED" });
+      assert.deepEqual(await state(draft.id), before);
+    });
+
+    await t.test("future restrictions, other owners and combined scopes use current stored decisions", async () => {
+      const account = await fixture(), other = await fixture();
+      const created = await operations.create(account.headers, input());
+      await restrict(other, "SUSPENSION");
+      for (const data of [{ scope: "INVENTED_SCOPE" }, { reason: " " }, { authorizedBy: " " },
+        { reviewAt: new Date(0) }, { revokedAt: new Date(), revokedBy: null }]) {
+        await assert.rejects(restrict(account, "CREATE_LAPTOP_DRAFT", data));
+      }
+      const start = new Date(Date.now() + 60000);
+      const future = await restrict(account, "SUSPENSION", { startsAt: start, reviewAt: start });
+      await operations.create(account.headers, input());
+      await operations.save(account.headers, created.id, { ...input(), expectedRevision: 1 });
+      // Both guards use the exact start instant, and reject even a successful retry.
+      const atStart = createLaptopDraftOperations(database, auth, () => start);
+      const before = await state(created.id);
+      await assert.rejects(atStart.create(account.headers, input()), rejects("ACTION_RESTRICTED"));
+      await assert.rejects(atStart.save(account.headers, created.id, { ...input(), expectedRevision: 2 }), rejects("ACTION_RESTRICTED"));
+      assert.deepEqual(await state(created.id), before);
+      assert.equal((await atStart.read(account.headers, created.id)).revision, 2);
+      // Activation after append but before commit also rolls back every draft write.
+      for (const command of ["create", "save"]) {
+        let calls = 0;
+        const crossing = createLaptopDraftOperations(database, auth, () => ++calls === 1 ? new Date(start.getTime() - 1) : start);
+        const pending = command === "create" ? crossing.create(account.headers, input())
+          : crossing.save(account.headers, created.id, { ...input(), expectedRevision: 2 });
+        await assert.rejects(pending, rejects("ACTION_RESTRICTED"));
+        assert.deepEqual(await state(created.id), before);
+      }
+      await assert.rejects(database.accountMarketplaceRestriction.update({ where: { id: future.id }, data: { scope: "PUBLISH_LISTING" } }));
+      await restrict(account, "CREATE_LAPTOP_DRAFT");
+      await restrict(account, "EDIT_LAPTOP_DRAFT");
+      await read(await send(account, "POST", input()), 403, { code: "ACTION_RESTRICTED" });
+      await read(await send(account, "PUT", { ...input(), expectedRevision: 2 }, created.id), 403, { code: "ACTION_RESTRICTED" });
+      assert.deepEqual(await state(created.id), before);
+    });
+
+    await t.test("writes waiting behind restriction changes reread current scopes and suspension after the account lock", async () => {
+      for (const [command, scope] of [["create", "CREATE_LAPTOP_DRAFT"], ["save", "EDIT_LAPTOP_DRAFT"], ["create", "SUSPENSION"], ["save", "SUSPENSION"]]) {
+        const account = await fixture();
+        const draft = await operations.create(account.headers, input());
+        const before = await state(draft.id);
+        const entered = Promise.withResolvers(), release = Promise.withResolvers();
+        const restricting = database.$transaction(async (transaction) => {
+          // The SQL trigger takes the same parent lock as the draft command.
+          await transaction.accountMarketplaceRestriction.create({ data: {
+            accountId: account.accountId, scope, reason: "Synthetic concurrent restriction",
+            startsAt: new Date(), reviewAt: new Date(Date.now() + 60000), authorizedBy: "synthetic-operator",
+          } });
+          const [{ pid }] = await transaction.$queryRaw`SELECT pg_backend_pid() AS pid`;
+          entered.resolve(pid);
+          await release.promise;
+        }, { timeout: 10000 });
+        const blocker = await entered.promise;
+        const pending = command === "create" ? operations.create(account.headers, input())
+          : operations.save(account.headers, draft.id, { ...input(), expectedRevision: 1 });
+        const rejected = assert.rejects(pending, rejects("ACTION_RESTRICTED"));
+        try {
+          let blocked = false;
+          for (let attempt = 0; attempt < 200; attempt++) {
+            await connection.query("SELECT pg_stat_clear_snapshot()");
+            const result = await connection.query(`SELECT 1 FROM pg_stat_activity WHERE datname = current_database()
+              AND wait_event_type = 'Lock' AND $1 = ANY(pg_blocking_pids(pid))`, [blocker]);
+            if (result.rowCount) { blocked = true; break; }
+            await setTimeout(10);
+          }
+          assert.equal(blocked, true, "Draft write must wait on this restriction transaction's exact backend");
+        } finally { release.resolve(); await restricting; await rejected; }
+        assert.deepEqual(await state(draft.id), before);
+      }
+    });
+
     await t.test("deleted owners cannot list, read, create or save drafts; unrelated owners remain unaffected", async () => {
       const deleted = await fixture(), unrelated = await fixture();
       const original = input({ title: "Deleted owner's private draft", privatePriceExpectation: "123.45" });
@@ -357,6 +490,23 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
       assert.equal((await operations.list(owner.headers)).drafts.some((draft) => draft.id === id), false);
       await read(await send(owner, "GET", undefined, id), 404, { code: "NOT_FOUND" });
       await read(await send(owner, "PUT", { ...input(), expectedRevision: 1 }, id), 404, { code: "NOT_FOUND" });
+    });
+    await t.test("scoped restrictions and suspension preserve guarded sign-in and password change", async () => {
+      for (const scopes of [["CREATE_LAPTOP_DRAFT", "EDIT_LAPTOP_DRAFT"], ["SUSPENSION"]]) {
+        const account = await fixture();
+        for (const scope of scopes) await restrict(account, scope);
+        const decisions = await database.accountMarketplaceRestriction.findMany({ where: { accountId: account.accountId } });
+        const signedIn = await createAccountSignInOperation(database, auth)(new Headers(),
+          { email: account.email, password: account.password });
+        const headers = cookieHeaders(signedIn);
+        const nextPassword = "synthetic-new-security-password";
+        assert.deepEqual(await createPasswordChangeOperation(database, auth)(headers,
+          { currentPassword: account.password, newPassword: nextPassword }, () => {}), { status: "PASSWORD_CHANGED" });
+        assert.ok(await auth.api.getSession({ headers }));
+        await createAccountSignInOperation(database, auth)(new Headers(), { email: account.email, password: nextPassword });
+        assert.deepEqual(await database.accountMarketplaceRestriction.findMany({ where: { accountId: account.accountId } }), decisions);
+        assert.equal(await database.passwordChangeNotice.count({ where: { accountId: account.accountId } }), 1);
+      }
     });
   } finally { await sandbox.close(); }
 });

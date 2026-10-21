@@ -185,8 +185,10 @@ and the six account-email commands plus fragment forms are mounted. These local
 integrations do not authorize real participant data, live sending or public signup.
 
 The owner-private password-change notice reader and account security UI are now
-implemented for synthetic validation. Next, verify scoped restriction/suspension
-guards against ADR-090 as marketplace actions are implemented. Terms/privacy
+implemented for synthetic validation. Scoped restriction/suspension guards now
+enforce ADR-090 for laptop draft creation/editing, including retries, with
+synthetic database verification. Other marketplace commands must apply their
+own scope checks as implemented. See `docs/LAPTOP_DRAFT_LOCAL_TESTING.md`. Terms/privacy
 content is still needed before real registration. Audited staff recovery, provider/hosted worker
 operations, backup/restore and ADR-081 readiness remain separate operational or
 later-slice gates. See `docs/ACCOUNT_FLOW_INTEGRATION.md` and

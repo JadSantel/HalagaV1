@@ -8,7 +8,7 @@ const privateHeaders = {
   "cache-control": "no-store", "referrer-policy": "no-referrer", "x-content-type-options": "nosniff",
   "x-robots-tag": "noindex, nofollow", vary: "Cookie",
 };
-const statuses = { INVALID_INPUT: 400, UNAUTHORIZED: 401, NOT_FOUND: 404, INVALID_STATE: 409, INTERNAL_ERROR: 500 } as const;
+const statuses = { INVALID_INPUT: 400, UNAUTHORIZED: 401, ACTION_RESTRICTED: 403, NOT_FOUND: 404, INVALID_STATE: 409, INTERNAL_ERROR: 500 } as const;
 
 /** Private draft endpoints only. JSON writes require the configured exact origin.
  * No CORS, public reader, discovery projection, upload or lifecycle transition.
