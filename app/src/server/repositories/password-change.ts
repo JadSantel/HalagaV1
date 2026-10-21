@@ -131,7 +131,7 @@ export type PasswordChangeNoticeDetail = Readonly<{
   id: string; eventType: string; eventVersion: number; createdAt: Date; readAt: Date | null;
 }>;
 
-/** Unmounted owner-only detail. No generic/staff reader, cache, rendered copy or email status. */
+/** Owner-only security history. No generic/staff reader or email status. */
 export function createPasswordChangeNoticeReader(
   database: ReturnType<typeof getPrisma>,
   auth: Pick<ReturnType<typeof createAccountAuth>, "api">,
@@ -158,6 +158,85 @@ export function createPasswordChangeNoticeReader(
             token: actor.session.token, expiresAt: { gt: now }, createdAt: { lte: now } } } } },
       }, select: { id: true, eventType: true, eventVersion: true, createdAt: true, readAt: true } });
     } catch {
+      throw new PasswordChangeRejected("INTERNAL_ERROR");
+    }
+  };
+}
+
+/** Lists only unexpired notices for the exact current stored session and owner. */
+export function createPasswordChangeNoticeListReader(
+  database: ReturnType<typeof getPrisma>,
+  auth: Pick<ReturnType<typeof createAccountAuth>, "api">,
+  clock: () => Date = () => new Date(),
+) {
+  return async (headers: Headers, applySessionHeaders: (headers: Headers) => void):
+    Promise<readonly PasswordChangeNoticeDetail[] | null> => {
+    try {
+      const resolved = await auth.api.getSession({ headers, returnHeaders: true,
+        query: { disableCookieCache: true, disableRefresh: true } });
+      applySessionHeaders(resolved.headers);
+      const actor = resolved.response;
+      if (!actor || actor.session.userId !== actor.user.id) return null;
+      const now = clock();
+      if (!Number.isFinite(now.getTime())) throw new PasswordChangeRejected("INTERNAL_ERROR");
+      return await database.passwordChangeNotice.findMany({ where: {
+        createdAt: { gt: new Date(now.getTime() - passwordChangeNoticeMs), lte: now },
+        account: { authUserId: actor.user.id, deletedAt: null,
+          authUser: { sessions: { some: { id: actor.session.id, userId: actor.user.id,
+            token: actor.session.token, expiresAt: { gt: now }, createdAt: { lte: now } } } } },
+      }, orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { id: true, eventType: true, eventVersion: true, createdAt: true, readAt: true } });
+    } catch {
+      throw new PasswordChangeRejected("INTERNAL_ERROR");
+    }
+  };
+}
+
+/** Marks one unexpired notice read under account -> session -> notice locks. */
+export function createPasswordChangeNoticeReadMarker(
+  database: ReturnType<typeof getPrisma>,
+  auth: Pick<ReturnType<typeof createAccountAuth>, "api">,
+  clock: () => Date = () => new Date(),
+) {
+  return async (headers: Headers, noticeId: unknown, applySessionHeaders: (headers: Headers) => void):
+    Promise<Readonly<{ id: string; readAt: Date }> | null> => {
+    const parsed = z.uuid().safeParse(noticeId);
+    if (!parsed.success) throw new PasswordChangeRejected("INVALID_INPUT");
+    try {
+      const resolved = await auth.api.getSession({ headers, returnHeaders: true,
+        query: { disableCookieCache: true, disableRefresh: true } });
+      applySessionHeaders(resolved.headers);
+      const actor = resolved.response;
+      if (!actor || actor.session.userId !== actor.user.id) throw new PasswordChangeRejected("UNAUTHORIZED");
+      const now = clock();
+      if (!Number.isFinite(now.getTime())) throw new PasswordChangeRejected("INTERNAL_ERROR");
+      return await database.$transaction(async (transaction) => {
+        const owners = await transaction.$queryRaw<Array<{ id: string }>>`
+          SELECT a.id FROM "user" u JOIN "user_account" a ON a."authUserId" = u.id
+          WHERE u.id = ${actor.user.id} AND a."deletedAt" IS NULL
+          FOR UPDATE OF u, a
+        `;
+        if (owners.length !== 1) throw new PasswordChangeRejected("UNAUTHORIZED");
+        const sessions = await transaction.$queryRaw<Array<{ id: string }>>`
+          SELECT id FROM "session" WHERE id = ${actor.session.id} AND "userId" = ${actor.user.id}
+            AND token = ${actor.session.token} AND "expiresAt" > ${now} AND "createdAt" <= ${now}
+          FOR UPDATE
+        `;
+        if (sessions.length !== 1) throw new PasswordChangeRejected("UNAUTHORIZED");
+        const notices = await transaction.$queryRaw<Array<{ id: string; readAt: Date | null }>>`
+          SELECT id, "readAt" FROM "password_change_notice"
+          WHERE id = ${parsed.data} AND "accountId" = ${owners[0].id}
+            AND "createdAt" > ${new Date(now.getTime() - passwordChangeNoticeMs)} AND "createdAt" <= ${now}
+          FOR UPDATE
+        `;
+        if (notices.length !== 1) return null;
+        if (notices[0].readAt === null) {
+          await transaction.passwordChangeNotice.update({ where: { id: parsed.data }, data: { readAt: now }, select: { id: true } });
+        }
+        return { id: parsed.data, readAt: notices[0].readAt ?? now };
+      });
+    } catch (error) {
+      if (error instanceof PasswordChangeRejected) throw error;
       throw new PasswordChangeRejected("INTERNAL_ERROR");
     }
   };

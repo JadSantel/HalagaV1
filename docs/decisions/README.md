@@ -9,6 +9,12 @@ status below. Notice readers, notification UI and staff tools remain unmounted;
 all accepted policy and real-sending/data/operational gates remain. See
 [PASSWORD_CHANGE_LOCAL_TESTING.md](../PASSWORD_CHANGE_LOCAL_TESTING.md).
 
+Latest account-security reader integration (2026-10-21 PHT): owner-private password-
+change notice list/read surfaces are mounted for synthetic validation at
+`/account/security` and the two protected notice API paths. They expose no general
+session reader, email eligibility, recipient or delivery details. This supersedes
+the older notice-reader/UI-unmounted status below, without changing ADR-087/089 policy.
+
 Latest password-change policy (2026-10-20 PHT): accepted
 [ADR-089](ADR-089-password-change-email-and-retention.md) resolves exact version-1
 copy, seven-day delivery, recipient erasure, bounded metadata/in-app retention,
@@ -77,6 +83,8 @@ The following ADR-087 password-change status was a historical snapshot and is
 superseded by ADR-089 and the latest integration record at the top of this file.
 Password-change policy, email delivery/retention, and protected local synthetic
 HTTP/client integration are now accepted or implemented as documented there.
-Owner-only notice readers, notification UI, and staff tools remain unmounted.
+Earlier ADR-087/089 implementation snapshots state that notice readers and UI were
+unmounted; the 2026-10-21 integration record above supersedes that status. Staff
+tools remain unmounted.
 
 Recent architecture decisions: ADR-076 selects PostgreSQL for MVP marketplace search; ADR-077 sets six-month retention for private content in uncompleted inquiries/negotiations; ADR-078 extends the one-appeal process to listing moderation and verification decisions; ADR-079 restricts retention exceptions and requires periodic review; ADR-080 requires trained operator backup and pauses onboarding/publication when coverage is unavailable; ADR-081 gates real data and public pilot on hosting readiness; ADR-082 sets 24-hour pilot RPO/RTO targets; ADR-083 selects Prisma ORM 7, Zod 4, Tailwind CSS 4, and stable stack release lines, with exact patches pinned at application bootstrap; ADR-084 records centavo precision and the first physical schema review decisions; ADR-085 establishes privacy-safe operational logging; ADR-087 settles account onboarding and credential-flow policies; ADR-088 settles account email delivery and recovery.

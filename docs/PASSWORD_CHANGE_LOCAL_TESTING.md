@@ -1,13 +1,35 @@
 # Protected password change: local synthetic testing
 
+## Latest account-security integration record (2026-10-21 PHT)
+
+`/account/security` lists the signed-in owner's password-change notices from the
+preceding 90 days and provides an explicit mark-as-read action. The list API
+selects only event ID/type/version/time/read state, rechecking the exact stored
+session and undeleted account in the same query. The read command locks identity/
+domain, the exact stored session and the notice, then sets `readAt` once; repeated
+requests return the existing read time. It excludes email eligibility, recipient,
+delivery, credential, session and account details. Unknown, expired or another
+account's notice returns a fixed not-found response. Requests are same-origin
+protected for writes; both paths return no-store/no-referrer/nosniff/noindex.
+
+The UI uses only the approved password-change security copy and formats event time
+in PHT. Read/unread has text labels and an explicit keyboard-operable action.
+Synthetic PostgreSQL and handler checks cover owner isolation, session authorization,
+retention, idempotent read, origin rejection and response projection. This changes
+no ADR-087/089 policy. Live email, participant data, staff readers and general
+notification infrastructure remain outside this implementation.
+
+Verification on 2026-10-21 PHT: `npm.cmd run test:password-change` passed all 35
+tests; `npm.cmd run lint` and `npm.cmd run build` passed. This account-security
+screen has not had a manual browser, keyboard-only or screen-reader review.
+
 ## Local mounting record (2026-10-20 PHT, after ADR-089)
 
-The owner's explicit request authorizes only protected POST
-`/api/auth/change-password` and the existing `/account/change-password` form for
-local synthetic validation. This supersedes older unmounted/disabled statements
-in this guide and the integration documents for those two surfaces only. Notice
-readers, notification UI and staff tools remain unmounted. No product policy or
-ADR-089 delivery, retry, deletion or retention rule changes.
+The owner's explicit request authorizes protected POST `/api/auth/change-password`
+and the existing `/account/change-password` form for local synthetic validation.
+The later 2026-10-21 record above also mounts the owner-private notice list/read
+surfaces. No product policy or ADR-089 delivery, retry, deletion or retention rule
+changes.
 
 `password-change-http.ts` follows the signup/sign-in handler pattern, admits only
 the exact POST path without query input, and calls the existing protected plugin
@@ -209,10 +231,9 @@ mounted for local synthetic testing only; password-change email and other mounti
 remain. No password-change route, preview or email path is enabled.
 
 This Slice 2 operation implements credential/session changes and atomic in-app/
-eligible email notices under ADR-087/089 using synthetic data. Password-change
-routes, Server Actions, notice readers and UI remain unmounted/disabled. Protected
-endpoint integration exists for synthetic testing; the application exposes only the
-existing six email commands plus protected serialized sign-in and signup. Use fictional `.invalid`
+eligible email notices under ADR-087/089 using synthetic data. At the time of this
+historical snapshot, password-change routes, notice readers and UI were unmounted/
+disabled; current mounting is documented at the top of this guide. Use fictional `.invalid`
 addresses and synthetic passwords only.
 
 ## Setup and automated checks

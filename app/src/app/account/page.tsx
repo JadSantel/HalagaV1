@@ -10,6 +10,7 @@ export default function AccountPreviewPage() {
     <p className={styles.notice}>Signup, sign-in, email verification, password reset, email confirmation and password change are available for local testing with made-up accounts. Email sending is disabled for local synthetic testing. Terms, privacy content and launch readiness remain incomplete.</p>
     <nav aria-label="Account screens" className={styles.directory}>
       {Object.entries(screens).map(([name, screen]) => <Link key={name} href={`/account/${name}`}>{screen.title}<span aria-hidden="true"> →</span></Link>)}
+      <Link href="/account/security">Account security<span aria-hidden="true"> →</span></Link>
     </nav>
     <Link className={styles.back} href="/">Return to laptop practice</Link>
   </>;

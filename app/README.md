@@ -1,12 +1,18 @@
 # Halaga local laptop listing prototype
 
-Latest account update (2026-10-20 PHT): protected POST `/api/auth/change-password`
-and its existing form now support local synthetic validation through the guarded
-operation/plugin. Notice readers, notification UI and staff tools stay unmounted;
-real sending/data and operational launch gates remain closed. This supersedes
-older password-change closure/preview status below. See
+Latest account update (2026-10-21 PHT): protected POST `/api/auth/change-password`
+and its existing form support local synthetic validation through the guarded
+operation/plugin. `/account/security` reads only the
+signed-in owner's unexpired password-change notices and lets the owner explicitly
+mark each notice read. GET `/api/account/security-notices` and POST
+`/api/account/security-notices/[noticeId]/read` use a fixed private projection,
+exact stored-session checks, no-store responses and same-origin write admission.
+Only approved password-change copy and PHT event time render; email eligibility,
+delivery state, recipient and session data stay private. Real sending/data and
+operational launch gates remain closed. This supersedes older password-change and
+notice-reader mounting status below. See
 [PASSWORD_CHANGE_LOCAL_TESTING.md](../docs/PASSWORD_CHANGE_LOCAL_TESTING.md) for
-the installed-library review, disposable route/browser checks and remaining gates.
+the implementation and verification record.
 
 Latest Slice 3 update (2026-10-19 PHT): `/drafts` and `/drafts/[listingId]` provide
 an authenticated owner-private workspace for local synthetic laptop drafts. Owners
@@ -19,13 +25,14 @@ browser-only. No publication, hold, images, real geography, fulfillment or owner
 submission is added. See [the workspace testing guide](../docs/LAPTOP_DRAFT_LOCAL_TESTING.md)
 for migrations, manual checks, the disposable browser harness and remaining gates.
 
-Latest Slice 2 signup update (2026-10-18 PHT, after sign-in): protected POST
+Historical Slice 2 signup update (2026-10-18 PHT, after sign-in): protected POST
 `/api/auth/sign-up/email` and the accessible form at `/account/register` now work
 for local synthetic data only. Signup retains atomic private eligibility/token/
 encrypted delivery-intent writes, generic responses, origin/CSRF/endpoint limits
 and no session creation. Email sending stays disabled. This supersedes older signup
-closure/preview status below. Password change, terms/privacy, restrictions and all
-real-data/public-launch gates remain incomplete. Run `npm.cmd run test:sign-in-app`
+closure/preview status below. Password change is mounted for synthetic validation
+as recorded above. Terms/privacy, restrictions and all real-data/public-launch gates
+remain incomplete. Run `npm.cmd run test:sign-in-app`
 for the expanded actual signup/sign-in route harness (disposable schema, port 3102).
 An installed browser can optionally exercise the client; setup, results and limits
 are in [the signup guide](../docs/SIGNUP_LOCAL_TESTING.md).
@@ -181,8 +188,9 @@ The unmounted synthetic pipeline implements atomic eligible intent/snapshot/job
 writes and reuses existing dispatch/recovery. Migration
 `20261020090000_password_change_email_retention` adds purpose/immutability guards
 and a deletion trigger, exercised only in disposable schemas. No backfill is
-authorized. Commands and notice readers remain unmounted pending integration/readiness gates;
-the disabled preview is not a working password-change flow.
+authorized. This paragraph is an earlier implementation snapshot; the current
+password-change command and notice-reader status are recorded at the top of this
+file. Remaining integration/readiness gates still apply.
 
 ## Authentication policy foundation
 

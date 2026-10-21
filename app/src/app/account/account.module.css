@@ -30,6 +30,16 @@
 .links a, .back, .directory a { color: var(--primary); text-underline-offset: .2em; text-decoration: underline; }
 .directory { display: grid; margin: 1.5rem 0; }
 .directory a { display: flex; gap: 1rem; justify-content: space-between; align-items: center; min-height: 3.5rem; padding: .75rem 0; border-bottom: 1px solid #d9dfda; }
+.noticeList { display: grid; gap: 1rem; padding: 0; list-style: none; }
+.noticeCard { padding: 1rem; border: 1px solid #9aa9a0; border-radius: 6px; background: #fff; }
+.noticeCard p { margin-block: .75rem; }
+.noticeHeading { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.noticeHeading h3 { margin: 0; font-size: 1.1rem; }
+.noticeHeading span { font-size: .875rem; font-weight: 700; }
+.noticeCard button, .liveStatus + p button { min-height: 44px; padding: .5rem .875rem; border: 1px solid var(--primary); border-radius: 6px; background: #e7f2ee; color: #174f42; font: inherit; font-weight: 600; }
+.noticeCard button:focus-visible, .liveStatus + p button:focus-visible { outline: 3px solid #176b59; outline-offset: 3px; }
+.noticeCard button:disabled { cursor: wait; }
+.liveStatus { min-height: 1.5em; margin-block: 1rem; }
 .footer { max-width: 72rem; margin: auto; padding: 1.5rem; }
 .skip { position: absolute; top: .5rem; left: .5rem; transform: translateY(-200%); padding: .75rem; background: #fff; z-index: 1; }
 .skip:focus { transform: none; }

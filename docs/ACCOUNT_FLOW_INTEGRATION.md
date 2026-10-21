@@ -1,5 +1,14 @@
 # Slice 2 account integration: local synthetic commands
 
+Latest account-security reader record (2026-10-21 PHT): `/account/security` lists
+the signed-in owner's password-change notices within the fixed 90-day event window
+and marks them read only after an explicit action. GET `/api/account/security-notices`
+and POST `/api/account/security-notices/[noticeId]/read` enforce stored-session,
+owner and deletion checks. The update locks identity/domain, session and notice;
+responses use a fixed owner-private projection and no-store/no-referrer headers.
+This supersedes the notice-reader/UI-unmounted status below only. Synthetic-only
+validation and launch gates remain. See `PASSWORD_CHANGE_LOCAL_TESTING.md`.
+
 Latest password-change record (2026-10-20 PHT, after ADR-089): the owner explicitly
 authorizes protected POST `/api/auth/change-password` and the existing account form
 for local synthetic validation. Exact route dispatch calls a new one-path handler
@@ -56,7 +65,8 @@ commands and fragment forms. The local `jobs:account-email` Node.js entrypoint
 recovers/cleans then dispatches at most one job. Sending defaults off even with
 provider credentials. This supersedes historical statements below that every
 account route and link page is unmounted. Signup, sign-in and authenticated password
-change remain closed; no session-creation route is exposed. Hosted scheduling,
+change were closed at the time of this snapshot; current mounting is documented at
+the top of this file. No general session reader is exposed. Hosted scheduling,
 staff recovery/audit and ADR-081 readiness remain unresolved. See the current
 [delivery and verification guide](ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md).
 

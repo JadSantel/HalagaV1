@@ -76,6 +76,17 @@ Prisma's schema and checked-in migration history must be kept aligned, with any 
 
 Every read path must select an explicit projection for one of these scopes. Public API responses, rendered metadata, search documents, logs, analytics, notifications, and caches must be treated as possible disclosure surfaces.
 
+Latest account-security reader record (2026-10-21 PHT): the owner-private
+`/account/security` view lists password-change notices within ADR-089's original
+90-day event window and marks them read only on explicit request. Both list and
+write recheck stored-session ownership and undeleted account state; the write locks
+identity/domain, exact session and notice before setting `readAt`. The fixed
+projection contains only event identity/type/version/time/read state. It excludes
+email eligibility, recipient, delivery, session and account details. The API is
+no-store/no-referrer/noindex and same-origin protected for writes. This supersedes
+older notice-reader/UI-unmounted status below; no general notification system or
+staff reader is added.
+
 Server operational logs use an allowlist of fixed operation, outcome, and internal error-code values, plus a request ID only when it passes the UUID format check. Do not log request bodies, parsed inputs, credentials, session or verification tokens, date of birth, private listing fields, evidence, raw validation issues, or raw exception messages. Unexpected failures map to a generic operational code. A request handler must keep this logger call separate from error serialization so detailed errors cannot enter logs or responses by accident.
 
 ## 4. Critical flow map

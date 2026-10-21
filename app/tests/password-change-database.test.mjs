@@ -3,7 +3,9 @@ import { randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { setTimeout } from "node:timers/promises";
 import test from "node:test";
-import { createPasswordChangeOperation, createPasswordChangeNoticeReader, PasswordChangeRejected } from "../src/server/repositories/password-change.ts";
+import { createPasswordChangeOperation, createPasswordChangeNoticeReader, createPasswordChangeNoticeListReader,
+  createPasswordChangeNoticeReadMarker, PasswordChangeRejected } from "../src/server/repositories/password-change.ts";
+import { createPasswordChangeNoticeHandler } from "../src/server/repositories/password-change-notices-http.ts";
 import { accountEmailPaths } from "../src/server/account-flow-plugin.ts";
 import { createAccountEmailDispatcher } from "../src/server/repositories/account-email-dispatch.ts";
 import { BrevoSendError } from "../src/server/account-email-provider.ts";
@@ -39,7 +41,7 @@ test("password change rejects invalid shapes and maps auth failures to fixed saf
   await assert.rejects(failing(new Headers(), input, () => {}), rejects("INTERNAL_ERROR"));
 });
 
-test("password change uses only its protected handler; notice readers stay unmounted", async () => {
+test("password change and owner notice reads use only their protected handlers", async () => {
   for (const path of ["/change-password", "/sign-up/email", "/sign-in/email"]) assert.ok(!accountEmailPaths.includes(path));
   const appDirectory = new URL("../src/app/", import.meta.url);
   const files = (await readdir(appDirectory, { recursive: true })).filter((name) => /\.[cm]?[jt]sx?$/.test(name));
@@ -54,6 +56,11 @@ test("password change uses only its protected handler; notice readers stay unmou
   const screens = await readFile(new URL("../src/app/account/screens.tsx", import.meta.url), "utf8");
   assert.match(screens, /AccountPasswordChangeForm/);
   assert.doesNotMatch(screens, /onSubmit|formAction|onClick|fetch\(/);
+  const page = await readFile(new URL("../src/app/account/security/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /PasswordChangeSecurityNotices/);
+  assert.match(page, /robots: \{ index: false, follow: false \}/);
+  const route = await readFile(new URL("../src/app/api/account/security-notices/route.ts", import.meta.url), "utf8");
+  assert.match(route, /handlePasswordChangeNoticeRequest/);
 });
 
 test("isolated PostgreSQL password change with atomic notices and ADR-089 email retention", async (t) => {
@@ -62,6 +69,8 @@ test("isolated PostgreSQL password change with atomic notices and ADR-089 email 
   let now = new Date();
   const change = createPasswordChangeOperation(database, auth, () => now);
   const readNotice = createPasswordChangeNoticeReader(database, auth, () => now);
+  const listNotices = createPasswordChangeNoticeListReader(database, auth, () => now);
+  const markNoticeRead = createPasswordChangeNoticeReadMarker(database, auth, () => now);
   const reset = createPasswordResetOperations(database, auth, () => now);
   const verification = createEmailVerificationOperations(database, () => now);
   const emailChange = createEmailChangeOperations(database, auth, () => now);
@@ -579,10 +588,38 @@ test("isolated PostgreSQL password change with atomic notices and ADR-089 email 
         const projected = await readNotice(account.headers, notice.id, () => {});
         assert.deepEqual(projected, { id: notice.id, eventType: "account.password-changed", eventVersion: 1,
           createdAt: notice.createdAt, readAt: null });
+        assert.deepEqual(await listNotices(account.headers, () => {}), [projected]);
         for (const headers of [new Headers(), new Headers({ cookie: "better-auth.session_token=forged" }), other.headers]) {
           assert.equal(await readNotice(headers, notice.id, () => {}), null);
         }
         assert.equal(await readNotice(account.headers, randomUUID(), () => {}), null);
+        assert.deepEqual(await listNotices(other.headers, () => {}), []);
+        const marked = await markNoticeRead(account.headers, notice.id, () => {});
+        assert.deepEqual(marked, { id: notice.id, readAt: now });
+        assert.deepEqual(await markNoticeRead(account.headers, notice.id, () => {}), marked);
+        assert.deepEqual((await listNotices(account.headers, () => {}))[0], { ...projected, readAt: now });
+        assert.equal(await markNoticeRead(other.headers, notice.id, () => {}), null);
+        await assert.rejects(markNoticeRead(new Headers(), notice.id, () => {}), rejects("UNAUTHORIZED"));
+
+        const handler = createPasswordChangeNoticeHandler(database, auth, "https://halaga.invalid");
+        const listResponse = await handler(new Request("https://halaga.invalid/api/account/security-notices", {
+          headers: { cookie: account.headers.get("cookie") ?? "" },
+        }));
+        assert.equal(listResponse.status, 200);
+        assert.equal(listResponse.headers.get("cache-control"), "no-store");
+        assert.deepEqual(await listResponse.json(), { notices: [{ ...projected,
+          createdAt: projected.createdAt.toISOString(), readAt: now.toISOString() }] });
+        const deniedWrite = await handler(new Request("https://halaga.invalid/api/account/security-notices/x/read", {
+          method: "POST", headers: { cookie: account.headers.get("cookie") ?? "", origin: "https://evil.invalid",
+            "content-type": "application/json" }, body: "{}",
+        }), notice.id);
+        assert.equal(deniedWrite.status, 401);
+        const readResponse = await handler(new Request(`https://halaga.invalid/api/account/security-notices/${notice.id}/read`, {
+          method: "POST", headers: { cookie: account.headers.get("cookie") ?? "", origin: "https://halaga.invalid",
+            "sec-fetch-site": "same-origin", "content-type": "application/json" }, body: "{}",
+        }), notice.id);
+        assert.equal(readResponse.status, 200);
+        assert.deepEqual(await readResponse.json(), { status: "NOTICE_READ", readAt: now.toISOString() });
         await assert.rejects(readNotice(account.headers, account.email, () => {}), rejects("INVALID_INPUT"));
         const revoking = createPasswordChangeNoticeReader(database, { api: { async getSession(options) {
           const resolved = await auth.api.getSession(options);
