@@ -6,6 +6,17 @@ This tracker maps the approved MVP to implementation work. Product behavior come
 
 ## Implemented
 
+### Saved laptop revision review (2026-10-21 PHT)
+
+The local synthetic draft editor links to an owner-only review pinned to a saved
+revision. The server identifies the listing/version/time, derives condition and
+source explanations, separates proposed content/private expectation, and links
+missing supported fields to the current editor. Unavailable geography, media,
+ownership capture, publication checks and language/operational readiness are
+explained without claiming approval or creating a workflow. No public listing,
+declaration or publication command is implemented. See
+[the verification record](LAPTOP_DRAFT_LOCAL_TESTING.md).
+
 ### Latest Slice 2 age-data minimization (2026-10-21 PHT)
 
 ADR-093 records the owner's “age check only” decision: check DOB once at signup

@@ -134,6 +134,20 @@ The architecture handoff names eight screen groups. The details below decompose 
 
 ### 5.4 Seller listing management and revision review
 
+Saved review implementation supplement (2026-10-21 PHT): the synthetic workspace
+links to an exact saved revision with listing identity and PHT save time. The review
+uses existing styling with a missing-requirements summary, separately labeled
+proposed-public and owner-private sections, derived condition/source reasons,
+prominent battery/lock/coverage disclosures and accepted safe-testing guidance.
+The reviewed version stays visible when a newer revision exists. Correction links
+open/focus the applicable current editor field after its authorized data loads;
+hidden diagnostics route through the safety gate. Changes require a new save/review.
+Unavailable requirements link to focusable explanations instead of fake controls.
+Loading/authentication/unavailable/error states have announced text, and the review
+heading receives focus after loading. Nothing is published or submitted; no ownership
+checkbox or publication button is present. This extends the existing English-only
+local prototype, not acceptance of proposed visual tokens or language/launch readiness.
+
 - **Goal:** manage availability, correct facts, respond to reports/moderation, and explicitly renew an active listing.
 - **Hierarchy:** current lifecycle state, publication/expiry context, listing facts and current revision, inquiries/proposals activity available only to seller, edit/renew/remove controls, any buyer reconfirmation requirement.
 - **Actions:** edit, explicitly confirm still available/accurate for renewal, remove/close as permitted, answer inquiries, handle paused offer reactivation context. After offers exist, material edit requires affected buyers to reactivate/revise/withdraw; after reservation it suspends prior appointment/terms and gives buyer 24 hours to reconfirm/revise/withdraw.

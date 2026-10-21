@@ -426,6 +426,18 @@ IMEI entry is optional but strongly encouraged for smartphones and cellular-capa
 
 ### 11.4 Local synthetic draft implementation boundary (2026-10-19 PHT)
 
+Saved revision review supplement (2026-10-21 PHT): owners can open
+`/drafts/[listingId]/review?revision=N` from the editor's saved-revision link.
+An owner-authorized, server-derived read identifies the listing, saved revision
+and PHT save time. Proposed public fields and owner-private expectation use
+separate projections; all content remains account-private. Missing supported
+requirements link to the current editor; corrections require a new save/review.
+Unavailable geography, photos, declaration, publication checks and language/
+readiness requirements have explanations, never passed-check claims. Safety stops
+show no ordinary condition or actual hold/rejection. No declaration capture,
+publication command, public reader or marketplace grant is added. ADR-094 remains
+proposed; fictional practice geography is not used. See the local testing record.
+
 The first bounded Slice 3 backend implementation supports authenticated,
 owner-private single-item laptop draft listing, creation, editing and resuming at
 `/drafts` and `/drafts/[listingId]`. Drafts may be incomplete
@@ -436,7 +448,7 @@ availability (`pickup`, `meetup` or `both`). Availability may remain unselected 
 an incomplete draft; omitted or cleared availability saves as unselected. Exact
 addresses, meeting locations and precise coordinates are not collected. The owner
 list contains only ID, title, revision, updated time and validated condition;
-answers, private expectation and availability are available only in owner detail/editor. The seller
+answers, private expectation and availability are available only in owner detail/editor/revision review. The seller
 is server-owned. No public reader, metadata, publication/hold or marketplace grant
 is added. Unverified authenticated owners may use this private synthetic capability;
 publication eligibility and all evidence/safety requirements above remain unchanged.

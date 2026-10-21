@@ -270,7 +270,30 @@ test("actual Next account routes use only a disposable synthetic schema", { time
       assert.deepEqual(list.drafts.map(({ id }) => id), [draftId]);
       assert.deepEqual(Object.keys(list.drafts[0]).sort(), ["condition", "id", "revision", "title", "updatedAt"]);
       assert.equal(list.drafts[0].revision, 2);
-      for (const path of ["/drafts", `/drafts/${draftId}`]) {
+      const reviewPath = `/api/laptop-drafts/${draftId}/review?revision=1`;
+      let runtimeOutput = "";
+      const outputs = [process.stdout, process.stderr].map((stream) => ({ stream, write: stream.write }));
+      let reviewResponse;
+      try {
+        for (const { stream, write } of outputs) stream.write = function (chunk, ...args) {
+          runtimeOutput += String(chunk);
+          return write.call(this, chunk, ...args);
+        };
+        reviewResponse = await fetch(`${origin}${reviewPath}`, { headers: { cookie: draftCookie } });
+        // Consume the body before restoring sinks, covering response serialization.
+        await reviewResponse.clone().text();
+      } finally { for (const { stream, write } of outputs) stream.write = write; }
+      for (const value of [create.draft.title, create.draft.privatePriceExpectation, draftCookie]) assert.equal(runtimeOutput.includes(value), false);
+      assert.equal(reviewResponse.headers.get("cache-control"), "no-store");
+      assert.ok(reviewResponse.headers.get("vary").split(/,\s*/).includes("Cookie"));
+      const review = await reviewResponse.json();
+      assert.equal(review.revision, 1);
+      assert.equal(review.currentRevision, 2);
+      assert.equal(review.proposedPublicContent.title, create.draft.title);
+      assert.equal(review.ownerPrivate.privatePriceExpectation, create.draft.privatePriceExpectation);
+      assert.equal(JSON.stringify(review.proposedPublicContent).includes(create.draft.privatePriceExpectation), false);
+      await read(await fetch(`${origin}${reviewPath}`), 401, { code: "UNAUTHORIZED" });
+      for (const path of ["/drafts", `/drafts/${draftId}`, `/drafts/${draftId}/review?revision=1`]) {
         const shell = await fetch(`${origin}${path}`, { headers: { cookie: draftCookie } });
         assert.equal(shell.headers.get("cache-control"), "no-store");
         assert.equal(shell.headers.get("referrer-policy"), "no-referrer");
@@ -278,6 +301,14 @@ test("actual Next account routes use only a disposable synthetic schema", { time
         assert.ok(!html.includes(create.draft.title));
         assert.ok(!html.includes(save.draft.title));
         assert.ok(!html.includes(create.draft.privatePriceExpectation));
+        if (path.includes("review")) {
+          assert.match(html, /name="robots" content="noindex, nofollow"/);
+          assert.match(html, /Review saved laptop revision/);
+          assert.ok(!html.includes("proposedPublicContent"));
+          const anonymous = await (await fetch(`${origin}${path}`)).text();
+          assert.ok(!anonymous.includes(create.draft.title));
+          assert.ok(!anonymous.includes(create.draft.privatePriceExpectation));
+        }
       }
       assert.equal((await fetch(`${origin}/api/listings/${draftId}`)).status, 404);
       assert.equal((await database.listing.findUnique({ where: { id: draftId } })).status, "DRAFT");

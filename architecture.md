@@ -135,6 +135,22 @@ Architecture consequences:
 
 #### Local synthetic draft boundary (updated 2026-10-21 PHT)
 
+Saved revision review adds GET `/api/laptop-drafts/[listingId]/review?revision=N`
+and an empty-shell page at `/drafts/[listingId]/review?revision=N`. It reuses the
+identity/domain, stored-session and owner-listing locks, rejecting non-drafts,
+other owners and any publication history. The requested immutable version must
+belong to that owner/listing; later saves never silently replace the reviewed
+version. The response identifies the reviewed/current numbers and original save
+time. Condition, source facts, disclosure validation and correction destinations
+are server-derived. Explicit proposed-content and owner-private projections keep
+expectation separate, without granting public access to either. No saved content
+enters HTML/RSC or metadata; authorized API responses use no-store, Cookie Vary,
+no-referrer and noindex. No content logging, shared caching, browser persistence,
+write, declaration, publication decision or asynchronous effect is added. Corrections
+open the current editor and append a new revision on save. Unavailable checks are
+reported as unavailable; safety block/hold semantics never imply an actual workflow
+transition or operator request. ADR-094 and operational/language gates remain open.
+
 ADR-090 draft enforcement now reads matching active restriction/suspension
 decisions after the account lock and before writes or retry recognition. SQL
 restriction changes acquire that same account lock; a waiting draft command
@@ -170,8 +186,8 @@ in a replacement snapshot clears it. The server and SQL constrain the choices.
 Existing revision immutability, retry comparison and guards also cover availability.
 No exact pickup address, meeting location or precise coordinates are collected.
 
-An explicit account-private detail projection is the only persisted listing
-reader. No public projection, search, media, staff reader, notification or lifecycle
+Explicit account-private detail and revision-review projections are the only persisted listing
+readers. No public reader, search, media, staff reader, notification or lifecycle
 transition is added. Private saves record actor/target/request/version/time through
 immutable revision history and retain `DRAFT`; no asynchronous effect requires a
 job. Publication audit/outbox, evidence, safety/risk/restrictions, declaration and

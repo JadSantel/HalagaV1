@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
+import { samples } from "../../src/domain/laptop-diagnostics.ts";
 
 /** Real browser -> mounted routes -> disposable synthetic database. */
 export async function checkLaptopDraftBrowser(origin, database, auth) {
@@ -177,10 +178,63 @@ export async function checkLaptopDraftBrowser(origin, database, auth) {
     assert.equal(await evaluate("document.querySelector('#power') === null"), true);
     await run(["click", "button[type=submit]"]);
     await wait(`document.querySelector('[role=status]')?.textContent.includes('saved at revision 6')`);
+
+    // Keyboard entry reviews the saved revision, never the in-memory form.
+    await follow(`a[href="/drafts/${listingId}/review?revision=6"]`);
+    await wait(`Boolean(document.querySelector('#owner-private'))`);
+    assert.equal(await evaluate("document.activeElement.tagName"), "H1");
+    assert.equal(await evaluate("document.querySelector('#proposed-public').textContent.includes('No ordinary condition')"), true);
+    assert.equal(await evaluate("document.querySelector('#proposed-public').textContent.includes('2,468,135.79')"), false);
+    assert.equal(await evaluate("document.querySelector('#owner-private').textContent.includes('2,468,135.79')"), true);
+    assert.equal(await evaluate("document.querySelector('main').textContent.includes('Nothing is published')"), true);
+    assert.equal(await evaluate("document.querySelectorAll('form, input[type=checkbox]').length"), 0);
+    await follow(`a[href="/drafts/${listingId}#safety"]`);
+    await run(["wait", "#safety"]);
+    await wait(`document.activeElement.id === 'safety'`);
+    await run(["open", `${origin}/drafts/${listingId}/review?revision=5`]);
+    await wait(`Boolean(document.querySelector('#owner-private'))`);
+    assert.equal(await evaluate("document.querySelector('main').textContent.includes('A newer saved revision exists: 6')"), true);
+    assert.equal(await evaluate("document.querySelector('#proposed-public').textContent.includes('Not answered')"), true);
+    await follow('a[href="#requirement-geography"]');
+    assert.equal(await evaluate("document.activeElement.id"), "requirement-geography");
+    await follow(`a[href="/drafts/${listingId}#brand"]`);
+    await wait(`document.activeElement.id === 'brand'`);
+
+    // Exercise accepted derivations through mounted save/read routes and the real review UI.
+    for (const [index, sample] of samples.entries()) {
+      const created = await evaluate(`(async () => {
+        const response = await fetch('/api/laptop-drafts', {method:'POST',headers:{'content-type':'application/json'},
+          body:JSON.stringify({requestId:crypto.randomUUID(),draft:${JSON.stringify({ ...sample.draft, fulfillment: "both", privatePriceExpectation: "1357913.57" })}})});
+        return response.json();
+      })()`);
+      await run(["open", `${origin}/drafts/${created.id}/review?revision=1`]);
+      await wait(`Boolean(document.querySelector('#owner-private'))`);
+      const expected = sample.expected ?? "No ordinary condition";
+      assert.equal(await evaluate(`document.querySelector('#proposed-public').textContent.includes(${JSON.stringify(expected)})`), true);
+      assert.equal(await evaluate("document.querySelector('#proposed-public').textContent.includes('1,357,913.57')"), false);
+      assert.equal(await evaluate("document.querySelector('#owner-private').textContent.includes('1,357,913.57')"), true);
+      if (index === 0) {
+        const audit = await run(["a11y", "--tags", "wcag2a,wcag2aa,wcag21a,wcag21aa,wcag22aa"]);
+        assert.equal(audit.violations.length, 0, JSON.stringify(audit.violations));
+        for (const [width, height] of [[1440, 900], [375, 812], [320, 800]]) {
+          await run(["set", "viewport", String(width), String(height)]);
+          assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+          if (width !== 320) await run(["screenshot", resolve(`.next/draft-review-${width}.png`)]);
+        }
+        await evaluate("document.documentElement.style.fontSize = '200%'; true");
+        assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+        await evaluate("document.documentElement.style.fontSize = ''; true");
+      }
+    }
+    await run(["open", `${origin}/drafts/${listingId}`]);
+    await run(["wait", "#privatePriceExpectation"]);
     await database.session.deleteMany({ where: { userId: id } });
     await run(["click", "button[type=submit]"]);
     await wait(`document.querySelector('main')?.textContent.includes('session is no longer available')`);
     assert.equal(await evaluate("document.querySelector('#privatePriceExpectation') === null"), true);
+    await run(["open", `${origin}/drafts/${listingId}/review?revision=6`]);
+    await wait(`document.querySelector('[role=status]')?.textContent.includes('Sign in to review')`);
+    assert.equal(await evaluate("document.querySelector('#owner-private') === null && document.querySelector('#proposed-public') === null"), true);
     stored = await database.listing.findUnique({ where: { id: listingId }, include: { currentRevision: true } });
     assert.equal(stored.currentRevisionNumber, 6);
     assert.equal(stored.currentRevision.barangayCode, null);

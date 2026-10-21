@@ -14,9 +14,10 @@ const statuses = { INVALID_INPUT: 400, UNAUTHORIZED: 401, ACTION_RESTRICTED: 403
  * No CORS, public reader, discovery projection, upload or lifecycle transition.
  */
 export function createLaptopDraftHandler(operations: ReturnType<typeof createLaptopDraftOperations>, origin: string) {
-  return async (request: Request, listingId?: string): Promise<Response> => {
+  return async (request: Request, listingId?: string, review = false): Promise<Response> => {
     const reply = (body: unknown, status: number) => Response.json(body, { status, headers: privateHeaders });
     try {
+      if (review && (!listingId || request.method !== "GET")) return reply({ code: "NOT_FOUND" }, 404);
       if (!(listingId ? ["GET", "PUT"] : ["GET", "POST"]).includes(request.method)) return reply({ code: "NOT_FOUND" }, 404);
       const write = request.method !== "GET";
       // Next may reconstruct request.url with its internal listener hostname.
@@ -37,7 +38,7 @@ export function createLaptopDraftHandler(operations: ReturnType<typeof createLap
       const apply = (headers: Headers) => {
         for (const cookie of headers.getSetCookie()) sessionHeaders.append("set-cookie", cookie);
       };
-      const result = listingId
+      const result = review ? await operations.review(request.headers, listingId, new URL(request.url).searchParams.get("revision"), apply) : listingId
         ? request.method === "GET" ? await operations.read(request.headers, listingId, apply)
           : await operations.save(request.headers, listingId, input, apply)
         : request.method === "GET" ? await operations.list(request.headers, apply)
@@ -54,11 +55,11 @@ export function createLaptopDraftHandler(operations: ReturnType<typeof createLap
 
 let handler: ReturnType<typeof createLaptopDraftHandler> | undefined;
 
-export async function handleLaptopDraftRequest(request: Request, listingId?: string) {
+export async function handleLaptopDraftRequest(request: Request, listingId?: string, review = false) {
   try {
     handler ??= createLaptopDraftHandler(createLaptopDraftOperations(getPrisma(), createAccountAuth()),
       new URL(createAuthPolicy(process.env).baseURL).origin);
-    return await handler(request, listingId);
+    return await handler(request, listingId, review);
   } catch {
     return Response.json({ code: "INTERNAL_ERROR" }, { status: 500, headers: privateHeaders });
   }

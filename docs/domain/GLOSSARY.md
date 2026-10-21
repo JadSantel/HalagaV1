@@ -2,6 +2,15 @@
 
 This glossary records agreed meanings for product and domain terms. It should be updated when interviews establish or change a term.
 
+## Saved Laptop Revision Review
+
+An account-private, read-only view of one immutable saved laptop revision, identified
+by listing and revision number. Proposed public fields and private price expectation
+are separate; neither becomes public. It explains server-derived condition, missing
+supported fields and unavailable publication checks. It is not a submission,
+publication eligibility decision, ownership attestation or operator-review request.
+Correction links open the current editor and require a new save/review.
+
 ## Scoped Marketplace Restriction
 
 A reasoned, authorized restriction on specified marketplace actions. It does not

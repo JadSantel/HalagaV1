@@ -1,4 +1,5 @@
 import "server-only";
+import { buildLaptopDraftReview } from "../laptop-draft-review.ts";
 import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import { diagnosticVersion, type QuestionKey } from "../../domain/laptop-diagnostics.ts";
@@ -22,7 +23,7 @@ export class LaptopDraftRejected extends Error {
 
 // Owner-private only. No identity, session, media keys, staff data or publication records.
 const revisionSelect = {
-  id: true, listingId: true, version: true, title: true, description: true,
+  id: true, listingId: true, version: true, createdAt: true, title: true, description: true,
   listingType: true, category: true, diagnosticSchemaVersion: true, conditionSummary: true,
   priceExpectation: true, fulfillment: true,
   itemGroups: { select: { quantity: true, brand: true, model: true, approximateAge: true,
@@ -150,6 +151,21 @@ export function createLaptopDraftOperations(
   }
 
   return {
+    async review(headers: Headers, listingId: unknown, revision: unknown,
+      applySessionHeaders: (headers: Headers) => void = () => {}) {
+      const id = z.uuid().safeParse(listingId);
+      const version = z.string().regex(/^[1-9]\d*$/).transform(Number).pipe(z.number().int().positive().max(2147483647)).safeParse(revision);
+      if (!id.success || !version.success) throw new LaptopDraftRejected("INVALID_INPUT");
+      return withOwner(headers, async (transaction, sellerId) => {
+        const listing = await lockDraft(transaction, id.data, sellerId);
+        const saved = await transaction.listingRevision.findFirst({ where: {
+          listingId: listing.id, version: version.data, authoredById: sellerId,
+          listing: { sellerId, status: "DRAFT", publicationCycles: { none: {} } },
+        }, select: revisionSelect });
+        if (!saved) throw new LaptopDraftRejected("NOT_FOUND");
+        return buildLaptopDraftReview(listing.id, saved.version, listing.currentRevisionNumber!, saved.createdAt, snapshot(saved));
+      }, applySessionHeaders);
+    },
     async list(headers: Headers, applySessionHeaders: (headers: Headers) => void = () => {}) {
       return withOwner(headers, async (transaction, sellerId) => {
         const listings = await transaction.listing.findMany({

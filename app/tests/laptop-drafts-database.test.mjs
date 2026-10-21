@@ -103,6 +103,71 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
     sessions: await database.session.findMany({ orderBy: { id: "asc" } }) });
 
   try {
+    await t.test("saved revision review is owner-only, pinned, server-derived and separates private data without writes", async () => {
+      const account = await fixture(), stranger = await fixture();
+      const created = await operations.create(account.headers, input({ privatePriceExpectation: "8123456.78" }));
+      const reviewRequest = (actor, revision = "1", extra = {}) => handler(new Request(
+        `${origin}/api/laptop-drafts/${created.id}/review?revision=${revision}`, {
+          headers: { cookie: actor?.headers.get("cookie") ?? "", ...extra },
+        }), created.id, true);
+      const before = await history(created.id);
+      const review = await read(await reviewRequest(account), 200);
+      assert.equal(review.listingId, created.id);
+      assert.equal(review.revision, 1);
+      assert.equal(review.status, "DRAFT");
+      assert.equal(review.savedAt, before[0].createdAt.toISOString());
+      assert.deepEqual(review.ownerPrivate, { privatePriceExpectation: "8123456.78" });
+      assert.equal(JSON.stringify(review.proposedPublicContent).includes("8123456.78"), false);
+      assert.equal(Object.hasOwn(review.proposedPublicContent, "privatePriceExpectation"), false);
+      assert.equal(review.proposedPublicContent.condition, null);
+      for (const field of ["title", "brand", "model", "description", "safety", "fulfillment"]) {
+        assert.ok(review.missingRequirements.some((item) => item.field === field && item.href === `/drafts/${created.id}#${field}`));
+      }
+      for (const field of ["geography", "photos", "ownership", "publication-checks", "language"]) {
+        assert.ok(review.unavailableRequirements.some((item) => item.field === field && item.message.length));
+      }
+      assert.equal(JSON.stringify(review).includes("sample-a"), false);
+      for (const secret of [account.userId, account.accountId, account.actor.session.token, before[0].id]) {
+        assert.equal(JSON.stringify(review).includes(secret), false);
+      }
+      await read(await reviewRequest(stranger), 404, { code: "NOT_FOUND" });
+      await read(await reviewRequest(null), 401, { code: "UNAUTHORIZED" });
+      await read(await reviewRequest(account, "99"), 404, { code: "NOT_FOUND" });
+      for (const version of ["", "0", "-1", "1.5", "1e0", "2147483648"]) await read(await reviewRequest(account, version), 400, { code: "INVALID_INPUT" });
+      await read(await reviewRequest(account, "1", { "sec-fetch-site": "cross-site" }), 401, { code: "UNAUTHORIZED" });
+      await read(await reviewRequest(account, "1", { origin: "https://foreign.invalid" }), 401, { code: "UNAUTHORIZED" });
+      await read(await handler(new Request(`${origin}/review`, { method: "POST" }), created.id, true), 404, { code: "NOT_FOUND" });
+      assert.deepEqual(await history(created.id), before);
+
+      let version = 1;
+      for (const sample of samples) {
+        await operations.save(account.headers, created.id, { ...input({ ...copyDraft(sample.draft), fulfillment: "both" }), expectedRevision: version++ });
+        const result = await read(await reviewRequest(account, String(version)), 200);
+        assert.equal(result.proposedPublicContent.condition, sample.expected);
+        assert.equal(result.proposedPublicContent.safety, sample.safety);
+        assert.ok(result.proposedPublicContent.reasons.length);
+        for (const reason of result.proposedPublicContent.reasons) assert.ok(reason.href.startsWith(`/drafts/${created.id}#`));
+        for (const key of ["battery", "lock", "coverage", "safety"]) assert.ok(result.proposedPublicContent.disclosures.some((row) => row.field === key));
+        if (["blocked", "hold"].includes(sample.safety)) {
+          assert.ok(result.proposedPublicContent.reasons.every((row) => row.href.endsWith("#safety")));
+        }
+      }
+      const historical = await read(await reviewRequest(account), 200);
+      assert.equal(historical.revision, 1);
+      assert.equal(historical.currentRevision, version);
+      assert.deepEqual(historical.ownerPrivate, review.ownerPrivate);
+      assert.deepEqual(historical.proposedPublicContent, review.proposedPublicContent);
+      await restrict(account, "SUSPENSION");
+      await read(await reviewRequest(account), 200); // Reads remain available.
+      await database.userAccount.update({ where: { id: account.accountId }, data: { deletedAt: new Date() } });
+      await read(await reviewRequest(account), 401, { code: "UNAUTHORIZED" });
+      await database.userAccount.update({ where: { id: account.accountId }, data: { deletedAt: null } });
+      await database.listing.update({ where: { id: created.id }, data: { status: "HELD" } });
+      await read(await reviewRequest(account), 404, { code: "NOT_FOUND" });
+      await database.listing.update({ where: { id: created.id }, data: { status: "DRAFT" } });
+      await database.session.delete({ where: { id: account.actor.session.id } });
+      await read(await reviewRequest(account), 401, { code: "UNAUTHORIZED" });
+    });
     await t.test("availability round-trips in incomplete immutable revisions with guarded retries and owner-only reads", async () => {
       const account = await fixture(), stranger = await fixture();
       for (const initial of [undefined, "", "pickup", "meetup", "both"]) {
@@ -381,6 +446,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
         await assert.rejects(staleOperations.create(other.headers, input()), rejects("UNAUTHORIZED"));
         await assert.rejects(staleOperations.list(other.headers), rejects("UNAUTHORIZED"));
         await assert.rejects(staleOperations.read(other.headers, listingId), rejects("UNAUTHORIZED"));
+        await assert.rejects(staleOperations.review(other.headers, listingId, "1"), rejects("UNAUTHORIZED"));
         await assert.rejects(staleOperations.save(other.headers, listingId, { ...input(), expectedRevision: 1 }), rejects("UNAUTHORIZED"));
         await database.session.update({ where: { id: session.id }, data: {
           createdAt: session.createdAt, expiresAt: session.expiresAt, token: session.token } });
@@ -448,7 +514,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
     });
 
     await t.test("reads and writes waiting behind revocation recheck stored sessions after the exact account lock", async () => {
-      for (const command of ["read", "save", "create", "list"]) {
+      for (const command of ["review", "read", "save", "create", "list"]) {
         const account = await fixture();
         const draft = await operations.create(account.headers, input());
         const before = await counts();
@@ -464,7 +530,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
         const blocker = await entered.promise;
         const stale = createLaptopDraftOperations(database, { api: { getSession: async () =>
           ({ response: account.actor, headers: new Headers() }) } });
-        const pending = command === "list" ? stale.list(account.headers) : command === "create" ? stale.create(account.headers, input()) : command === "save"
+        const pending = command === "review" ? stale.review(account.headers, draft.id, "1") : command === "list" ? stale.list(account.headers) : command === "create" ? stale.create(account.headers, input()) : command === "save"
           ? stale.save(account.headers, draft.id, { ...input(), expectedRevision: 1 }) : stale.read(account.headers, draft.id);
         const rejected = assert.rejects(pending, rejects("UNAUTHORIZED"));
         try {
@@ -523,6 +589,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
         await database.listing.update({ where: { id: listingId }, data: { status,
           expiredAt: status === "EXPIRED" ? new Date() : null, closedAt: status === "CLOSED" ? new Date() : null } });
         await read(await send(owner, "GET", undefined, listingId), 404, { code: "NOT_FOUND" });
+        await assert.rejects(operations.review(owner.headers, listingId, "1"), rejects("NOT_FOUND"));
         await read(await send(owner, "PUT", { ...input(), expectedRevision: revision }, listingId), 404, { code: "NOT_FOUND" });
         assert.equal((await operations.list(owner.headers)).drafts.some((draft) => draft.id === listingId), false);
       }
@@ -541,6 +608,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
         expiresAt: new Date("2026-10-31T00:00:00Z") } });
       assert.equal((await operations.list(owner.headers)).drafts.some((draft) => draft.id === id), false);
       await read(await send(owner, "GET", undefined, id), 404, { code: "NOT_FOUND" });
+      await assert.rejects(operations.review(owner.headers, id, "1"), rejects("NOT_FOUND"));
       await read(await send(owner, "PUT", { ...input(), expectedRevision: 1 }, id), 404, { code: "NOT_FOUND" });
     });
     await t.test("scoped restrictions and suspension preserve guarded sign-in and password change", async () => {

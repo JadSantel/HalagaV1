@@ -3,6 +3,84 @@
 Updated 2026-10-21 PHT. Synthetic data only, on a local/private installation.
 No public deployment, real participant data or completion of a launch gate.
 
+## Saved revision review supplement (2026-10-21 PHT)
+
+From an owner editor, choose **Review saved revision N**. This opens
+`/drafts/[listingId]/review?revision=N`; unsaved edits are explicitly excluded.
+The server reads that exact immutable version after current owner/session/draft
+checks and reports listing identity, version and original save time in PHT. A later
+save does not change the selected review; a newer-version notice explains this.
+Correction links open/focus the current editor field after its authorized load.
+Save corrections to append a new version, then review that version.
+
+The review has separate proposed-public and owner-private projections. The optional
+private PHP expectation appears only in the latter. Both remain account-private;
+there is no public listing reader. The page HTML/RSC and metadata contain no saved
+content; only the authenticated, no-store API supplies it. Responses vary by Cookie,
+use no-referrer/noindex, and disclose only fixed error codes on rejection. No content
+logger, analytics, shared content cache or browser persistence is added. A restored
+browser document reloads for current authorization.
+
+Accepted laptop validation/derivation runs on the server against the saved facts,
+with source reasons and separate battery, lock and test-coverage disclosures.
+Incomplete/invalid disclosures have no validated condition; known and uncertain
+safety stops have no ordinary label. Both explain that no actual publication,
+hold/rejection or operator request occurred. All accepted safe-testing guidance
+remains visible. Source corrections for hidden diagnostics go through the safety
+gate; missing fields have explanatory links. Unavailable geography, photo evidence,
+ownership capture, publication checks and language/readiness gates link to focusable
+explanations. No checkbox or publication command is present. Fictional practice
+geography/photos are never substituted. ADR-094 remains proposed; media/hosting,
+publication checks/audit/outbox, human-reviewed paired Cebuano/Bisaya, usability and
+ADR-081 launch gates remain outstanding. This increment does not settle them.
+
+Verification commands from `app` (all final runs pass; no skipped tests):
+
+| Command | Result |
+| --- | --- |
+| `npm.cmd run test:laptop-drafts` | 19 passed. Owner isolation, exact saved-version pinning after later saves, private-field separation, incomplete/invalid states, four derived conditions and both safety stops, fixed errors/no-store headers, restrictions preserving reads, deleted/revoked/expired/replaced sessions, lock-wait revocation, non-draft/prior-publication exclusions and existing guarded write/retry history. |
+| `npm.cmd run test:sign-in-app` | 19 passed with installed Agent Browser and Chrome enabled. Mounted review endpoint, anonymous rejection, HTML/metadata omission, captured stdout/stderr excluding synthetic content/amount/cookie, private/no-store/Vary behavior; keyboard review entry, newer-version notice, supported correction focus and unavailable-explanation links, all accepted condition/safety sample reviews, private amount only in owner section, signed-out review with no content. |
+| `npm.cmd run test:diagnostics` | 40 passed, including separate battery/lock/applicability and terminal-failure rules. |
+| `npm.cmd run test:listing` | 4 passed; existing practice/public-preview separation. |
+| `npm.cmd run test:logging` | 5 passed; fixed allowlist and synthetic-secret exclusion. |
+| `npm.cmd run lint` | Passed without warnings on the final application changes. |
+| `npm.cmd run build` | Passed with TypeScript; private review API remains dynamic and review HTML contains only the loading shell. |
+| `git diff --check` (repository root) | Passed; Git reports LF/CRLF conversion notices. |
+
+Database suites use the existing private Node launcher: load local configuration,
+derive only the dedicated loopback `/halaga_signup_test` URL, set
+`SIGNUP_TEST_DATABASE_URL`, then invoke the existing npm script. Browser opt-ins
+use the installed `SIGNUP_BROWSER_EXECUTABLE` and
+`AGENT_BROWSER_EXECUTABLE_PATH`. No credentials are printed, dependencies installed,
+real participants used or persistent application migration applied. The existing
+sandbox replays checked-in migrations into disposable schemas and cleans them up.
+
+Review and editor automated WCAG audits found zero violations. Keyboard focus,
+1440/375/320px reflow and 200% text at 320px passed. Desktop/mobile review screenshots
+were inspected at `app/.next/draft-review-1440.png` and `draft-review-375.png`.
+These checks do not replace human screen-reader, translation or pilot validation.
+
+Earlier runs exposed an overstrict mounted `Vary` assertion (Next adds framework
+tokens), browser waits returning DOM objects, a test targeting an already-complete
+title instead of a missing brand, and a Next URL-data/Suspense warning. Assertions,
+waits and the page Suspense boundary were corrected. A build run concurrently with
+the nested Next integration server cleared its output and interrupted that run;
+the final harness ran after the build, without that conflict. Node's existing
+`MODULE_TYPELESS_PACKAGE_JSON` warning remains non-fatal.
+
+Changed files:
+
+- Server projection: `app/src/server/laptop-draft-review.ts`; operations/HTTP dispatch:
+  `app/src/server/repositories/laptop-drafts.ts` and `laptop-drafts-http.ts`;
+  route: `app/src/app/api/laptop-drafts/[listingId]/review/route.ts`.
+- Review shell/client: `app/src/app/drafts/[listingId]/review/page.tsx` and
+  `app/src/app/drafts/review.tsx`; editor entry/focus: `app/src/app/drafts/workspace.tsx`.
+- Tests: `app/tests/laptop-drafts-database.test.mjs`,
+  `app/tests/sign-in-app-database.test.mjs`, `app/tests/helpers/laptop-drafts-browser.mjs`.
+- Records: `PROJECT.md`, `architecture.md`, `design.md`,
+  `docs/domain/GLOSSARY.md`, `docs/decisions/ADR-084-first-physical-schema-review.md`,
+  `docs/decisions/README.md`, `docs/IMPLEMENTATION_SLICES.md`, and this guide.
+
 ## Availability supplement (2026-10-21 PHT)
 
 Owner-private drafts now save/resume buyer pickup, mutually agreed meetup, both

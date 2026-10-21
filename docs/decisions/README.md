@@ -2,6 +2,14 @@
 
 The files in this directory preserve decisions in chronological order.
 
+Latest saved laptop revision review (2026-10-21 PHT): ADR-084's implementation
+supplement adds an owner-authorized, server-derived saved-version review with
+separate proposed-content/private-expectation projections, correction links and
+honest missing/unavailable publication requirements. Saved content is absent from
+HTML/metadata; the private API is no-store. No declaration capture, public reader,
+publication command or actual hold/rejection is added. ADR-094 remains proposed.
+See [local testing](../LAPTOP_DRAFT_LOCAL_TESTING.md).
+
 Pending geography proposal (2026-10-21 PHT): [ADR-094](ADR-094-controlled-cdo-barangay-registry.md)
 proposes a PSA PSGC source, identifiers, versioned provenance, maintenance ownership
 and historical/retry behavior for owner-private laptop drafts. It is **not accepted**;

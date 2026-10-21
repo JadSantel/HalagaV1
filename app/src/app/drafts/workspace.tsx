@@ -32,10 +32,19 @@ export default function DraftWorkspace({ listingId }: { listingId?: string }) {
   const pending = useRef<Command | null>(null);
   const working = useRef(false);
   const target = `/api/laptop-drafts${listingId ? `/${encodeURIComponent(listingId)}` : ""}`;
+  const draftLoaded = draft !== null;
 
   useEffect(() => {
     if (message) feedback.current?.focus();
   }, [message]);
+
+  // Hash targets become available only after the authorized draft fetch renders.
+  useEffect(() => {
+    if (!draftLoaded) return;
+    const target = document.getElementById(window.location.hash.slice(1));
+    target?.focus();
+    target?.scrollIntoView();
+  }, [draftLoaded]);
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
@@ -171,6 +180,7 @@ export default function DraftWorkspace({ listingId }: { listingId?: string }) {
       </section>}
       {listingId && draft && detail && <form onSubmit={write} noValidate aria-busy={phase === "pending"}>
         <p className="mb-5">Saved revision {detail.revision}{dirty ? " · Unsaved changes" : ""}</p>
+        {phase === "ready" && <p className="mb-5"><a href={`/drafts/${listingId}/review?revision=${detail.revision}`} className="inline-block min-h-11 py-2 font-semibold text-[#176b59] underline">Review saved revision {detail.revision}</a>{dirty && " · Review shows saved content; save first to include these edits."}</p>}
         <fieldset disabled={locked} className="min-w-0">
           <legend className="text-xl font-semibold">Laptop details</legend>
           <p className="mt-2 text-sm text-[#53615c]">Every field may be left incomplete when saving. Diagnostic labels mark disclosures needed for a validated condition.</p>

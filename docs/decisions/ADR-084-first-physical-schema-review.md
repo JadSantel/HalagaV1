@@ -90,6 +90,18 @@ This supersedes only the earlier record's deferred fulfillment-input status;
 geography, media, ownership submission, publication and operational gates remain.
 It implements existing product policy without accepting a new policy decision.
 
+## Saved revision review implementation supplement (2026-10-21 PHT)
+
+The owner-requested review increment reads an exact saved laptop revision through
+the existing locked owner/session/draft boundary. It recomputes accepted laptop
+diagnostics and requirements on the server, with distinct proposed-content and
+owner-private projections. This implements existing ADR-006/068/084 policy; it
+accepts no new publication, geography or moderation policy. No migration, declaration
+capture, publication command, public reader or asynchronous effect is added.
+Static HTML/metadata carry no saved content; the owner API is no-store and varies
+by Cookie. Missing supported fields link to the current editor; unavailable gates
+have honest explanations. See [local testing](../LAPTOP_DRAFT_LOCAL_TESTING.md).
+
 ## Source
 
 - `PROJECT.md` sections 11, 17, 20, and 34
