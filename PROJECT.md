@@ -155,6 +155,20 @@ Active workflows must still reach a terminal state through cancellation, complet
 
 ### 8.5 Authentication protection
 
+Account document policy (ADR-092, owner-approved 2026-10-21 PHT): once final
+Terms of Use and Privacy Notice are approved, signup must require a separate,
+initially unchecked “I agree to the Terms of Use” agreement. Preserve the distinct
+adult attestation. Present the notice separately without treating it as blanket
+consent. The server must resolve effective versions and atomically record the
+terms version, notice version presented and server time with new-account signup;
+duplicate signup must not manufacture agreement. Keep that minimal record
+account-private while active, then erase it on eligible deletion unless a
+documented scoped exception applies under §28.4. Other processing grounds,
+purpose-specific consent and material-change notification remain separate review
+items. Current `/account/terms` and `/account/privacy` pages are review drafts;
+operator identity/contact and final wording remain unapproved. No agreement
+capture or schema is implemented yet. See `docs/ACCOUNT_POLICY_REVIEW.md`.
+
 Local account-guard record (2026-10-20 PHT): the protected sign-in operation now
 rereads account deletion under identity/domain locks and rejects deleted accounts
 before creating a session, enforcing ADR-074's existing deletion-disables-login

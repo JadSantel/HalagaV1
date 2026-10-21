@@ -17,6 +17,12 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
       <span>Local account preview</span>
     </header>
     <main id="account-content" className={styles.main}>{children}</main>
-    <footer className={styles.footer}>Local testing only. Use made-up information.</footer>
+    <footer className={styles.footer}>
+      <p>Local testing only. Use made-up information.</p>
+      <nav aria-label="Account documents" className={styles.links}>
+        <Link href="/account/terms">Terms of Use draft</Link>
+        <Link href="/account/privacy">Privacy Notice draft</Link>
+      </nav>
+    </footer>
   </div>;
 }

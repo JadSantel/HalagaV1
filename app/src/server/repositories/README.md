@@ -1,5 +1,11 @@
 # Server repository boundary
 
+Latest document boundary (2026-10-21 PHT): account Terms/Privacy review pages read
+only static draft content, without repository/database access. ADR-092 accepts
+future agreement capture after final document approval; the current strict signup
+payload and adult-attestation-only storage remain unchanged. No accepted version,
+agreement record, general consent or new auth endpoint is introduced.
+
 Latest draft guards (2026-10-21 PHT): `laptop-drafts.ts` reads only the IDs of
 matching active staff/audit restriction records under the account lock before
 create/save (including retries) and before commit. SQL restriction writes take

@@ -99,9 +99,34 @@ test("actual Next account routes use only a disposable synthetic schema", { time
       for (const value of ["nickname", "email", "new-password", "bday"]) assert.ok(html.includes(`autoComplete="${value}"`));
       assert.match(html, /I confirm that I am at least 18 years old and eligible to participate in Halaga\./);
       assert.match(html, /Use made-up information only/);
-      assert.match(html, /Terms and privacy content and launch readiness remain incomplete/);
+      assert.match(html, /Terms and privacy documents are review drafts; approval and launch readiness remain incomplete/);
+      for (const path of ["terms", "privacy"]) assert.ok(html.includes(`href="/account/${path}"`));
+      assert.equal((html.match(/type="checkbox"/g) ?? []).length, 1, "Only the approved adult attestation is collected");
       assert.match(html, /role="status"/);
       assert.doesNotMatch(html, /This action is not available yet/);
+    });
+    await t.test("draft terms/privacy are readable without sessions or writes and never claim to be effective", async () => {
+      const before = await counts();
+      for (const [path, title, version] of [["terms", "Terms of Use", "terms-en-draft-2026-10-21"],
+        ["privacy", "Privacy Notice", "privacy-en-draft-2026-10-21"]]) {
+        const response = await fetch(`${origin}/account/${path}`);
+        assert.equal(response.status, 200);
+        assert.equal(response.headers.get("cache-control"), "no-store");
+        assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+        assert.deepEqual(response.headers.getSetCookie(), []);
+        const html = await response.text();
+        const heading = html.match(/<h1>([\s\S]*?)<\/h1>/)?.[1];
+        assert.equal(heading?.replace(/<!--[\s\S]*?-->/g, ""), `${title} — review draft`);
+        assert.match(html, /For review only\. Not approved for real registration/);
+        assert.ok(html.includes("JCA"));
+        assert.ok(html.includes("support@halaga.ph"));
+        assert.match(html, /Legal operator identity, correspondence address and privacy-request responsibility remain unresolved/);
+        assert.match(html, /No effective date has been set/);
+        assert.ok(html.includes(version));
+        assert.match(html, /name="robots" content="noindex, nofollow"/);
+        assert.doesNotMatch(html, /<form|type="checkbox"|mailto:/);
+      }
+      assert.deepEqual(await counts(), before);
     });
     await t.test("unrelated library routes remain closed", async () => {
       for (const path of ["get-session", "sign-out", "delete-user", "sign-in/social", "sign-in/email/", "sign-in%2Femail", "sign-up/email/", "sign-up%2Femail", "signup/email", "change-password/", "change%2Dpassword"]) {
@@ -136,7 +161,8 @@ test("actual Next account routes use only a disposable synthetic schema", { time
     await t.test("server rejects underage, future DOB, missing attestation and raw library payload without records", async () => {
       for (const patch of [{ dateOfBirth: "2009-01-01" }, { dateOfBirth: "2099-01-01" },
         { dateOfBirth: "2000-02-30" }, { adultAttestationAccepted: false }, { adultAttestationAccepted: "true" },
-        { adultAttestationVersion: "invented-client-version" }, { password: "short" }]) {
+        { adultAttestationVersion: "invented-client-version" }, { password: "short" },
+        { termsAccepted: true, termsVersion: "terms-en-draft-2026-10-21" }]) {
         await read(await send("sign-up/email", { ...signup, ...patch }), 400, { code: "INVALID_INPUT" });
         assert.deepEqual(await counts(), [0, 0, 0, 0, 0, 0, 0]);
       }
@@ -257,6 +283,48 @@ test("actual Next account routes use only a disposable synthetic schema", { time
       const home = await (await fetch(origin)).text();
       assert.ok(!home.includes(create.draft.title));
       assert.ok(!home.includes(create.draft.privatePriceExpectation));
+    });
+    await t.test("mounted draft commands enforce current scopes/suspension while preserving reads, state and sign-in", async () => {
+      const account = await database.userAccount.findFirst({ where: { authUser: { email } }, select: { id: true } });
+      const sendDraft = (method, body, id) => fetch(`${origin}/api/laptop-drafts${id ? `/${id}` : ""}`, {
+        method, headers: { origin, cookie: draftCookie, "content-type": "application/json" },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      for (const scope of ["CREATE_LAPTOP_DRAFT", "EDIT_LAPTOP_DRAFT", "SUSPENSION", "PUBLISH_LISTING"]) {
+        const initial = { requestId: randomUUID(), draft: { title: "Synthetic route guard fixture" } };
+        const created = await (await sendDraft("POST", initial)).json();
+        const restriction = await database.accountMarketplaceRestriction.create({ data: {
+          accountId: account.id, scope, reason: "Synthetic private restriction reason", startsAt: new Date(),
+          reviewAt: new Date(Date.now() + 60000), authorizedBy: "synthetic-operator", appealRoute: "synthetic-appeal",
+        } });
+        if (scope === "SUSPENSION") await read(await send("sign-in/email", { email, password }), 200, { status: "SIGNED_IN" });
+        const before = await database.listing.findUnique({ where: { id: created.id },
+          include: { revisions: { include: { itemGroups: { include: { answers: true } } } } } });
+        const sessions = await database.session.findMany({ orderBy: { id: "asc" } });
+        const total = await database.listing.count();
+        const createBlocked = ["CREATE_LAPTOP_DRAFT", "SUSPENSION"].includes(scope);
+        const editBlocked = ["EDIT_LAPTOP_DRAFT", "SUSPENSION"].includes(scope);
+        const post = await sendDraft("POST", { requestId: randomUUID(), draft: {} });
+        if (createBlocked) {
+          await read(post, 403, { code: "ACTION_RESTRICTED" });
+          await read(await sendDraft("POST", initial), 403, { code: "ACTION_RESTRICTED" });
+          assert.equal(await database.listing.count(), total);
+        } else assert.equal(post.status, 200);
+        const put = await sendDraft("PUT", { requestId: randomUUID(), expectedRevision: 1,
+          draft: { title: "Synthetic route edit" } }, created.id);
+        if (editBlocked) {
+          await read(put, 403, { code: "ACTION_RESTRICTED" });
+          assert.deepEqual(await database.listing.findUnique({ where: { id: created.id },
+            include: { revisions: { include: { itemGroups: { include: { answers: true } } } } } }), before);
+        } else assert.equal(put.status, 200);
+        const detail = await sendDraft("GET", undefined, created.id);
+        assert.equal(detail.status, 200);
+        assert.equal((await detail.json()).revision, editBlocked ? 1 : 2);
+        assert.equal((await sendDraft("GET")).status, 200);
+        assert.deepEqual(await database.session.findMany({ orderBy: { id: "asc" } }), sessions);
+        await database.accountMarketplaceRestriction.update({ where: { id: restriction.id },
+          data: { revokedAt: new Date(), revokedBy: "synthetic-reviewer" } });
+      }
     });
     await t.test("fake delivery feeds the mounted verification command; proof revokes sessions and creates none", async () => {
       const messages = [];

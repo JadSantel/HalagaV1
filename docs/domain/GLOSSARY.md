@@ -37,6 +37,16 @@ A valid authentication session created less than 15 minutes ago. Required for se
 
 The explicit, versioned signup statement that a participant is at least 18 and eligible to participate. Halaga stores the accepted text version and timestamp alongside private self-declared DOB. `adult-eligibility-en-v1` is the current approved wording identifier (ADR-042, ADR-087).
 
+## Account Document Agreement Record
+
+The minimal account-private record of the effective Terms version agreed to,
+Privacy Notice version presented and server timestamp at signup, required once
+final documents are approved under ADR-092. It is separate from the adult
+attestation and is not general privacy consent. Retain it while active; erase it
+on eligible deletion unless a documented scoped retention exception applies.
+The agreement policy is accepted; capture/storage is not yet implemented and
+current review-draft identifiers are not accepted agreement versions.
+
 ## Email Verification Token
 
 A single-use credential proving control of the target email address. Signup verification and email-change tokens expire after 24 hours; a resend replaces the outstanding token. Password-reset tokens are separate and expire after one hour (ADR-087).

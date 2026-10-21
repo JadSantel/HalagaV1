@@ -41,6 +41,11 @@
 .noticeCard button:disabled { cursor: wait; }
 .liveStatus { min-height: 1.5em; margin-block: 1rem; }
 .footer { max-width: 72rem; margin: auto; padding: 1.5rem; }
+.policy h2 { margin: 2rem 0 .75rem; font-size: 1.375rem; font-weight: 650; line-height: 1.35; }
+.policy p { margin-block: .75rem; }
+.policy ul { padding-left: 1.25rem; list-style: disc; }
+.policy nav a { display: inline-flex; align-items: center; min-height: 44px; color: var(--primary); text-decoration: underline; text-underline-offset: .2em; }
+.policyNotice { margin-block: 1.5rem; padding: 1rem; border: 1px solid #855600; background: #fff3d6; color: #614000; }
 .skip { position: absolute; top: .5rem; left: .5rem; transform: translateY(-200%); padding: .75rem; background: #fff; z-index: 1; }
 .skip:focus { transform: none; }
 @media (max-width: 40rem) { .main { margin-block: 1.5rem; } }

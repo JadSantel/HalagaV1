@@ -6,6 +6,20 @@ This tracker maps the approved MVP to implementation work. Product behavior come
 
 ## Implemented
 
+### Latest Slice 2 verification and document review (2026-10-21 PHT)
+
+Current mounted account functions and laptop draft scope/suspension guards pass
+local synthetic verification. Terms/Privacy review drafts are now linked from
+registration and the account footer. ADR-092 accepts future separate Terms
+agreement and minimal private record retention after final document approval;
+current signup still captures only the approved adult attestation. Operator/contact,
+final wording and processing grounds remain unresolved. Overall Slice 2 remains
+in progress on that approval dependency and subsequent agreement capture, rather
+than being declared complete because draft pages exist. See
+[SLICE_2_CLOSEOUT.md](SLICE_2_CLOSEOUT.md) for the acceptance inventory, 242 passing
+checks, earlier failures, existing style warning and remaining gates, and
+[ACCOUNT_POLICY_REVIEW.md](ACCOUNT_POLICY_REVIEW.md) for owner decisions.
+
 ### Local synthetic password-change integration (2026-10-20 PHT, after ADR-089)
 
 Protected POST `/api/auth/change-password` and `/account/change-password` are now
@@ -161,7 +175,7 @@ status below. Launch gates remain incomplete.
 | Order | Slice | Scope / completion boundary | Status |
 | --- | --- | --- | --- |
 | 1 | Application and data foundation | Configure validated runtime, PostgreSQL connection, Prisma migrations, shared server validation, module boundaries, and privacy-safe logging. Keep local/private development on synthetic data. | **Complete:** runtime configuration reports field-only validation errors; local PostgreSQL connection and reviewed migration workflow are configured; the first migration is installed and its checksum, 15 constraints, and seven triggers verify locally. Shared Zod validation, server-only/database import boundaries, guarded-command transaction behavior, and privacy-safe operational logging pass synthetic checks. Exact direct dependency pins match the lockfile; `.nvmrc` matches Node 24.21.0. Slice 1 added no persisted product reads or commands; slice 2 now provides account prerequisite reads, while other authorized projections and flow-specific safeguards belong to their owning slices. See `docs/architecture/SERVER_BOUNDARY_REVIEW.md`, `docs/architecture/PHYSICAL_SCHEMA_REVIEW.md`, `app/README.md`, and `app/src/server/repositories/README.md`. |
-| 2 | Adult account and access | Registration, 18+ attestation and private DOB, Better Auth sessions, email verification, account eligibility/restrictions, and server-enforced action gates. | **In progress; local synthetic use only.** Mounted protected flows: registration, sign-in, verification resend/consume, password-reset request/consume, email-change request/confirmation, authenticated password change, and owner-private password-change notice list/read. The account email worker runs locally on demand; sending defaults off. Stored-session ownership, freshness, account mapping, adult/verification eligibility and prerequisite projections have synthetic database coverage. Password change preserves its initiating session, revokes others, and atomically writes an in-app notice plus eligible email work. The notice projection exposes only event identity/type/version/time/read state; explicit mark-read rechecks owner/session/retention in a transaction. Remaining Slice 2 work: complete scoped restriction/suspension enforcement as marketplace commands are added under ADR-090; finish required terms/privacy content before any real registration. No general session reader or marketplace grant is exposed. Staff recovery/audit, provider and hosted worker setup, backup/restore, and ADR-081 readiness are operational or later-slice gates, not completed Slice 2 behavior. Current evidence: `docs/ACCOUNT_FLOW_INTEGRATION.md`, `docs/SIGNUP_LOCAL_TESTING.md`, `docs/SIGN_IN_LOCAL_TESTING.md`, `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md`, and `docs/PASSWORD_CHANGE_LOCAL_TESTING.md`. |
+| 2 | Adult account and access | Registration, 18+ attestation and private DOB, Better Auth sessions, email verification, account eligibility/restrictions, and server-enforced action gates. | **In progress: current implementation verified locally; final document approval blocked.** Mounted protected flows: registration, sign-in, verification resend/consume, password-reset request/consume, email-change request/confirmation, authenticated password change, and owner-private password-change notice list/read. Stored ownership, freshness, deletion, adult/verification prerequisites and laptop draft restriction/suspension checks have synthetic coverage. Password change preserves its initiating session and atomically writes notices/eligible email work. The local email worker is implemented; real sending remains off. Terms/Privacy review pages are linked from registration. ADR-092 accepts a separate unchecked Terms agreement and minimal private versions/time record after final document approval; capture/storage is not yet implemented. Remaining: operator/contact, final wording and processing-ground review, then dependent agreement implementation/checks. Future marketplace commands must enforce their own matching scope. No general session reader or marketplace grant is exposed. Staff recovery/audit, hosted providers/workers, backup/restore and ADR-081 readiness remain separate gates. See `docs/SLICE_2_CLOSEOUT.md`, `docs/ACCOUNT_POLICY_REVIEW.md` and the linked account-flow testing guides. |
 | 3 | Listing creation and publication | Convert laptop prototype into a server-validated flow; real supported CDO barangays; ownership declaration history; listing/revision lifecycle; required photos, safe image handling, publication risk checks and held-review path; private price expectation. | **Partial, local synthetic only:** authenticated owner-private single-item laptop draft create/read/save, incomplete snapshots, server validation/condition derivation, immutable versioned history, exact private expectation, transactions, retry idempotency and stale-revision guards. No publication/hold/public reader or marketplace grant. Barangay registry, media, fulfillment/declaration submission, publication safety/risk/restrictions, audit/outbox and readiness remain gated. See `docs/LAPTOP_DRAFT_LOCAL_TESTING.md`. |
 | 4 | Public marketplace discovery | Public active-listing browse/search/detail with explicit public projections, filters and sort rules, shareable noindex pages, blocking-aware signed-in views, and no demand/private-data leakage. | Not started |
 | 5 | Buyer inquiry and offer negotiation | Pre-offer inquiry, private buyer-seller conversation, structured proposals/counters, 72-hour deadlines, withdrawal/rejection/expiry, revision acknowledgement, and seller-only offer comparison. | Not started |
@@ -189,7 +203,10 @@ implemented for synthetic validation. Scoped restriction/suspension guards now
 enforce ADR-090 for laptop draft creation/editing, including retries, with
 synthetic database verification. Other marketplace commands must apply their
 own scope checks as implemented. See `docs/LAPTOP_DRAFT_LOCAL_TESTING.md`. Terms/privacy
-content is still needed before real registration. Audited staff recovery, provider/hosted worker
+draft pages are implemented, while operator/contact, final text and processing
+grounds remain unresolved. ADR-092 accepts the agreement flow and record retention
+after document approval; dependent capture/storage remains unimplemented. See
+`docs/ACCOUNT_POLICY_REVIEW.md` and `docs/SLICE_2_CLOSEOUT.md`. Audited staff recovery, provider/hosted worker
 operations, backup/restore and ADR-081 readiness remain separate operational or
 later-slice gates. See `docs/ACCOUNT_FLOW_INTEGRATION.md` and
 `docs/PASSWORD_CHANGE_LOCAL_TESTING.md` for current boundaries.

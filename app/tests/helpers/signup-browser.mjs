@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
+import { resolve } from "node:path";
 
 /** Optional installed agent-browser CLI; no download, shared profile or real data. */
 export async function checkSignupBrowser(origin, database) {
@@ -44,6 +45,27 @@ export async function checkSignupBrowser(origin, database) {
   try {
     await run(["open", `${origin}/account/register`]);
     await run(["wait", "#displayName"]);
+    for (const [path, title] of [["terms", "Terms of Use"], ["privacy", "Privacy Notice"]]) {
+      await run(["click", `nav[aria-label="Registration documents"] a[href="/account/${path}"]`]);
+      await wait(`document.querySelector('h1')?.textContent === '${title} — review draft'`);
+      assert.equal(await evaluate(`document.querySelector('aside[aria-label="Draft status"]').textContent.includes('Not approved for real registration')`), true);
+      await run(["click", `nav[aria-label="${title} contents"] a[href="#status"]`]);
+      assert.equal(await evaluate("document.activeElement.id"), "status");
+      for (const [width, height] of [[1440, 900], [375, 812], [320, 800]]) {
+        await run(["set", "viewport", String(width), String(height)]);
+        assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, `${path}: ${width}px`);
+        if (width !== 320) await run(["screenshot", resolve(`.next/account-${path}-${width}.png`)]);
+      }
+      await evaluate("document.documentElement.style.fontSize = '200%'; true");
+      assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, `${path}: 200% text at 320px`);
+      await evaluate("document.documentElement.style.fontSize = ''; true");
+      const audit = await run(["a11y", "--tags", "wcag2a,wcag2aa,wcag21a,wcag21aa,wcag22aa"]);
+      assert.equal(audit.violations.length, 0, JSON.stringify(audit.violations));
+      await run(["click", 'article > a[href="/account/register"]']);
+      await run(["wait", "#displayName"]);
+    }
+    assert.equal(await database.session.count(), existingSessions);
+    await run(["set", "viewport", "1440", "900"]);
     // Allow hydration to install the submit handler; the form has no fake success path.
     await run(["click", "button[type=submit]"]);
     await wait(`document.querySelector('[role="alert"]')?.textContent.includes('Check the highlighted fields')`);

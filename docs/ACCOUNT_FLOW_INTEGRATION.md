@@ -1,5 +1,15 @@
 # Slice 2 account integration: local synthetic commands
 
+Latest document review (2026-10-21 PHT): registration/footer links now open
+read-only Terms and Privacy Notice drafts. Operator/contact and final text remain
+unapproved. ADR-092 accepts the future separate unchecked Terms agreement,
+atomic server-owned document versions/time and minimal-record deletion rule,
+conditional on final document approval. Current signup still captures only the
+existing adult attestation. No new agreement or blanket consent is recorded.
+Current local verification and blockers are in `SLICE_2_CLOSEOUT.md` and
+`ACCOUNT_POLICY_REVIEW.md`; they supersede older claims that no document pages
+exist, without completing the approval or launch gates.
+
 Latest account-security reader record (2026-10-21 PHT): `/account/security` lists
 the signed-in owner's password-change notices within the fixed 90-day event window
 and marks them read only after an explicit action. GET `/api/account/security-notices`

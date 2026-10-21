@@ -2,6 +2,14 @@
 
 The files in this directory preserve decisions in chronological order.
 
+Latest account-document decision (2026-10-21 PHT): [ADR-092](ADR-092-account-document-agreement-capture.md)
+accepts a separate unchecked Terms agreement and atomic server-owned document
+versions/time after final documents are approved. The minimal private agreement
+record is erased on eligible deletion absent a scoped exception. Read-only Terms
+and Privacy Notice drafts are linked from registration; operator/contact, final
+wording and processing grounds remain open. No agreement capture is implemented.
+See [ACCOUNT_POLICY_REVIEW.md](../ACCOUNT_POLICY_REVIEW.md).
+
 Latest local integration (2026-10-20 PHT, after ADR-089): explicit owner authorization
 now mounts only protected POST `/api/auth/change-password` and its existing form for
 synthetic validation. This supersedes older mounting/client/direct-write-review

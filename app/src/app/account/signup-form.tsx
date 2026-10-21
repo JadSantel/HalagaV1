@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
 import styles from "./account.module.css";
 
 const inputs = [
@@ -85,8 +86,13 @@ export function AccountSignupForm() {
   return <>
     <aside className={styles.notice} aria-label="Local testing only">
       <strong>Use made-up information only.</strong>
-      <p>Local synthetic signup only. Email sending is disabled. Terms and privacy content and launch readiness remain incomplete.</p>
+      <p>Local synthetic signup only. Email sending is disabled. Terms and privacy documents are review drafts; approval and launch readiness remain incomplete.</p>
     </aside>
+    <nav aria-label="Registration documents" className={styles.links}>
+      <Link href="/account/terms">Terms of Use draft</Link>
+      <Link href="/account/privacy">Privacy Notice draft</Link>
+    </nav>
+    <p className={styles.hint}>These drafts are available for review. This form records only the adult-eligibility attestation, without accepting draft terms or collecting general privacy consent.</p>
     <noscript>JavaScript is required for this local signup form.</noscript>
     <form method="post" className={styles.form} onSubmit={submit} noValidate aria-busy={pending}>
       {inputs.map((input) => <div className={styles.field} key={input.name}>

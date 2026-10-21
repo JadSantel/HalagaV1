@@ -406,6 +406,17 @@ Architecture consequences:
 
 ## 5. Cross-flow state and race requirements
 
+ADR-092 accepts future account-document agreement capture after final text
+approval: a separate unchecked Terms agreement, independent adult attestation,
+notice presentation without blanket consent, and atomic server-owned document
+versions/time with signup. Duplicate signup cannot manufacture agreement. The
+minimal record is account-private, excluded from auth responses/logs/email, and
+erased on eligible deletion absent a documented scoped exception. Current read-only
+review pages expose only static draft content; they do not touch account state.
+Operator/contact, processing-ground and final-text blockers remain. No effective
+version, agreement column or capture command is implemented. See ADR-092 and
+`docs/ACCOUNT_POLICY_REVIEW.md`.
+
 Latest local integration record (2026-10-20 PHT, after ADR-089): explicit owner
 authorization mounts only protected POST `/api/auth/change-password` and the
 existing form for synthetic validation. A one-path handler follows signup/sign-in
