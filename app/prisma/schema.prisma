@@ -304,6 +304,7 @@ model ListingRevision {
 
   @@unique([listingId, version])
   @@unique([id, listingId, authoredById], map: "draft_photo_revision_scope")
+  @@unique([id, listingId, version], map: "moderation_revision_identity")
   @@index([listingId, createdAt])
   @@map("listing_revision")
 }
@@ -496,4 +497,181 @@ model DraftRetentionHold {
   releasedById   String? @db.Uuid
   @@index([listingId, releasedAt])
   @@map("draft_retention_hold")
+}
+
+// ADR-096 moderation records. The migration owns cross-record/composite FKs,
+// immutable-history triggers and checks; repositories use explicit SQL projections.
+// No owner binding or held request is created by generating this client.
+model ModerationControl {
+  singleton Boolean @id @default(true)
+  ownerAccountId String? @map("owner_account_id") @db.Uuid
+  installationReference String? @map("installation_reference")
+  verifiedAt DateTime? @map("verified_at") @db.Timestamptz(3)
+  @@map("moderation_control")
+}
+model ModerationGrant {
+  id String @id @db.Uuid
+  accountId String @map("account_id") @db.Uuid
+  permission String
+  startsAt DateTime @map("starts_at") @db.Timestamptz(3)
+  endsAt DateTime @map("ends_at") @db.Timestamptz(3)
+  trainingReference String @map("training_reference")
+  authorizerId String @map("authorizer_id") @db.Uuid
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  @@index([accountId,permission],map:"moderation_grant_actor")
+  @@map("moderation_grant")
+}
+model ModerationShift {
+  id String @id @db.Uuid
+  accountId String @map("account_id") @db.Uuid
+  authorizerId String @map("authorizer_id") @db.Uuid
+  role String
+  startsAt DateTime @map("starts_at") @db.Timestamptz(3)
+  endsAt DateTime @map("ends_at") @db.Timestamptz(3)
+  trainingReference String @map("training_reference")
+  availability String @default("SCHEDULED")
+  confirmedAt DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  @@map("moderation_shift")
+}
+model HeldLaptopReview {
+  id String @id @db.Uuid
+  listingId String @map("listing_id") @db.Uuid
+  revision Int
+  revisionId String @unique @map("revision_id") @db.Uuid
+  sellerId String @map("seller_id") @db.Uuid
+  sourceReference String @unique @map("source_reference") @db.Uuid
+  sourcePolicy String @map("source_policy")
+  triggerClass String @map("trigger_class")
+  submittedAt DateTime @map("submitted_at") @db.Timestamptz(3)
+  status String @default("PENDING")
+  assignedTo String? @map("assigned_to") @db.Uuid
+  closedAt DateTime? @map("closed_at") @db.Timestamptz(3)
+  necessityDueAt DateTime @map("necessity_due_at") @db.Timestamptz(3)
+  @@index([status,submittedAt],map:"moderation_review_queue")
+  @@map("held_laptop_review")
+}
+model ModerationConflict {
+  reviewId String @map("review_id") @db.Uuid
+  accountId String @map("account_id") @db.Uuid
+  reason String
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+  @@id([reviewId,accountId])
+  @@map("moderation_conflict")
+}
+model ModerationRetentionException {
+  id String @id @db.Uuid
+  recordKind String @map("record_kind")
+  recordId String @map("record_id") @db.Uuid
+  authorizerId String @map("authorizer_id") @db.Uuid
+  purpose String
+  startedAt DateTime @map("started_at") @db.Timestamptz(3)
+  reviewAt DateTime @map("review_at") @db.Timestamptz(3)
+  releasedAt DateTime? @map("released_at") @db.Timestamptz(3)
+  @@map("moderation_retention_exception")
+}
+model ModerationDecision {
+  id String @id @db.Uuid
+  reviewId String @map("review_id") @db.Uuid
+  revisionId String @map("revision_id") @db.Uuid
+  actorId String @map("actor_id") @db.Uuid
+  action String
+  reasonCode String @map("reason_code")
+  rationale String
+  priorState String @map("prior_state")
+  resultingState String @map("resulting_state")
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+  appealDeadline DateTime? @map("appeal_deadline") @db.Timestamptz(3)
+  correctsId String? @map("corrects_id") @db.Uuid
+  @@map("moderation_decision")
+}
+model ModerationAppeal {
+  id String @id @db.Uuid
+  reviewId String @unique @map("review_id") @db.Uuid
+  decisionId String @unique @map("decision_id") @db.Uuid
+  grounds Json
+  explanation String
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+  acknowledgementDueAt DateTime @map("acknowledgement_due_at") @db.Timestamptz(3)
+  decisionDueAt DateTime @map("decision_due_at") @db.Timestamptz(3)
+  acknowledgedAt DateTime? @map("acknowledged_at") @db.Timestamptz(3)
+  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz(3)
+  @@map("moderation_appeal")
+}
+model ModerationAppealResponse {
+  decisionId String @map("decision_id") @db.Uuid
+  ground String
+  explanation String
+  @@id([decisionId,ground])
+  @@map("moderation_appeal_response")
+}
+model ModerationNotice {
+  id String @id @db.Uuid
+  reviewId String @map("review_id") @db.Uuid
+  decisionId String? @map("decision_id") @db.Uuid
+  accountId String @map("account_id") @db.Uuid
+  event String
+  version Int @default(1)
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+  readAt DateTime? @map("read_at") @db.Timestamptz(3)
+  emailOutcome String @default("INELIGIBLE") @map("email_outcome")
+  @@map("moderation_notice")
+}
+model ModerationAudit {
+  id String @id @db.Uuid
+  actorId String @map("actor_id") @db.Uuid
+  grantId String? @map("grant_id") @db.Uuid
+  purpose String
+  action String
+  targetId String @map("target_id") @db.Uuid
+  revisionId String? @map("revision_id") @db.Uuid
+  reason String
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  @@index([expiresAt],map:"moderation_audit_expiry")
+  @@map("moderation_audit")
+}
+model ModerationReceipt {
+  actorId String @map("actor_id") @db.Uuid
+  command String
+  requestId String @map("request_id") @db.Uuid
+  reviewId String? @map("review_id") @db.Uuid
+  fingerprint String
+  result Json
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+  expiresAt DateTime? @map("expires_at") @db.Timestamptz(3)
+  @@id([actorId,command,requestId])
+  @@map("moderation_receipt")
+}
+model ModerationEmailBinding {
+  userId String @id @map("user_id")
+  generation BigInt @default(0)
+  @@map("moderation_email_binding")
+}
+model ModerationEmailJob {
+  id String @id @db.Uuid
+  noticeId String @unique @map("notice_id") @db.Uuid
+  accountId String @map("account_id") @db.Uuid
+  policy String @default("moderation-jobs-v1")
+  bindingGeneration BigInt @map("binding_generation")
+  recipient String?
+  state String @default("READY")
+  attempts Int @default(0)
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+  deadline DateTime @db.Timestamptz(3)
+  availableAt DateTime @map("available_at") @db.Timestamptz(3)
+  leaseId String? @map("lease_id") @db.Uuid
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz(3)
+  terminalAt DateTime? @map("terminal_at") @db.Timestamptz(3)
+  outcomeCode String? @map("outcome_code")
+  @@index([state,availableAt],map:"moderation_email_ready")
+  @@map("moderation_email_job")
+}
+model ModerationEmailAttempt {
+  id String @id @db.Uuid
+  jobId String @map("job_id") @db.Uuid
+  execution Int
+  phase String
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+  @@unique([jobId,execution,phase])
+  @@map("moderation_email_attempt")
 }

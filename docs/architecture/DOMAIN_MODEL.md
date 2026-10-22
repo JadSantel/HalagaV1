@@ -1,7 +1,7 @@
 # Halaga MVP Logical Domain Model and System Boundaries
 
 - Status: Initial architecture model
-- Last updated: 2026-10-12
+- Last updated: 2026-10-22 PHT (ADR-096 held-review logical supplement)
 - Product authority: `PROJECT.md`
 - Architecture overview: `architecture.md`
 - Decision record: ADR-069
@@ -320,6 +320,23 @@ Invariants:
 Audit events record business actions and state changes. Sensitive-access events record purposeful access to restricted data such as IMEI, verification evidence, exact appointment location, messages accessed for support, and case evidence.
 
 These histories are append-only from ordinary application paths. Corrections use new linked records rather than in-place removal of prior history.
+
+Held-review supplement, accepted 2026-10-22 PHT:
+[ADR-096](../decisions/ADR-096-held-review-authorization-and-operations.md) requires
+explicit owner binding/grant and queue-purpose records, single-reviewer claim/
+handoff, coverage/attendance history, exact-revision review/decision/appeal records,
+and successful access-audit persistence before sensitive disclosure. Review,
+appeal, audit and delivery-recovery permissions are separate. Required decision,
+audit, immediately readable in-app notice, email intent/job and receipt writes
+share a transaction. Unique appeal/receipt/work identities preserve one appeal
+and logical deduplication; schema/constraints remain implementation review work.
+
+Review records/notices/decision receipts expire six calendar months after final
+closure; access events six months after access; ended grants/shifts/bindings six
+months after ending. References do not prolong evidence lifetime. ADR-096 supplies
+the distinct moderation recipient, terminal metadata and active-review/exception
+rules. Append-only does not prevent authorized retention deletion. No new physical
+schema or persisted staff authorization is claimed by this logical supplement.
 
 ## 6. Key logical records
 

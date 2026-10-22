@@ -2,6 +2,18 @@
 
 The files in this directory preserve decisions in chronological order.
 
+Latest held-review policy (2026-10-22 PHT): the owner explicitly accepted the six
+initial choices and full E1-E3 package in
+[ADR-096](ADR-096-held-review-authorization-and-operations.md): owner-only grants,
+claimed purposeful evidence review, authoritative confirmed coverage, access/action
+audit, six-month review/access history, exact moderation notices and original
+in-app appeal clock, authenticated text-only appeal intake, and versioned bounded
+moderation jobs/recovery/cleanup. See the
+[operations runbook](../runbooks/HELD_LISTING_REVIEW_OPERATIONS.md) and
+[completed interview brief](../HELD_REVIEW_OPERATIONS_DECISION_BRIEF.md).
+This resolves policy choices, not absent runtime controls, staffing or independent
+submission/evidence/geography/declaration/translation/launch prerequisites.
+
 Latest laptop evaluation (2026-10-22 PHT): ADR-058's implementation record adds a
 versioned read-only evaluation to exact saved-revision owner review. It distinguishes
 missing requirements, deterministic exclusions, human-review requirements and

@@ -2,6 +2,15 @@
 
 Implementation boundary: 2026-10-22 PHT. Synthetic data only.
 
+Later policy supplement (2026-10-22 PHT): the owner explicitly accepted
+[ADR-096](decisions/ADR-096-held-review-authorization-and-operations.md), resolving the
+held-review authorization/coverage/audit/retention/notice/job/appeal-intake policy
+choices. Its [operations runbook](runbooks/HELD_LISTING_REVIEW_OPERATIONS.md)
+records the procedure. Older policy-pending statements below preserve this increment's history.
+The coordinator remains an internal foundation without an application adapter;
+policy acceptance does not implement its required persisted effects or independent
+submission/assessment/declaration/geography/readiness prerequisites.
+
 The owner explicitly kept policy-dependent behavior gated after the repository
 review identified missing publication job/delivery policies. This increment
 implements an internal transaction coordinator and a disposable PostgreSQL adapter

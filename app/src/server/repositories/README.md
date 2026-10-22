@@ -1,5 +1,14 @@
 # Server repository boundary
 
+Later held-review boundary (2026-10-22 PHT): `held-laptop-review.ts` is an unmounted
+ADR-096 synthetic service for owner-bound grants/shifts and purpose-authorized
+claimed candidate review/decisions, safe seller notices and one appeal. The
+protected HTTP adapter is tested but not installed by a Next route. Separate
+audit/recovery permissions do not authorize evidence. Approval remains gated;
+no bootstrap or held-submission producer exists. `moderation-email-worker.ts`
+defaults off, with only a fake sender seam, bounded recovery and review cleanup.
+See [scope, lock/projection review and remaining integrations](../../../../docs/HELD_LAPTOP_REVIEW_IMPLEMENTATION.md).
+
 Latest photo boundary (2026-10-21 PHT): ADR-095 adds scoped owner admission/upload/
 list/derivative/remove/order/cancel repositories and a separate manual durable
 worker. The shared draft authorization callback seam is internal only. Composite

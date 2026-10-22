@@ -251,6 +251,19 @@ Human-reviewed paired Cebuano/Bisaya and full accessibility validation remain ga
 
 ### 5.13 Operator queues and detail views
 
+Accepted held-review supplement (ADR-096, 2026-10-22 PHT): show required
+single-reviewer claim/handoff, authorized purpose and evidence-access denial when
+audit fails. Owner grant/coverage administration is separate from reviewer/auditor/
+recovery access. Display actual confirmed coverage and overdue targets truthfully.
+Use ADR-096's exact English notice copy/safe reasons; seller detail omits staff
+identity and private findings. Rejection/removal displays original in-app notice
+time and inclusive seven-day deadline. Appeal intake is authenticated, text-only,
+linked to the exact decision, with accepted grounds, 1-4,000 Unicode code points
+and authorized existing-evidence references. No new uploads/email inbox. Automatic
+receipt and human acknowledgement are separate states; no automatic restoration.
+Assigned/unassigned states are required for this held-review flow. Runtime
+interfaces and required human-validated paired translations remain incomplete.
+
 - **Goal:** let authorized staff handle held listings, verification, cases/evidence, findings, actions, and appeals consistently.
 - **Queues:** held listings; verification applications; no-show/material-misrepresentation/safety cases; appeals. Show priority/urgency, age, status, service target, and minimal identifiers needed for triage. Do not surface sensitive evidence in queue rows.
 - **Detail hierarchy:** case/review type and neutral state; trigger/reason; public candidate/listing revision; necessary restricted evidence behind explicit access; authorized relevant platform records; subject response; decision choices permitted by policy; rationale; affected participant notification preview; audit history/access trail.

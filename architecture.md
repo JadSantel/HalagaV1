@@ -102,6 +102,25 @@ staff reader is added.
 
 Server operational logs use an allowlist of fixed operation, outcome, and internal error-code values, plus a request ID only when it passes the UUID format check. Do not log request bodies, parsed inputs, credentials, session or verification tokens, date of birth, private listing fields, evidence, raw validation issues, or raw exception messages. Unexpected failures map to a generic operational code. A request handler must keep this logger call separate from error serialization so detailed errors cannot enter logs or responses by accident.
 
+### 3.3 Accepted held-review staff boundary (ADR-096)
+
+[ADR-096](docs/decisions/ADR-096-held-review-authorization-and-operations.md) now
+defines owner-only staff provisioning/revocation, separate queue/purpose grants,
+required single-reviewer claims, conflict/handoff controls and fresh sign-in for
+consequential staff commands. Owner authority is a pre-provisioned stored identity
+binding, never inferred from a participant account, email or request. Administration,
+review, appeal, audit and delivery-recovery permissions do not imply one another.
+Sensitive disclosure requires live authorization/assignment and a committed access
+audit; audit failure denies disclosure. Seller/public projections omit staff
+identities, private findings and evidence. Read and command implementations remain
+absent; accepted policy does not establish actual owner/operator identity.
+
+Authoritative coverage is owner-approved PostgreSQL shift/availability history,
+with training, queue grants and explicit attendance confirmation. Owner controls
+additions/extensions/restoration; operators can mark unavailable. Grant, claim,
+restriction and coverage updates must serialize with exact-revision decisions.
+The runbook records required real staffing evidence without supplying it.
+
 ## 4. Critical flow map
 
 ### 4.1 Create and publish a listing
@@ -439,6 +458,31 @@ Architecture consequences:
 
 ### 4.9 Operator reviews a held listing
 
+Later service implementation (2026-10-22 PHT): an unmounted ADR-096 repository and
+protected HTTP adapter enforce explicit grants, claims, conflicts, coverage,
+audited exact-revision decisions, safe notices and one appeal. Immutable records,
+composite FKs and the account/session/control/listing/review lock order are tested
+in disposable schemas. Approval, bootstrap/mounting, held submission and independent
+evidence/geography/readiness remain gated. See the
+[service/concurrency review and remaining integrations](docs/HELD_LAPTOP_REVIEW_IMPLEMENTATION.md).
+
+Policy supplement (2026-10-22 PHT): the owner accepted ADR-096's staff, coverage,
+audit/retention, notice/job and appeal-intake contract. The
+[operations runbook](docs/runbooks/HELD_LISTING_REVIEW_OPERATIONS.md) defines its
+procedure. This supersedes policy-unresolved wording in earlier prerequisite
+records; runtime controls, physical review and actual staffing remain absent.
+Held-request provenance, assessment/declaration/geography and readiness gates
+remain separate. Current owner-private draft review is unchanged.
+
+Implementation prerequisite check (2026-10-22 PHT): the current exact-revision
+review remains owner-private and read-only. Staff authorization, purposeful access
+audits, coverage authority, held-request/eligibility and publication-specific
+notice/job/appeal prerequisites are not implemented. Dependent runtime work is
+paused; no signed-in participant is granted staff access. See the
+[prerequisite review](docs/HELD_LAPTOP_REVIEW_PREREQUISITES.md) for source boundaries,
+decisions required and verification limits. This does not complete operator or
+pilot operations.
+
 **Goal:** resolve ambiguous safety, policy, ownership, privacy, taxonomy, or evidence triggers before publication.
 
 ```text
@@ -685,6 +729,27 @@ cadence or new product policy. See `docs/ACCOUNT_EMAIL_DELIVERY_LOCAL_TESTING.md
 
 ## 6. Flow-level notification contract
 
+Moderation supplement (ADR-096, accepted 2026-10-22 PHT): holds, corrections,
+decisions and appeal updates require immediately readable in-app notices in the
+domain transaction. Corrections/decisions/appeal updates also require email intent
+when the primary address is verified in both existing stores at event time.
+Bind the event-time recipient and email-binding generation; suppress before sending
+if the binding changes, verification is lost, the account is deleted or the original
+seven-day delivery window expires. No retargeting/backfill. Generic English copy,
+safe-reason catalogue and exact outcome/channel matrix are in ADR-096.
+
+First readable rejection/removal notice time starts the inclusive seven-elapsed-day
+appeal window; email, reading and retries never move it. Authenticated text-only
+intake binds one appeal to the exact decision. Target dates use the Monday-Saturday
+PHT calendar from original submission. A receipt is not human acknowledgement.
+`moderation-jobs-v1` explicitly selects two-minute fenced leases, 30-second renewal/
+timeout, five executions and 60/300/1,800/7,200-second backoff. Only definite 429
+permits automatic post-send retry; ambiguous sends quarantine as UNKNOWN. Manual
+recovery preserves bounds. Cleanup batches at most 100 records; active-review
+necessity checks are due every 30 days. Local run-once is accepted; hosted
+scheduling/sending remains gated. Recipient/metadata and six-month review/access
+retention follow ADR-096, independently of account-email/photo periods.
+
 State changes first commit the domain record and a durable notification intent in the same transaction. Delivery occurs asynchronously.
 
 Notification rendering uses channel-specific, privacy-reviewed templates:
@@ -783,6 +848,10 @@ This is an architecture working draft, not an implementation-ready specification
 
 ### 8.1 Accepted architecture decisions
 
+- ADR-096 accepts held-review staff/coverage authority, purposeful claimed access,
+  audit/retention, exact moderation notices, text-only appeals and versioned
+  moderation jobs/recovery. Actual controls and staffing remain unimplemented;
+  the operations runbook describes required evidence and does not supply it.
 - TypeScript, Next.js, shared TypeScript domain/validation modules, and PostgreSQL are the stack foundation (ADR-072).
 - The application is a modular monolith; PostgreSQL is the relational system of record (ADRs 069–070).
 - PostgreSQL-backed outbox and durable jobs, bounded retries, expiring leases, idempotency, failed-job handling, and controlled retries are accepted. A separate Node.js worker remains the proposed runtime, not a final deployment decision (ADR-073).
@@ -801,6 +870,12 @@ These decisions must be recorded rather than inferred in code. Some are needed b
 
 **Product, policy, and operations**
 
+- ADR-096 resolves held-review staff authority/claims/purpose checks, coverage
+  authority, audit/retention, notice/job policies and text-only appeal intake.
+  Runtime authorization/access audit, physical schema and concurrency review,
+  verified owner bootstrap, actual training/shifts, held submission provenance,
+  risk/evidence assessments, declaration capture, geography and translation/
+  readiness remain gates. See its accepted contract and operations runbook.
 - ADR-090 sets a two-renewal maximum, no post-expiry grace, and updates `Newest` only after materially changed republication.
 - ADR-090 sets no appointment-specific reminders; ADR-063 completion reminders remain in force.
 - ADR-090 defines restricted review, correction/appeal, workflow safeguarding, and ordinary retention for later-discovered underage accounts.

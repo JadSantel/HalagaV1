@@ -178,6 +178,55 @@ One internal reconsideration available to each participant affected by a no-show
 
 A non-public listing state caused by a defined safety, policy, fraud, or evidence trigger. The listing awaits human review and is not treated as published, removed, or proof of wrongdoing.
 
+## Held-Review Staff Grant
+
+An explicit owner-authorized permission for a queue and operational purpose,
+checked against the live stored identity/session and grant. A participant account
+or owner administration does not automatically grant evidence, review, appeal,
+audit or delivery-recovery access. Grant and revocation history is audited
+(ADR-096).
+
+## Held-Review Claim
+
+The single current reviewer assignment required before restricted evidence access
+or decision. Claim, release and handoff are guarded and audited. Conflict,
+revocation or unavailability prevents continued evidence access/decisions; no
+timeout silently transfers ownership (ADR-096).
+
+## Confirmed Operator Coverage
+
+An owner-approved, time-bounded shift with training evidence, current queue grants
+and explicit attendance confirmation. Operators can mark unavailable; the owner
+controls additions/extensions/restoration. Publication and new onboarding pause
+without valid coverage. The required daily minimum is 08:00-22:00 PHT; additional
+coverage requires explicit scheduling (ADRs 046/080/096).
+
+## Moderation Decision Notice Time
+
+The first instant a rejection/removal notice becomes readable in the seller's
+private in-app view, committed atomically with the decision. It starts the inclusive
+seven-elapsed-day appeal window. Email delivery, read time and retries do not move
+it (ADR-096).
+
+## Moderation Appeal
+
+One authenticated seller appeal per exact rejection/removal decision under ADR-078,
+filed by the original notice-based deadline. ADR-096 accepts text-only explanation,
+accepted grounds and references to existing authorized evidence, with no new
+uploads or email-inbox intake. The accountable queue separates receipt from human
+acknowledgement. Different eligible reviewer when available, otherwise separately
+logged reconsideration; personal conflicts cannot be waived. No automatic
+restoration or second internal appeal.
+
+## Held-Review Final Closure
+
+The instant starting ADR-096's six-calendar-month review-record retention: the
+original appeal deadline without an appeal, or timely appeal resolution with its
+outcome notice available. Nonappealable requests close on explicit resolution/
+withdrawal and required notice availability. Active holds/corrections are unresolved
+and require necessity review every 30 calendar days. Access history has its own
+six-month-from-access clock; references cannot prolong source evidence retention.
+
 ## Paused Backup Offer
 
 An existing competing offer negotiation temporarily made inactive because the seller reserved the item for another buyer. It is neither accepted nor rejected and may be eligible to reopen if the reservation ends without completion.

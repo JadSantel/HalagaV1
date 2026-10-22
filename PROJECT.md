@@ -545,6 +545,27 @@ Exact pickup or meetup details are private to the reserved transaction. Public p
 
 ## 14. Listing Publication and Moderation
 
+Later service implementation (2026-10-22 PHT): ADR-096 now has an unmounted
+synthetic repository/HTTP adapter for authorized claimed exact-revision review,
+audited decisions, safe notices and one appeal, with disabled-by-default delivery
+and bounded review cleanup. Approval remains unavailable while independent
+publication prerequisites are missing. No bootstrap/submission producer, operator
+UI or live route is installed. See the
+[implementation boundary and remaining integrations](docs/HELD_LAPTOP_REVIEW_IMPLEMENTATION.md).
+
+Later owner decision (2026-10-22 PHT): ADR-096 now accepts the held-review staff,
+coverage, audit/retention, moderation notice/job and appeal-intake policy. See
+sections 27.1/28.7 and the operations runbook. Earlier implementation records
+below remain evidence of absent runtime controls, not unresolved ADR-096 policy.
+
+Held-laptop review prerequisite check (2026-10-22 PHT): runtime implementation is
+paused pending staff provisioning/queue-purpose authorization, access/action audit
+and retention, authoritative coverage, publication eligibility/held-request and
+notice/job prerequisites, and an implemented ADR-078 appeal path. No new staff
+reader or review command is installed. See the
+[prerequisite review](docs/HELD_LAPTOP_REVIEW_PREREQUISITES.md). This records existing
+gates, not a new policy or completion of the operator workbench/pilot.
+
 Atomic-foundation supplement (2026-10-22 PHT): an internal transaction coordinator
 and disposable synthetic PostgreSQL fixture now cover domain/audit/intent/job/
 receipt atomicity and command replay. The owner kept missing publication job,
@@ -907,6 +928,41 @@ These are initial-review targets, not guaranteed final-resolution times.
 
 Staff access to messages, identifiers, verification evidence, location, and dispute evidence must be role-restricted, purpose-limited, and auditable.
 
+### 27.1 Held-listing review operations (ADR-096)
+
+The owner explicitly accepted [ADR-096](docs/decisions/ADR-096-held-review-authorization-and-operations.md)
+on 2026-10-22 PHT. Only the pre-bound, authenticated owner grants/revokes staff
+permissions and adds/extends coverage; operators can mark themselves unavailable.
+Separate queue/purpose permissions govern review, appeals, delivery recovery and
+audit. A single claimed reviewer is required before restricted evidence or a
+decision. Live grants/session/assignment/conflict checks and successful sensitive-
+access audit precede disclosure. Consequential staff commands require sign-in
+less than 15 minutes ago. Owner administration alone grants no evidence access.
+
+Owner-approved, time-bounded shifts require training, current queue grants and
+explicit attendance confirmation. Missing coverage pauses new onboarding and
+publication; reports remain available with truthful response windows. Coverage,
+grant and assignment changes must serialize with affected decisions. Required
+decision/audit/notice/job/receipt effects commit atomically for the exact revision.
+
+Mandatory in-app notices cover holds, corrections, decisions and appeal updates.
+Verified-primary email covers corrections, decisions and appeal updates, with
+generic copy, a seven-day delivery window and suppression after an address-binding
+change or account deletion; no retargeting/backfill. The first readable in-app
+rejection/removal notice starts the inclusive seven-elapsed-day appeal window,
+independently of email or read time. Intake is authenticated seller-only, linked
+to the exact decision, text-only (1-4,000 Unicode code points plus accepted grounds
+and authorized existing-evidence references), with one appeal per decision.
+ADR-078 targets/reviewer separation remain binding; conflicts cannot be waived.
+
+ADR-096 contains exact English copy, safe reasons, retention classification and
+`moderation-jobs-v1` lease/retry/ambiguity/cleanup limits. The
+[operations runbook](docs/runbooks/HELD_LISTING_REVIEW_OPERATIONS.md) records the
+procedure and required readiness evidence. These are accepted policies, not
+implemented staff controls or real owner/operator identities, training or shifts.
+Held-request provenance, assessments, declaration capture, geography, translations
+and launch gates remain separate prerequisites.
+
 ## 28. Data Protection and Retention
 
 ### 28.1 Sensitive data
@@ -989,6 +1045,33 @@ deletion must erase sooner under its workflow safeguards when those commands are
 implemented. This does not replace transaction, negotiation, case or verification
 retention, or authorize adopting draft assets into those workflows without their
 classification. See ADR-095 for the cleanup and recovery contract.
+
+### 28.7 Held-review and moderation operations retention (ADR-096)
+
+Review requests, exact reviewed snapshots, necessary evidence references,
+findings, assignment/action/appeal history, in-app notices and decision receipts
+expire six calendar months after final closure. An appealable decision closes
+after its seven-day appeal window with no appeal, or after timely appeal
+resolution and outcome-notice availability. Holds/corrections remain unresolved
+while active, with necessity review every 30 calendar days. Approval closes its
+review separately from subsequent listing activity. Sensitive-access events
+expire six calendar months after access; ended grants, shifts and owner bindings
+retain necessary history for six calendar months after ending. Reads/retries do
+not extend these clocks. Calendar-month addition uses PHT and clamps invalid days.
+
+Moderation email recipients are delivery-only: erase on acceptance, suppression,
+definite failure or the original seven-day deadline; UNKNOWN retains its recipient
+only until that deadline for authorized reconciliation. Minimal terminal delivery
+metadata expires after 30 elapsed days, bounded at 37 elapsed days from the event.
+Keep only a recipient-free channel outcome under the review-notice lifetime.
+
+At expiry, delete or irreversibly anonymize personal content and linkable IDs under
+the per-record rules and scoped ADR-079 exceptions. Referenced evidence follows
+its own classification; a reference does not extend its lifetime. Account deletion
+preserves only necessary private records and suppresses unsent email. An active
+review/appeal is unresolved work; an unfiled possible appeal or email alone adds no
+deletion blocker. Provider/backup propagation and runtime cleanup remain unverified.
+No synthetic draft media adoption or indefinite retention is authorized.
 
 ## 29. Core Domain Model
 
@@ -1168,6 +1251,13 @@ The public-pilot recovery acceptance targets are RPO no greater than 24 hours an
 Usage and quota consumption must be observable. Where a provider supports them, hard spending caps or billing-disabled configurations are preferred over alerts alone. Free-tier suspension, sleep, quota exhaustion, retention limits, and lack of service-level guarantees must be included in availability and recovery planning.
 
 ## 34. Deferred Decisions
+
+ADR-096 resolves held-review staff grants/purpose/claim checks, authoritative
+coverage, sensitive-access audit behavior and review retention, moderation
+notices/jobs/recovery, and authenticated text-only appeal intake policy. These
+choices are no longer deferred; their controls remain unimplemented. Physical/
+concurrency review, actual owner/staff/coverage evidence, held-submission and
+assessment/declaration/geography/translation/launch prerequisites remain open.
 
 These items are intentionally not invented in this specification. They require a focused product, policy, legal, operational, design, or architecture decision before the affected behavior is implemented or the pilot launches:
 

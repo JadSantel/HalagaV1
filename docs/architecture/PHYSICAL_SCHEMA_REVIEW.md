@@ -1,5 +1,15 @@
 # First Physical Domain Schema: Review Draft
 
+## Held-review service supplement (2026-10-22 PHT)
+
+The additive `20261022160000_held_review_controls` migration is replayed only in
+disposable synthetic schemas. ADR-096 service records have explicit scalar Prisma
+mappings; SQL additionally owns cross-account/revision composite FKs, immutable
+history/notice/appeal checks and the monotonic email-binding trigger. No generated
+client or schema mapping provisions an owner or produces a held submission.
+The [service review](../HELD_LAPTOP_REVIEW_IMPLEMENTATION.md) records lock order,
+privacy projections, tests and remaining retention/installation/mounting gates.
+
 ## Later synthetic-photo supplement (2026-10-21 PHT)
 
 Accepted ADR-095 is implemented by

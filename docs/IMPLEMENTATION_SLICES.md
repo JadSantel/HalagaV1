@@ -1,8 +1,23 @@
 # Halaga MVP Implementation Slices
 
+Later held-review service record (2026-10-22 PHT): the unmounted synthetic ADR-096
+backend implements grants/claims, audited exact-revision decisions, notices and one
+appeal. Approval/submission/bootstrap/mounting and remaining retention/operations
+integration stay gated. This does not complete slices 3, 9, 10, 11 or 13. See
+[implementation and verification boundary](HELD_LAPTOP_REVIEW_IMPLEMENTATION.md).
+
 This tracker maps the approved MVP to implementation work. Product behavior comes from `PROJECT.md`, accepted decisions from `docs/decisions/`, architecture from `architecture.md`, and interface guidance from `design.md`.
 
 **Status means code present in this repository.** An accepted ADR or installed dependency is not an implemented user flow. “Prototype complete” means the local synthetic-data exercise works; it is not production-ready or pilot-ready.
+
+Policy-only update (2026-10-22 PHT): the owner accepted
+[ADR-096](decisions/ADR-096-held-review-authorization-and-operations.md), resolving
+held-review staff/coverage/audit/retention/notice/job/text-only appeal policies.
+Its [operations runbook](runbooks/HELD_LISTING_REVIEW_OPERATIONS.md) records the
+procedure under those accepted decisions.
+The operator workbench remains **not started**; no source, schema or runtime
+behavior is added. Actual owner binding/staffing, physical/concurrency review,
+submission/assessment/declaration/geography/translation and launch gates remain.
 
 ## Implemented
 
