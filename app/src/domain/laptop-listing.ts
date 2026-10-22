@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Draft } from "./laptop-diagnostics";
+import { questions, type Draft, type QuestionKey } from "./laptop-diagnostics.ts";
 import type { SamplePhoto } from "./sample-laptop-photos";
 
 // Synthetic choices only; this is not the maintained CDO geography required for launch.
@@ -44,19 +44,27 @@ export function validateListingDetails(draft: ListingDetails): Record<string, st
   return result.success ? {} : Object.fromEntries(result.error.issues.map((issue) => [String(issue.path[0]), issue.message]));
 }
 
-// Explicit public allowlist. A future published page must use this same projection
-// after server authorization/validation; rendering two panels is not access control.
-export function toPublicLaptopPreview(draft: LocalLaptopDraft, samplePhotos: readonly SamplePhoto[] = []) {
+// Shared public facts allowlist for practice previews and saved revision review.
+// This does not authorize public access or clear sensitive text/evidence checks.
+export function projectPublicLaptopFacts(draft: Draft & { approximateAge: string; fulfillment: string }) {
+  const keys = Object.keys(questions) as QuestionKey[];
   return {
     diagnosticVersion: draft.diagnosticVersion,
     title: draft.title, brand: draft.brand, model: draft.model, description: draft.description,
     approximateAge: draft.approximateAge.trim() || "Unknown",
-    city: "Cagayan de Oro City",
-    barangay: practiceBarangays[draft.barangay as keyof typeof practiceBarangays] ?? "Not selected",
     fulfillment: fulfillmentOptions[draft.fulfillment as keyof typeof fulfillmentOptions] ?? "Not selected",
-    answers: { ...draft.answers }, notes: { ...draft.notes },
+    answers: Object.fromEntries(keys.map((key) => [key, draft.answers[key] ?? ""])) as Draft["answers"],
+    notes: Object.fromEntries(keys.filter((key) => Object.hasOwn(draft.notes, key)).map((key) => [key, draft.notes[key]])) as Draft["notes"],
     behavior: [...draft.behavior], behaviorNotes: draft.behaviorNotes,
     included: [...draft.included], includedNotes: draft.includedNotes,
+  };
+}
+
+export function toPublicLaptopPreview(draft: LocalLaptopDraft, samplePhotos: readonly SamplePhoto[] = []) {
+  return {
+    ...projectPublicLaptopFacts(draft),
+    city: "Cagayan de Oro City",
+    barangay: practiceBarangays[draft.barangay as keyof typeof practiceBarangays] ?? "Not selected",
     samplePhotos: samplePhotos.map((photo) => ({ id: photo.id, label: photo.label, alt: photo.alt, src: photo.src })),
   };
 }

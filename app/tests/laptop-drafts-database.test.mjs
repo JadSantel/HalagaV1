@@ -5,7 +5,7 @@ import { setTimeout } from "node:timers/promises";
 import test from "node:test";
 import { laptopDraftSchema, validatedDraftCondition } from "../src/server/laptop-draft-validation.ts";
 import { copyDraft, samples } from "../src/domain/laptop-diagnostics.ts";
-import { createLaptopDraftOperations, LaptopDraftRejected } from "../src/server/repositories/laptop-drafts.ts";
+import { appendRevision, createLaptopDraftOperations, LaptopDraftRejected } from "../src/server/repositories/laptop-drafts.ts";
 import { createLaptopDraftHandler } from "../src/server/repositories/laptop-drafts-http.ts";
 import { createAccountSignInOperation } from "../src/server/repositories/sign-in.ts";
 import { createPasswordChangeOperation } from "../src/server/repositories/password-change.ts";
@@ -227,8 +227,124 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
   const state = async (id) => ({ counts: await counts(), history: await history(id),
     listing: await database.listing.findUnique({ where: { id } }),
     sessions: await database.session.findMany({ orderBy: { id: "asc" } }) });
+  const check = (account, id, body = { expectedRevision: 1 }, extra = {}) => handler(new Request(
+    `${origin}/api/laptop-drafts/${id}/submission-check`, { method: "POST",
+      headers: { origin, "content-type": "application/json", cookie: account?.headers.get("cookie") ?? "", ...extra },
+      body: JSON.stringify(body) }), id, "submission-check");
+  const publicationEffects = () => Promise.all(["publicationCycle", "publicationAvailabilityInterval", "ownershipDeclaration",
+    "outboxEvent", "accountEmailDelivery", "heldLaptopReview", "moderationAudit", "moderationNotice", "moderationReceipt",
+    "moderationEmailJob", "draftPhotoEvent", "draftPhotoAttempt"].map((table) => database[table].count()));
 
   try {
+    await t.test("submission recheck fails closed for exact revisions, with safe eligibility guidance and zero durable effects on retries", async () => {
+      const account = await fixture();
+      const created = await operations.create(account.headers, input({ ...samples[0].draft, fulfillment: "both", privatePriceExpectation: "9182736.45" }));
+      const before = await state(created.id), effects = await publicationEffects();
+      const results = await Promise.all(Array.from({ length: 4 }, async () => read(await check(account, created.id), 200)));
+      for (const result of results) {
+        assert.deepEqual(Object.keys(result).sort(), ["outcome", "listingId", "revision", "status", "evaluation", "gates"].sort());
+        assert.equal(result.outcome, "PAUSED"); assert.equal(result.status, "DRAFT"); assert.equal(result.revision, 1);
+        assert.equal(result.evaluation.eligible, false);
+        for (const gate of ["DECLARATION", "GEOGRAPHY", "ASSESSMENTS", "ATOMIC_LIFECYCLE", "REVIEW_OPERATIONS", "ACCOUNT_DOCUMENTS", "READINESS"])
+          assert.ok(result.gates.some((entry) => entry.code === gate));
+        for (const secret of ["9182736.45", account.userId, account.accountId, account.actor.session.token, before.history[0].id])
+          assert.equal(JSON.stringify(result).includes(secret), false);
+        assert.equal(result.evaluation.checks.find((entry) => entry.field === "email-verification").status, "missing");
+      }
+      assert.deepEqual(await state(created.id), before);
+      assert.deepEqual(await publicationEffects(), effects);
+      await database.user.update({ where: { id: account.userId }, data: { emailVerified: true } });
+      await database.userAccount.update({ where: { id: account.accountId }, data: { emailVerifiedAt: new Date() } });
+      let result = await read(await check(account, created.id), 200);
+      assert.equal(result.evaluation.checks.find((entry) => entry.field === "email-verification").status, "pass");
+      await database.userAccount.update({ where: { id: account.accountId }, data: { adultEligibilityCheckedAt: null } });
+      result = await read(await check(account, created.id), 200);
+      assert.equal(result.evaluation.checks.find((entry) => entry.field === "adult-eligibility").status, "missing");
+      assert.equal(result.outcome, "PAUSED");
+      await operations.save(account.headers, created.id, { ...input(samples.find((sample) => sample.safety === "blocked").draft), expectedRevision: 1 });
+      await read(await check(account, created.id), 409, { code: "STALE_REVISION" });
+      result = await read(await check(account, created.id, { expectedRevision: 2 }), 200);
+      assert.equal(result.evaluation.status, "ineligible");
+      assert.ok(result.evaluation.checks.some((entry) => entry.message.startsWith("Stop testing.")));
+      await operations.save(account.headers, created.id, { ...input(samples.find((sample) => sample.safety === "hold").draft), expectedRevision: 2 });
+      result = await read(await check(account, created.id, { expectedRevision: 3 }), 200);
+      assert.equal(result.evaluation.status, "review-required");
+      assert.equal(result.outcome, "PAUSED");
+      assert.deepEqual(await publicationEffects(), effects);
+      assert.equal((await database.listing.findUnique({ where: { id: created.id } })).status, "DRAFT");
+    });
+
+    await t.test("submission recheck enforces origin, strict payload, ownership, state, current restrictions and stored sessions", async () => {
+      const account = await fixture(), other = await fixture();
+      const created = await operations.create(account.headers, input());
+      const before = await state(created.id), effects = await publicationEffects();
+      await read(await check(null, created.id), 401, { code: "UNAUTHORIZED" });
+      await read(await check(other, created.id), 404, { code: "NOT_FOUND" });
+      for (const body of [{}, { expectedRevision: 0 }, { expectedRevision: "1" }, { expectedRevision: 2147483648 },
+        { expectedRevision: 1, ownershipDeclared: true }, { expectedRevision: 1, textVersion: "invented" },
+        { expectedRevision: 1, assessment: { readiness: "pass" } }, { expectedRevision: 1, status: "PUBLISHED" }])
+        await read(await check(account, created.id, body), 400, { code: "INVALID_INPUT" });
+      for (const extra of [{ origin: "https://foreign.invalid" }, { origin: "null" }, { "sec-fetch-site": "cross-site" }])
+        await read(await check(account, created.id, { expectedRevision: 1 }, extra), 401, { code: "UNAUTHORIZED" });
+      await read(await check(account, created.id, { expectedRevision: 1 }, { "content-type": "text/plain" }), 400, { code: "INVALID_INPUT" });
+      await read(await handler(new Request(`${origin}/check`, { method: "GET" }), created.id, "submission-check"), 404, { code: "NOT_FOUND" });
+      assert.deepEqual(await state(created.id), before);
+      for (const scope of ["PUBLISH_LISTING", "SUSPENSION", "CREATE_LAPTOP_DRAFT", "EDIT_LAPTOP_DRAFT", "SEND_INQUIRY"]) {
+        const restricted = await fixture();
+        const target = await operations.create(restricted.headers, input());
+        await restrict(restricted, scope);
+        const response = await check(restricted, target.id);
+        if (["PUBLISH_LISTING", "SUSPENSION"].includes(scope)) await read(response, 403, { code: "ACTION_RESTRICTED" });
+        else assert.equal((await read(response, 200)).outcome, "PAUSED");
+      }
+      assert.deepEqual(await publicationEffects(), effects);
+      const stale = createLaptopDraftOperations(database, { api: { getSession: async () => ({ response: account.actor, headers: new Headers() }) } });
+      const session = await database.session.findUnique({ where: { id: account.actor.session.id } });
+      for (const data of [{ expiresAt: new Date(0) }, { createdAt: new Date(Date.now() + 60000) }, { token: randomUUID() }]) {
+        await database.session.update({ where: { id: session.id }, data });
+        await assert.rejects(stale.checkSubmission(account.headers, created.id, { expectedRevision: 1 }), rejects("UNAUTHORIZED"));
+        await database.session.update({ where: { id: session.id }, data: { createdAt: session.createdAt, expiresAt: session.expiresAt, token: session.token } });
+      }
+      await database.userAccount.update({ where: { id: account.accountId }, data: { deletedAt: new Date() } });
+      await read(await check(account, created.id), 401, { code: "UNAUTHORIZED" });
+      await database.userAccount.update({ where: { id: account.accountId }, data: { deletedAt: null } });
+      const restrictedAt = new Date(Date.now() + 60000);
+      await restrict(account, "PUBLISH_LISTING", { startsAt: restrictedAt, reviewAt: new Date(restrictedAt.getTime() + 60000) });
+      let ticks = 0;
+      const timed = createLaptopDraftOperations(database, { api: { getSession: async () => ({ response: account.actor, headers: new Headers() }) } },
+        () => ++ticks >= 5 ? restrictedAt : new Date(restrictedAt.getTime() - 60000));
+      await assert.rejects(timed.checkSubmission(account.headers, created.id, { expectedRevision: 1 }), rejects("ACTION_RESTRICTED"));
+      assert.deepEqual(await publicationEffects(), effects);
+    });
+
+    await t.test("submission recheck waiting behind a newer saved revision cannot evaluate or overwrite the old revision", async () => {
+      const account = await fixture(), created = await operations.create(account.headers, input());
+      const entered = Promise.withResolvers(), release = Promise.withResolvers();
+      const saving = database.$transaction(async (transaction) => {
+        await transaction.$queryRaw`SELECT a.id FROM "user" u JOIN "user_account" a ON a."authUserId"=u.id WHERE u.id=${account.userId} FOR UPDATE OF u,a`;
+        await appendRevision(transaction, account.accountId, created.id, 2, randomUUID(), laptopDraftSchema.parse({ title: "Newer synthetic revision" }));
+        await transaction.listing.update({ where: { id: created.id }, data: { currentRevisionNumber: 2 } });
+        entered.resolve((await transaction.$queryRaw`SELECT pg_backend_pid() AS pid`)[0].pid);
+        await release.promise;
+      }, { timeout: 10000 });
+      const blocker = await entered.promise;
+      const rejected = assert.rejects(operations.checkSubmission(account.headers, created.id, { expectedRevision: 1 }), rejects("STALE_REVISION"));
+      try {
+        let blocked = false;
+        for (let attempt = 0; attempt < 200; attempt++) {
+          await connection.query("SELECT pg_stat_clear_snapshot()");
+          const result = await connection.query(`SELECT 1 FROM pg_stat_activity WHERE datname=current_database()
+            AND wait_event_type='Lock' AND $1=ANY(pg_blocking_pids(pid))`, [blocker]);
+          if (result.rowCount) { blocked = true; break; }
+          await setTimeout(10);
+        }
+        assert.equal(blocked, true);
+      } finally { release.resolve(); await saving; await rejected; }
+      const detail = await operations.read(account.headers, created.id);
+      assert.equal(detail.revision, 2); assert.equal(detail.draft.title, "Newer synthetic revision");
+      assert.equal((await operations.checkSubmission(account.headers, created.id, { expectedRevision: 2 })).outcome, "PAUSED");
+    });
+
     await t.test("saved revision review is owner-only, pinned, server-derived and separates private data without writes", async () => {
       const account = await fixture(), stranger = await fixture();
       const created = await operations.create(account.headers, input({ privatePriceExpectation: "8123456.78" }));
@@ -464,7 +580,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
     });
 
     await t.test("writes waiting behind restriction changes reread current scopes and suspension after the account lock", async () => {
-      for (const [command, scope] of [["create", "CREATE_LAPTOP_DRAFT"], ["save", "EDIT_LAPTOP_DRAFT"], ["create", "SUSPENSION"], ["save", "SUSPENSION"]]) {
+      for (const [command, scope] of [["create", "CREATE_LAPTOP_DRAFT"], ["save", "EDIT_LAPTOP_DRAFT"], ["create", "SUSPENSION"], ["save", "SUSPENSION"], ["check", "PUBLISH_LISTING"], ["check", "SUSPENSION"]]) {
         const account = await fixture();
         const draft = await operations.create(account.headers, input());
         const before = await state(draft.id);
@@ -481,7 +597,8 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
         }, { timeout: 10000 });
         const blocker = await entered.promise;
         const pending = command === "create" ? operations.create(account.headers, input())
-          : operations.save(account.headers, draft.id, { ...input(), expectedRevision: 1 });
+          : command === "check" ? operations.checkSubmission(account.headers, draft.id, { expectedRevision: 1 })
+            : operations.save(account.headers, draft.id, { ...input(), expectedRevision: 1 });
         const rejected = assert.rejects(pending, rejects("ACTION_RESTRICTED"));
         try {
           let blocked = false;
@@ -676,7 +793,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
     });
 
     await t.test("reads and writes waiting behind revocation recheck stored sessions after the exact account lock", async () => {
-      for (const command of ["review", "read", "save", "create", "list"]) {
+      for (const command of ["review", "read", "save", "create", "list", "check"]) {
         const account = await fixture();
         const draft = await operations.create(account.headers, input());
         const before = await counts();
@@ -692,7 +809,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
         const blocker = await entered.promise;
         const stale = createLaptopDraftOperations(database, { api: { getSession: async () =>
           ({ response: account.actor, headers: new Headers() }) } });
-        const pending = command === "review" ? stale.review(account.headers, draft.id, "1") : command === "list" ? stale.list(account.headers) : command === "create" ? stale.create(account.headers, input()) : command === "save"
+        const pending = command === "check" ? stale.checkSubmission(account.headers, draft.id, { expectedRevision: 1 }) : command === "review" ? stale.review(account.headers, draft.id, "1") : command === "list" ? stale.list(account.headers) : command === "create" ? stale.create(account.headers, input()) : command === "save"
           ? stale.save(account.headers, draft.id, { ...input(), expectedRevision: 1 }) : stale.read(account.headers, draft.id);
         const rejected = assert.rejects(pending, rejects("UNAUTHORIZED"));
         try {
@@ -752,6 +869,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
           expiredAt: status === "EXPIRED" ? new Date() : null, closedAt: status === "CLOSED" ? new Date() : null } });
         await read(await send(owner, "GET", undefined, listingId), 404, { code: "NOT_FOUND" });
         await assert.rejects(operations.review(owner.headers, listingId, "1"), rejects("NOT_FOUND"));
+        await assert.rejects(operations.checkSubmission(owner.headers, listingId, { expectedRevision: revision }), rejects("NOT_FOUND"));
         await read(await send(owner, "PUT", { ...input(), expectedRevision: revision }, listingId), 404, { code: "NOT_FOUND" });
         assert.equal((await operations.list(owner.headers)).drafts.some((draft) => draft.id === listingId), false);
       }
@@ -771,6 +889,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
       assert.equal((await operations.list(owner.headers)).drafts.some((draft) => draft.id === id), false);
       await read(await send(owner, "GET", undefined, id), 404, { code: "NOT_FOUND" });
       await assert.rejects(operations.review(owner.headers, id, "1"), rejects("NOT_FOUND"));
+      await assert.rejects(operations.checkSubmission(owner.headers, id, { expectedRevision: 1 }), rejects("NOT_FOUND"));
       await read(await send(owner, "PUT", { ...input(), expectedRevision: 1 }, id), 404, { code: "NOT_FOUND" });
     });
     await t.test("scoped restrictions and suspension preserve guarded sign-in and password change", async () => {

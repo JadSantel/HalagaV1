@@ -1,6 +1,6 @@
 import "server-only";
 import { answerText, behaviorOptions, deriveCondition, questions, type QuestionKey } from "../domain/laptop-diagnostics.ts";
-import { fulfillmentOptions } from "../domain/laptop-listing.ts";
+import { projectPublicLaptopFacts } from "../domain/laptop-listing.ts";
 import { validatedDraftCondition, type LaptopDraftSnapshot } from "./laptop-draft-validation.ts";
 import type { evaluateLaptopPublication } from "./laptop-publication-evaluation.ts";
 
@@ -8,6 +8,7 @@ import type { evaluateLaptopPublication } from "./laptop-publication-evaluation.
 export function buildLaptopDraftReview(listingId: string, revision: number, currentRevision: number,
   savedAt: Date, draft: LaptopDraftSnapshot, evaluation: ReturnType<typeof evaluateLaptopPublication>) {
   const result = deriveCondition(draft);
+  const publicFacts = projectPublicLaptopFacts(draft);
   const editor = `/drafts/${listingId}`;
   const correction = (field: string) => {
     const diagnostic = field in questions || field.endsWith("-note") || ["behavior", "included"].includes(field);
@@ -24,18 +25,18 @@ export function buildLaptopDraftReview(listingId: string, revision: number, curr
     listingId, revision, currentRevision, savedAt, status: "DRAFT" as const, evaluation,
     // Explicit allowlist: never spread the private draft into proposed content.
     proposedPublicContent: {
-      listingType: "Single item", category: "Laptops", title: draft.title, brand: draft.brand, model: draft.model,
-      description: draft.description, approximateAge: draft.approximateAge.trim() || "Unknown",
-      fulfillment: fulfillmentOptions[draft.fulfillment as keyof typeof fulfillmentOptions] ?? "Not selected",
+      listingType: "Single item", category: "Laptops", title: publicFacts.title, brand: publicFacts.brand, model: publicFacts.model,
+      description: publicFacts.description, approximateAge: publicFacts.approximateAge,
+      fulfillment: publicFacts.fulfillment,
       barangay: "Not selected — controlled barangay selection is unavailable",
-      diagnosticVersion: draft.diagnosticVersion,
+      diagnosticVersion: publicFacts.diagnosticVersion,
       condition: validatedDraftCondition(draft) ? result.condition : null,
       safety: result.safety,
       reasons: result.reasons.map((reason) => ({ ...reason, href: correction(reason.field) })),
       disclosures: (Object.keys(questions) as QuestionKey[]).map((field) => ({ field,
-        label: questions[field].short, value: answerText(draft, field), href: correction(field) })),
-      behavior: draft.behavior.map((value) => behaviorOptions[value]), behaviorNotes: draft.behaviorNotes,
-      included: [...draft.included], includedNotes: draft.includedNotes,
+        label: questions[field].short, value: answerText(publicFacts, field), href: correction(field) })),
+      behavior: publicFacts.behavior.map((value) => behaviorOptions[value]), behaviorNotes: publicFacts.behaviorNotes,
+      included: publicFacts.included, includedNotes: publicFacts.includedNotes,
     },
     ownerPrivate: { privatePriceExpectation: draft.privatePriceExpectation },
     missingRequirements,

@@ -16,6 +16,18 @@ test("public preview excludes seller-only fields and unexpected private data", (
   assert.equal(deriveCondition(preview).condition, "Fully functional");
 });
 
+test("public preview excludes unexpected nested diagnostic and photo metadata", () => {
+  const draft = sample();
+  draft.answers.privateContact = "PRIVATE_NESTED_ANSWER";
+  draft.notes.staffFinding = "PRIVATE_NESTED_NOTE";
+  const preview = toPublicLaptopPreview(draft, [{ id: "synthetic", label: "Sample", alt: "Synthetic laptop",
+    src: "/synthetic-only.png", objectKey: "PRIVATE_MEDIA_KEY", ownerEmail: "PRIVATE_PHOTO_OWNER" }]);
+  for (const sentinel of ["PRIVATE_NESTED_ANSWER", "PRIVATE_NESTED_NOTE", "PRIVATE_MEDIA_KEY", "PRIVATE_PHOTO_OWNER"])
+    assert.equal(JSON.stringify(preview).includes(sentinel), false);
+  assert.equal(preview.answers.power, draft.answers.power);
+  assert.deepEqual(Object.keys(preview.samplePhotos[0]).sort(), ["id", "label", "alt", "src"].sort());
+});
+
 test("local review requires controlled geography, a supported method, and explicit ownership", () => {
   assert.deepEqual(validateListingDetails(sample()), {});
   assert.deepEqual(Object.keys(validateListingDetails(emptyListingDetails)).sort(), ["barangay", "fulfillment", "ownershipDeclared"]);

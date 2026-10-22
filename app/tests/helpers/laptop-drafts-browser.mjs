@@ -193,12 +193,61 @@ export async function checkLaptopDraftBrowser(origin, database, auth) {
     assert.equal(await evaluate("document.querySelector('#owner-private').textContent.includes('2,468,135.79')"), true);
     assert.equal(await evaluate("document.querySelector('main').textContent.includes('Nothing is published')"), true);
     assert.equal(await evaluate("document.querySelectorAll('form, input[type=checkbox]').length"), 0);
+    await run(["focus", '[aria-labelledby="submission-title"] summary']); await run(["press", "Enter"]);
+    assert.equal(await evaluate(`document.querySelector('[aria-labelledby="submission-title"] details').open`), true);
+    await run(["press", "Enter"]);
+    assert.equal(await evaluate(`document.querySelector('[aria-labelledby="submission-title"] details').open`), false);
+    // A recheck never submits. Pending, response loss and retry retain this review.
+    await evaluate(`window.checkFetch=window.fetch; window.checkBodies=[];
+      window.fetch=(...args)=>{
+        if(!String(args[0]).endsWith('/submission-check'))return window.checkFetch(...args);
+        window.checkBodies.push(args[1].body);
+        return new Promise(resolve=>{window.releaseCheck=()=>resolve(window.checkFetch(...args))});
+      }; true`);
+    await focusButton("Recheck saved revision 6"); await run(["press", "Enter"]);
+    await wait(`document.querySelector('#submission-feedback')?.textContent.includes('Rechecking saved revision 6')`);
+    assert.equal(await evaluate(`document.querySelector('[aria-labelledby="submission-title"] button').disabled`), true);
+    assert.equal(await evaluate(`document.querySelector('[aria-labelledby="submission-title"] button').getAttribute('aria-busy')`), "true");
+    await evaluate(`document.querySelector('[aria-labelledby="submission-title"] button').click(); true`);
+    assert.equal(await evaluate("window.checkBodies.length"), 1);
+    await evaluate("window.releaseCheck(); true");
+    await wait(`document.querySelector('#submission-feedback')?.textContent.includes('was rechecked')`);
+    assert.equal(await evaluate("document.activeElement.id"), "submission-feedback");
+    assert.equal(await evaluate("document.querySelector('#submission-feedback').textContent.includes('Ineligible for normal publication')"), true);
+    await evaluate(`window.fetch=async(...args)=>{
+      if(!String(args[0]).endsWith('/submission-check'))return window.checkFetch(...args);
+      window.checkBodies.push(args[1].body);await window.checkFetch(...args);throw new Error('PRIVATE_CHECK_ERROR');
+    };true`);
+    await focusButton("Recheck saved revision 6"); await run(["press", "Enter"]);
+    await wait(`document.querySelector('#submission-feedback')?.textContent.includes('could not be confirmed')`);
+    assert.equal(await evaluate("document.activeElement.id"), "submission-feedback");
+    assert.equal(await evaluate("document.querySelector('#owner-private').textContent.includes('2,468,135.79')"), true);
+    assert.equal(await evaluate("document.body.textContent.includes('PRIVATE_CHECK_ERROR')"), false);
+    await evaluate(`window.fetch=(...args)=>{if(String(args[0]).endsWith('/submission-check'))window.checkBodies.push(args[1].body);return window.checkFetch(...args)};true`);
+    await focusButton("Retry revision recheck"); await run(["press", "Enter"]);
+    await wait(`document.querySelector('#submission-feedback')?.textContent.includes('was rechecked')`);
+    assert.equal(await evaluate("window.checkBodies[1]===window.checkBodies[2]"), true);
+    for (const [status, code, expected] of [[401, "UNAUTHORIZED", "Sign in again"], [403, "ACTION_RESTRICTED", "cannot proceed with publication"],
+      [404, "NOT_FOUND", "no longer available"], [500, "INTERNAL_ERROR", "could not be confirmed"]]) {
+      await evaluate(`window.fetch=(...args)=>String(args[0]).endsWith('/submission-check')
+        ?Promise.resolve(new Response(JSON.stringify({code:${JSON.stringify(code)}}),{status:${status}})):window.checkFetch(...args);true`);
+      await focusButton("Recheck saved revision 6"); await run(["press", "Enter"]);
+      await wait(`document.querySelector('#submission-feedback')?.textContent.includes(${JSON.stringify(expected)})`);
+      assert.equal(await evaluate("document.activeElement.id"), "submission-feedback");
+      assert.equal(await evaluate("document.querySelector('#submission-feedback').getAttribute('role')"), "alert");
+      assert.equal(await evaluate("Boolean(document.querySelector('#proposed-public'))"), true);
+    }
+    await evaluate("window.fetch=window.checkFetch;true");
+    assert.equal(await database.ownershipDeclaration.count(), 0);
+    assert.equal(await database.heldLaptopReview.count(), 0);
+    assert.equal((await database.listing.findUnique({ where: { id: listingId } })).status, "DRAFT");
     await follow(`a[href="/drafts/${listingId}#safety"]`);
     await run(["wait", "#safety"]);
     await wait(`document.activeElement.id === 'safety'`);
     await run(["open", `${origin}/drafts/${listingId}/review?revision=5`]);
     await wait(`Boolean(document.querySelector('#owner-private'))`);
     assert.equal(await evaluate("document.querySelector('main').textContent.includes('A newer saved revision exists: 6')"), true);
+    assert.equal(await evaluate(`document.querySelector('[aria-labelledby="submission-title"] button').disabled`), true);
     assert.equal(await evaluate("document.querySelector('#proposed-public').textContent.includes('Not answered')"), true);
     await follow('a[href="#requirement-geography"]');
     assert.equal(await evaluate("document.activeElement.id"), "requirement-geography");
@@ -233,6 +282,15 @@ export async function checkLaptopDraftBrowser(origin, database, auth) {
         await evaluate("document.documentElement.style.fontSize = '200%'; true");
         assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
         await evaluate("document.documentElement.style.fontSize = ''; true");
+        // Another tab saves after review loaded. Recheck must retain the old
+        // preview and report stale, without manufacturing a declaration or hold.
+        await evaluate(`(async()=>{const r=await fetch('/api/laptop-drafts/${created.id}',{method:'PUT',headers:{'content-type':'application/json'},
+          body:JSON.stringify({requestId:crypto.randomUUID(),expectedRevision:1,draft:{title:'Newer synthetic saved revision'}})});return r.status})()`);
+        await focusButton("Recheck saved revision 1"); await run(["press", "Enter"]);
+        await wait(`document.querySelector('#submission-feedback')?.textContent.includes('A newer revision exists')`);
+        assert.equal(await evaluate("document.activeElement.id"), "submission-feedback");
+        assert.equal(await evaluate(`document.querySelector('[aria-labelledby="submission-title"] button').disabled`), true);
+        assert.equal(await evaluate("document.querySelector('#proposed-public').textContent.includes('Newer synthetic saved revision')"), false);
       }
     }
     // Separate draft: real file input/XHR -> mounted handlers -> durable rows ->

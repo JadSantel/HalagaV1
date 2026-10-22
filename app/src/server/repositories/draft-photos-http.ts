@@ -8,7 +8,7 @@ import { createDraftPhotoOperations } from "./draft-photos.ts";
 
 const privateHeaders = { "cache-control": "no-store", "referrer-policy": "no-referrer", "x-content-type-options": "nosniff",
   "x-robots-tag": "noindex, nofollow", vary: "Cookie" };
-const codes = { INVALID_INPUT: 400, UNAUTHORIZED: 401, ACTION_RESTRICTED: 403, NOT_FOUND: 404, INVALID_STATE: 409, INTERNAL_ERROR: 500 } as const;
+const codes = { INVALID_INPUT: 400, UNAUTHORIZED: 401, ACTION_RESTRICTED: 403, NOT_FOUND: 404, INVALID_STATE: 409, STALE_REVISION: 409, INTERNAL_ERROR: 500 } as const;
 
 export function createDraftPhotoHandler(photos: ReturnType<typeof createDraftPhotoOperations>, origin: string) {
   return async (request: Request, listingId: string, photoId?: string) => {

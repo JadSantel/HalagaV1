@@ -9,13 +9,15 @@ import { createAccountAuth } from "./auth.ts";
 import { draftCutoff, type DraftPhoto } from "../../domain/draft-photo-policy.ts";
 import { hasAdultEligibility } from "../account-access.ts";
 import { evaluateLaptopPublication } from "../laptop-publication-evaluation.ts";
+import { laptopSubmissionGates } from "../laptop-submission-gates.ts";
 
 const createSchema = z.strictObject({ requestId: z.uuid(), draft: laptopDraftSchema });
 const saveSchema = createSchema.extend({ expectedRevision: z.number().int().positive().max(2147483646) });
+const submissionCheckSchema = z.strictObject({ expectedRevision: z.number().int().positive().max(2147483647) });
 export type DraftDatabase = Pick<ReturnType<typeof getPrisma>, "$queryRaw" | "$executeRaw" | "userAccount" | "listing" | "listingRevision" | "accountMarketplaceRestriction" | "draftPhoto" | "draftPhotoReference" | "draftPhotoAttempt" | "draftPhotoEvent" | "draftRetentionHold">;
 
 export class LaptopDraftRejected extends Error {
-  readonly code: "INVALID_INPUT" | "UNAUTHORIZED" | "ACTION_RESTRICTED" | "NOT_FOUND" | "INVALID_STATE" | "INTERNAL_ERROR";
+  readonly code: "INVALID_INPUT" | "UNAUTHORIZED" | "ACTION_RESTRICTED" | "NOT_FOUND" | "INVALID_STATE" | "STALE_REVISION" | "INTERNAL_ERROR";
 
   constructor(code: LaptopDraftRejected["code"]) {
     super(code);
@@ -107,7 +109,7 @@ export function createLaptopDraftOperations(
   clock: () => Date = () => new Date(),
 ) {
   async function withOwner<T>(headers: Headers, work: (transaction: DraftDatabase, owner: string) => Promise<T>,
-    applySessionHeaders: (headers: Headers) => void, action?: "CREATE_LAPTOP_DRAFT" | "EDIT_LAPTOP_DRAFT"): Promise<T> {
+    applySessionHeaders: (headers: Headers) => void, action?: "CREATE_LAPTOP_DRAFT" | "EDIT_LAPTOP_DRAFT" | "PUBLISH_LISTING"): Promise<T> {
     try {
       const resolved = await auth.api.getSession({ headers, returnHeaders: true,
         query: { disableCookieCache: true, disableRefresh: action !== undefined } });
@@ -165,7 +167,40 @@ export function createLaptopDraftOperations(
     return listing;
   }
 
+  async function evaluateRevision(transaction: DraftDatabase, sellerId: string, saved: Revision) {
+    const account = await transaction.userAccount.findUniqueOrThrow({ where: { id: sellerId }, select: {
+      adultEligibilityCheckedAt: true, adultAttestedAt: true, emailVerifiedAt: true,
+      authUser: { select: { emailVerified: true } },
+    } });
+    const now = clock();
+    const restriction = await transaction.accountMarketplaceRestriction.findFirst({ where: {
+      accountId: sellerId, scope: { in: ["PUBLISH_LISTING", "SUSPENSION"] }, startsAt: { lte: now }, revokedAt: null,
+    }, select: { id: true } });
+    return evaluateLaptopPublication({ listingId: saved.listingId, revisionId: saved.id, revision: saved.version,
+      listingType: saved.listingType, category: saved.category, quantity: saved.itemGroups[0]?.quantity,
+      draft: snapshot(saved), barangayCode: saved.barangayCode, photoIds: saved.draftPhotos.map((photo) => photo.photoId),
+      ownershipDeclarationPresent: saved.ownershipDeclaration !== null,
+      account: { adultEligible: hasAdultEligibility(account.adultEligibilityCheckedAt, account.adultAttestedAt, now),
+        emailVerified: account.authUser.emailVerified && account.emailVerifiedAt !== null && account.emailVerifiedAt <= now,
+        publicationRestricted: restriction !== null } });
+  }
+
   return {
+    // A read-only, exact-current-revision recheck, deliberately NOT submission.
+    // No declarations, receipts, lifecycle, audit/outbox or job effects are written.
+    async checkSubmission(headers: Headers, listingId: unknown, input: unknown,
+      applySessionHeaders: (headers: Headers) => void = () => {}) {
+      const id = z.uuid().safeParse(listingId), parsed = submissionCheckSchema.safeParse(input);
+      if (!id.success || !parsed.success) throw new LaptopDraftRejected("INVALID_INPUT");
+      return withOwner(headers, async (transaction, sellerId) => {
+        const listing = await lockDraft(transaction, id.data, sellerId);
+        if (listing.currentRevisionNumber !== parsed.data.expectedRevision) throw new LaptopDraftRejected("STALE_REVISION");
+        const evaluation = await evaluateRevision(transaction, sellerId, listing.currentRevision!);
+        if (listing.updatedAt <= draftCutoff(clock())) throw new LaptopDraftRejected("NOT_FOUND");
+        return { outcome: "PAUSED" as const, listingId: listing.id, revision: listing.currentRevisionNumber,
+          status: "DRAFT" as const, evaluation, gates: laptopSubmissionGates };
+      }, applySessionHeaders, "PUBLISH_LISTING");
+    },
     // Internal repository seam. Never accept a callback from HTTP/client input.
     async withDraft<T>(headers: Headers, id: string,
       work: (transaction: DraftDatabase, listing: Awaited<ReturnType<typeof lockDraft>>, owner: string) => Promise<T>,
@@ -191,25 +226,11 @@ export function createLaptopDraftOperations(
           listing: { sellerId, status: "DRAFT", publicationCycles: { none: {} } },
         }, select: revisionSelect });
         if (!saved) throw new LaptopDraftRejected("NOT_FOUND");
-        const account = await transaction.userAccount.findUniqueOrThrow({ where: { id: sellerId }, select: {
-          adultEligibilityCheckedAt: true, adultAttestedAt: true, emailVerifiedAt: true,
-          authUser: { select: { emailVerified: true } },
-        } });
-        const now = clock();
-        const restriction = await transaction.accountMarketplaceRestriction.findFirst({ where: {
-          accountId: sellerId, scope: { in: ["PUBLISH_LISTING", "SUSPENSION"] }, startsAt: { lte: now }, revokedAt: null,
-        }, select: { id: true } });
         const draft = snapshot(saved);
-        const evaluation = evaluateLaptopPublication({ listingId: listing.id, revisionId: saved.id, revision: saved.version,
-          listingType: saved.listingType, category: saved.category, quantity: saved.itemGroups[0].quantity,
-          draft, barangayCode: saved.barangayCode, photoIds: saved.draftPhotos.map((photo) => photo.photoId),
-          ownershipDeclarationPresent: saved.ownershipDeclaration !== null,
-          account: { adultEligible: hasAdultEligibility(account.adultEligibilityCheckedAt, account.adultAttestedAt, now),
-            emailVerified: account.authUser.emailVerified && account.emailVerifiedAt !== null && account.emailVerifiedAt <= now,
-            publicationRestricted: restriction !== null } });
+        const evaluation = await evaluateRevision(transaction, sellerId, saved);
         if (listing.updatedAt <= draftCutoff(clock())) throw new LaptopDraftRejected("NOT_FOUND");
         return { ...buildLaptopDraftReview(listing.id, saved.version, listing.currentRevisionNumber!, saved.createdAt, draft, evaluation),
-          photos: projectDraftPhotos(listing.id, saved) };
+          photos: projectDraftPhotos(listing.id, saved), submissionGates: laptopSubmissionGates };
       }, applySessionHeaders);
     },
     async list(headers: Headers, applySessionHeaders: (headers: Headers) => void = () => {}) {

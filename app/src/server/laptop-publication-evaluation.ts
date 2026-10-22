@@ -4,6 +4,7 @@ import { fulfillmentOptions } from "../domain/laptop-listing.ts";
 import { laptopDraftSchema, type LaptopDraftSnapshot } from "./laptop-draft-validation.ts";
 
 export const publicationEvaluationVersion = "laptop-publication-evaluation-v1";
+export type PublicationEvaluationStatus = "ineligible" | "review-required" | "incomplete" | "unavailable" | "eligible";
 type Assessment = "pass" | "missing" | "review" | "unavailable";
 type CheckStatus = Assessment | "ineligible";
 export const reviewChecks = ["classification", "hazard-signals", "device-identity", "duplicate-listings",
@@ -112,7 +113,7 @@ export function evaluateLaptopPublication(saved: SavedLaptopPublicationInput, su
   if (riskStatuses.includes("review")) add("publication-review", "review",
     "This revision requires private publication review. No violation is established and no review request has been created.");
   add("readiness", assessment(evidence?.readiness), "English laptop usability validation, human-reviewed paired Cebuano/Bisaya and operational/publication readiness remain required. Synthetic draft access grants no publication permission.");
-  const status = checks.some((check) => check.status === "ineligible") ? "ineligible"
+  const status: PublicationEvaluationStatus = checks.some((check) => check.status === "ineligible") ? "ineligible"
     : checks.some((check) => check.status === "review") ? "review-required"
       : checks.some((check) => check.status === "missing") ? "incomplete"
         : checks.some((check) => check.status === "unavailable") ? "unavailable" : "eligible";

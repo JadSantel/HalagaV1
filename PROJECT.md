@@ -442,6 +442,21 @@ IMEI entry is optional but strongly encouraged for smartphones and cellular-capa
 
 ### 11.4 Local synthetic draft implementation boundary (2026-10-19 PHT)
 
+Submission-gate supplement (2026-10-22 PHT): the owner explicitly confirmed keeping
+dependent submission behavior paused after missing contracts were identified.
+An owner-only POST saved-revision recheck now rechecks stored session, ownership,
+adult/email prerequisites, publication restrictions, draft state and exact expected
+revision under locks. It evaluates available rules and always returns paused;
+missing assessments never clear eligibility. It creates no declaration, publication,
+hold, rejection, notification or job. The interface preserves the saved review on
+pending/uncertain/stale/denied outcomes, and saving/rechecking never attests ownership.
+Practice preview and saved review share an explicit public-facts allowlist,
+including known diagnostic keys only. No public reader/discovery is added.
+Declaration/version/retention, geography, assessments, atomic publication effects,
+held intake/operations, final account documents and language/accessibility/readiness
+remain gates. Slice 3 remains partial. See
+[implementation and verification](docs/LAPTOP_SUBMISSION_GATES.md).
+
 Read-only evaluation supplement (2026-10-22 PHT): owner review now evaluates an
 exact saved laptop revision against implemented accepted requirements, with
 separate missing, deterministic-ineligibility, review-required and unavailable

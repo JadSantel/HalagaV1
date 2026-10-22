@@ -147,6 +147,19 @@ readiness. Human screen-reader and paired Cebuano/Bisaya review remain separate.
 
 ### 5.4 Seller listing management and revision review
 
+Paused submission supplement (2026-10-22 PHT): the owner confirmed keeping dependent
+submission behavior gated. Saved review now explains that saving/rechecking never
+attests ownership, offers an expandable gate explanation and a clearly named
+saved-revision recheck. No declaration checkbox or Submit control is enabled.
+Recheck pending, paused, uncertain, signed-out, restricted, unavailable and stale
+outcomes use text, live status/error feedback and focus on the result. The reviewed
+content stays visible; a stale recheck cannot replace it or overwrite current work.
+Known historical reviews disable recheck and link to the current editor. Rechecking
+is never presented as a published/held/rejected lifecycle outcome. This extends the
+English synthetic interface; human-reviewed paired language, manual screen-reader
+and full pilot accessibility/usability checks remain gates. See
+[implementation and verification](docs/LAPTOP_SUBMISSION_GATES.md).
+
 Saved review implementation supplement (2026-10-21 PHT): the synthetic workspace
 links to an exact saved revision with listing identity and PHT save time. The review
 uses existing styling with a missing-requirements summary, separately labeled

@@ -63,6 +63,16 @@ or launch grant. A future publication command must recheck state and fulfill its
 own atomic authorization, evidence, audit and notification contract. ADR-078 already
 supersedes the historical unresolved appeal statement above; no appeal flow changes.
 
+## Submission-gate implementation supplement (2026-10-22 PHT)
+
+The owner explicitly
+confirmed keeping dependent submission behavior gated. The mounted exact-current-
+revision recheck always returns paused and creates no lifecycle/declaration/review/
+notification/job effects. Shared public facts now allowlist nested diagnostic keys.
+This changes no accepted publication or review semantics and accepts no missing
+declaration, assessment, geography, retention or job contract. See
+[the scope and verification record](../LAPTOP_SUBMISSION_GATES.md).
+
 ## Source
 
 - ADR-017: Exclude Standalone and Hazardous Battery Items

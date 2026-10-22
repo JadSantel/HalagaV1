@@ -2,6 +2,13 @@
 
 The files in this directory preserve decisions in chronological order.
 
+Latest submission boundary (2026-10-22 PHT): the owner confirmed keeping dependent
+submission behavior gated. A mounted read-only exact-revision recheck and shared
+public-facts projection are implemented for synthetic validation; declaration
+capture, submission lifecycle and publication remain paused. This does not accept
+the pending contracts or complete Slice 3. See
+[scope and verification](../LAPTOP_SUBMISSION_GATES.md).
+
 Latest held-review policy (2026-10-22 PHT): the owner explicitly accepted the six
 initial choices and full E1-E3 package in
 [ADR-096](ADR-096-held-review-authorization-and-operations.md): owner-only grants,

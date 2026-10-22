@@ -154,6 +154,24 @@ Architecture consequences:
 
 #### Local synthetic draft boundary (updated 2026-10-21 PHT)
 
+Saved-revision submission recheck (2026-10-22 PHT): at the owner's explicit choice
+to keep dependent lifecycle work gated, POST
+`/api/laptop-drafts/{id}/submission-check` accepts only `expectedRevision`.
+It is a read-only recheck, not a submission producer. Stored-session resolution
+disables renewal; identity/domain -> initiating session -> owner listing locks
+fence deletion, verification/restriction changes, saves and photo revisions. Current
+publication restriction/suspension checks run before work and at transaction end;
+stale versions fail without substituting another revision. Live adult/email and
+available publication/evidence rules are evaluated with no supplied assessment
+override. Every successful check returns `PAUSED`, with explicit independent gates.
+No receipt/declaration/audit/outbox/job effects exist for this read-only operation;
+retries reevaluate current state and cannot duplicate workflow effects.
+Existing atomic/publication and held-review fixtures do not establish a mounted
+submission adapter. Account-document/coverage/media-adoption/remaining job and
+independent readiness prerequisites stay closed. Shared public facts project known
+diagnostic keys for both practice preview and owner review; the owner envelope's
+private expectation remains separate. See [the boundary record](docs/LAPTOP_SUBMISSION_GATES.md).
+
 ADR-095's later accepted photo slice supersedes older media-unimplemented statements
 below. POST `/api/laptop-drafts/{id}/photos` admits one bounded upload; PUT
 `/photos/{photoId}` finalizes binary bytes and atomically appends a revision,

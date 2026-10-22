@@ -133,6 +133,20 @@ test("foundation migration enforces storage invariants using rolled-back synthet
       await rejected('UPDATE listed_item_group SET quantity=2 WHERE id=$1', [group], "23514");
       await rejected('UPDATE diagnostic_answer SET answer=\'"nothing"\'::jsonb WHERE id=$1', [answer], "23514");
     });
+    await t.test("synthetic declaration storage binds one immutable version, actor and time per exact revision", async () => {
+      // Storage fixture only. This is NOT an accepted declaration wording version
+      // or application capture path; those remain gated independently.
+      const textVersion = "synthetic-storage-test-only";
+      const declaration = await insert("ownership_declaration", { revisionId: revision, declaredById: seller,
+        textVersion, attestedAt: start });
+      const sql = 'INSERT INTO ownership_declaration (id,"revisionId","declaredById","textVersion","attestedAt") VALUES ($1,$2,$3,$4,$5)';
+      await rejected(sql, [randomUUID(), revision, seller, textVersion, start], "23505", "ownership_declaration_revisionId_key");
+      for (const [column, value] of [["revisionId", randomUUID()], ["declaredById", other],
+        ["textVersion", "synthetic-change"], ["attestedAt", expiry]])
+        await rejected(`UPDATE ownership_declaration SET "${column}"=$1 WHERE id=$2`, [value, declaration], "23514");
+      const row = (await client.query('SELECT "revisionId","declaredById","textVersion","attestedAt" FROM ownership_declaration WHERE id=$1', [declaration])).rows[0];
+      assert.deepEqual(row, { revisionId: revision, declaredById: seller, textVersion, attestedAt: start });
+    });
   } finally {
     await client.query("ROLLBACK").catch(() => {});
     await client.end();

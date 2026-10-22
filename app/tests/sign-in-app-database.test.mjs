@@ -301,6 +301,30 @@ test("actual Next account routes use only a disposable synthetic schema", { time
       assert.equal(review.ownerPrivate.privatePriceExpectation, create.draft.privatePriceExpectation);
       assert.equal(JSON.stringify(review.proposedPublicContent).includes(create.draft.privatePriceExpectation), false);
       await read(await fetch(`${origin}${reviewPath}`), 401, { code: "UNAUTHORIZED" });
+      const recheck = (revision, cookie = draftCookie, extra = {}) => fetch(`${target}/${draftId}/submission-check`, {
+        method: "POST", headers: { origin, cookie, "content-type": "application/json", ...extra },
+        body: JSON.stringify({ expectedRevision: revision }),
+      });
+      await read(await recheck(2, ""), 401, { code: "UNAUTHORIZED" });
+      await read(await recheck(2, draftCookie, { origin: "https://foreign.invalid" }), 401, { code: "UNAUTHORIZED" });
+      await read(await recheck(1), 409, { code: "STALE_REVISION" });
+      const checkResponse = await recheck(2);
+      assert.equal(checkResponse.status, 200);
+      assert.equal(checkResponse.headers.get("cache-control"), "no-store");
+      assert.equal(checkResponse.headers.get("referrer-policy"), "no-referrer");
+      assert.equal(checkResponse.headers.get("x-robots-tag"), "noindex, nofollow");
+      assert.ok(checkResponse.headers.get("vary").split(/,\s*/).includes("Cookie"));
+      const checked = await checkResponse.json();
+      assert.equal(checked.outcome, "PAUSED");
+      assert.equal(checked.revision, 2);
+      assert.equal(checked.evaluation.eligible, false);
+      assert.ok(checked.gates.some((gate) => gate.code === "ACCOUNT_DOCUMENTS"));
+      assert.equal(JSON.stringify(checked).includes(create.draft.privatePriceExpectation), false);
+      assert.equal(JSON.stringify(checked).includes(create.draft.title), false);
+      assert.deepEqual(await (await recheck(2)).json(), checked);
+      assert.equal(await database.ownershipDeclaration.count(), 0);
+      assert.equal(await database.heldLaptopReview.count(), 0);
+      assert.equal(await database.moderationNotice.count(), 0);
       for (const path of ["/drafts", `/drafts/${draftId}`, `/drafts/${draftId}/review?revision=1`]) {
         const shell = await fetch(`${origin}${path}`, { headers: { cookie: draftCookie } });
         assert.equal(shell.headers.get("cache-control"), "no-store");
@@ -319,6 +343,7 @@ test("actual Next account routes use only a disposable synthetic schema", { time
         }
       }
       assert.equal((await fetch(`${origin}/api/listings/${draftId}`)).status, 404);
+      assert.equal((await fetch(`${target}/${draftId}/submit`, { method: "POST", headers: { origin, cookie: draftCookie, "content-type": "application/json" }, body: "{}" })).status, 404);
       assert.equal((await database.listing.findUnique({ where: { id: draftId } })).status, "DRAFT");
       assert.equal(await database.publicationCycle.count(), 0);
       assert.equal(await database.publicationAvailabilityInterval.count(), 0);
