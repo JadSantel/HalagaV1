@@ -27,7 +27,7 @@ test("pages, components, domain and non-repository server modules cannot bypass 
     'const driver = require("pg");',
     'const client = require("@/server/prisma");',
   ];
-  for (const filePath of ["src/app/page.tsx", "src/app/synthetic-client.tsx", "src/domain/synthetic.ts", "src/server/synthetic.ts", "src/server/guarded-command.ts"]) {
+  for (const filePath of ["src/app/page.tsx", "src/app/synthetic-client.tsx", "src/domain/synthetic.ts", "src/server/synthetic.ts", "src/server/guarded-command.ts", "src/server/atomic-publication-decision.ts"]) {
     for (const code of forbidden) {
       assert.ok((await boundaryErrors(`import "server-only"; ${code}`, filePath)).length > 0, `${filePath}: ${code}`);
     }
@@ -59,4 +59,6 @@ test("only marked server infrastructure and repositories receive their allowed i
   )).length > 0);
   assert.deepEqual(await boundaryErrors('import "server-only";', "src/server/guarded-command.ts"), []);
   assert.ok((await boundaryErrors('export const synthetic = true;', "src/server/guarded-command.ts")).length > 0);
+  assert.deepEqual(await boundaryErrors('import "server-only";', "src/server/atomic-publication-decision.ts"), []);
+  assert.ok((await boundaryErrors('export const synthetic = true;', "src/server/atomic-publication-decision.ts")).length > 0);
 });

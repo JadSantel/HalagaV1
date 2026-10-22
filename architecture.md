@@ -480,6 +480,15 @@ Architecture consequences:
 
 ## 5. Cross-flow state and race requirements
 
+Publication atomic-foundation supplement (2026-10-22 PHT): the internal
+`defineAtomicPublicationDecision` coordinator reuses guarded commands and requires
+one transaction for domain, audit, notification/job intents and the original retry
+receipt. A disposable PostgreSQL adapter fixture verifies rollback and replay;
+there is no installed application adapter or publication worker. Missing
+publication-specific policies remain gates at the owner's explicit direction.
+Account-email job values and recipient rules are not defaults for publication.
+See [contract, privacy boundaries and remaining decisions](docs/LAPTOP_PUBLICATION_ATOMIC_FOUNDATION.md).
+
 ADR-092 accepts future account-document agreement capture after final text
 approval: a separate unchecked Terms agreement, independent adult attestation,
 notice presentation without blanket consent, and atomic server-owned document

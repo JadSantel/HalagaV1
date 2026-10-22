@@ -545,6 +545,13 @@ Exact pickup or meetup details are private to the reserved transaction. Public p
 
 ## 14. Listing Publication and Moderation
 
+Atomic-foundation supplement (2026-10-22 PHT): an internal transaction coordinator
+and disposable synthetic PostgreSQL fixture now cover domain/audit/intent/job/
+receipt atomicity and command replay. The owner kept missing publication job,
+delivery and staff-recovery policies gated. No publication command, application
+adapter, new reader, delivery or job execution is installed. This does not grant
+publication readiness. See [scope and verification](docs/LAPTOP_PUBLICATION_ATOMIC_FOUNDATION.md).
+
 Universal human pre-approval is not required.
 
 A listing publishes immediately when it passes required-field, taxonomy, bundle, ownership, evidence, and safety validation without a review trigger.

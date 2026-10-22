@@ -202,6 +202,15 @@ limits and worker runtime integration remain open decisions.
 
 ## Command integration
 
+For the limited publication atomic foundation, `../atomic-publication-decision.ts`
+coordinates domain/audit/notification-intent/job-intent/receipt writes through the
+same supplied transaction. Only a disposable PostgreSQL fixture supplies an adapter;
+no marketplace repository installs it. Strict actor/command/request-key uniqueness,
+target/prerequisite locking, current authorization, accepted effects policies and
+explicit privacy projections remain obligations of the owning repository. Missing
+publication policies gate application adapters and workers. See
+[`LAPTOP_PUBLICATION_ATOMIC_FOUNDATION.md`](../../../../docs/LAPTOP_PUBLICATION_ATOMIC_FOUNDATION.md).
+
 A repository defining a concrete command may supply the shared client's
 interactive `$transaction` as the runner for `defineGuardedCommand`. Its state
 loader and write callback must use only that transaction handle. State loading

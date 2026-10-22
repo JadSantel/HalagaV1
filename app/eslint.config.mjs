@@ -58,7 +58,7 @@ const eslintConfig = defineConfig([
     rules: { "no-restricted-syntax": ["error", serverMarkerRequired] },
   },
   {
-    files: ["src/server/guarded-command.ts"],
+    files: ["src/server/guarded-command.ts", "src/server/atomic-publication-decision.ts"],
     rules: {
       "no-restricted-syntax": ["error", ...databaseRuntimeImports, ...sharedClientRuntimeImports, serverMarkerRequired],
     },
