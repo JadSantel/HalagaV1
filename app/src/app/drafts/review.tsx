@@ -55,9 +55,21 @@ export default function DraftReview({ listingId, revision }: { listingId: string
         <p className="mt-3">Correction links open the current editor. Save corrections as a new revision, then review that saved revision.</p>
 
         <section aria-labelledby="requirements-title" className={section}>
-          <h2 id="requirements-title" className="text-2xl font-semibold">Missing publication requirements</h2>
+          <h2 id="requirements-title" className="text-2xl font-semibold">Publication evaluation</h2>
+          <p className="mt-2 font-semibold">{({ eligible: "Eligible under evaluated rules", incomplete: "Missing requirements",
+            ineligible: "Ineligible for normal publication", "review-required": "Human review required before publication",
+            unavailable: "Required checks unavailable" })[review.evaluation.status]}</p>
+          <p className="mt-2">Evaluation of saved revision {review.revision}. Draft state is unchanged. No publication, hold, rejection, operator request or notification was created. Missing or unavailable checks prevent eligibility.</p>
+          {(["ineligible", "review"] as const).map((status) => {
+            const checks = review.evaluation.checks.filter((check) => check.status === status);
+            return checks.length > 0 && <div key={status} className="mt-5">
+              <h3 className="text-xl font-semibold">{({ ineligible: "Deterministic exclusions", review: "Review requirements — no violation established" })[status]}</h3>
+              <ul className="mt-2 list-disc space-y-2 pl-5">{checks.map((check) => <li key={check.field}>{check.message}</li>)}</ul>
+            </div>;
+          })}
+          <h3 className="mt-6 text-xl font-semibold">Missing publication requirements</h3>
           <p className="mt-2">Saved answers are checked on the server. This is not publication approval.</p>
-          {review.missingRequirements.length ? <ul className="mt-4 list-disc space-y-3 pl-5">{review.missingRequirements.map((item) => <li key={item.field}>{item.message} <a href={item.href} className={link}>Correct {item.field.replace(/-/g, " ")}</a></li>)}</ul> : <p className="mt-3">No missing requirements in the supported saved fields. Unavailable checks below still prevent publication.</p>}
+          {review.missingRequirements.length ? <ul className="mt-4 list-disc space-y-3 pl-5">{review.missingRequirements.map((item) => <li key={item.field} id={`requirement-${item.field}`} tabIndex={-1}>{item.message} {!item.href.startsWith("#") && <a href={item.href} className={link}>Correct {item.field.replace(/-/g, " ")}</a>}</li>)}</ul> : <p className="mt-3">No missing requirements were found. Review requirements or unavailable checks still prevent eligibility when listed.</p>}
           <h3 className="mt-6 text-xl font-semibold">Requirements unavailable in this increment</h3>
           <ul className="mt-3 list-disc pl-5">{review.unavailableRequirements.map((item) => <li key={item.field}><a href={`#requirement-${item.field}`} className={link}>About {item.field.replace(/-/g, " ")} requirements</a></li>)}</ul>
           {review.unavailableRequirements.map((item) => <div key={item.field} id={`requirement-${item.field}`} tabIndex={-1} className="mt-4"><p>{item.message}</p></div>)}

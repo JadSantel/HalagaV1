@@ -1,34 +1,27 @@
 import "server-only";
-import { answerText, behaviorOptions, deriveCondition, questions, validateDraft, type QuestionKey } from "../domain/laptop-diagnostics.ts";
+import { answerText, behaviorOptions, deriveCondition, questions, type QuestionKey } from "../domain/laptop-diagnostics.ts";
 import { fulfillmentOptions } from "../domain/laptop-listing.ts";
 import { validatedDraftCondition, type LaptopDraftSnapshot } from "./laptop-draft-validation.ts";
+import type { evaluateLaptopPublication } from "./laptop-publication-evaluation.ts";
 
 /** Owner-only review projection. Proposed content is not a public read grant. */
 export function buildLaptopDraftReview(listingId: string, revision: number, currentRevision: number,
-  savedAt: Date, draft: LaptopDraftSnapshot) {
+  savedAt: Date, draft: LaptopDraftSnapshot, evaluation: ReturnType<typeof evaluateLaptopPublication>) {
   const result = deriveCondition(draft);
-  const errors = validateDraft(draft);
   const editor = `/drafts/${listingId}`;
   const correction = (field: string) => {
     const diagnostic = field in questions || field.endsWith("-note") || ["behavior", "included"].includes(field);
     return `${editor}#${diagnostic && result.safety !== "clear" ? "safety" : field}`;
   };
-  // Existing prototype validation includes practice-only phrasing. Keep its rules,
-  // with saved-draft wording for identity and contents feedback.
-  const messages: Record<string, string | undefined> = {
-    title: "Enter a listing title.", brand: "Enter a brand, or write Unknown; do not guess.",
-    model: "Enter a model, or write Unknown; do not guess.",
-    description: "Describe the laptop, known problems and cosmetic damage.",
-    included: errors.included?.includes("practice") ? "Include the laptop in this single-item listing." : errors.included,
-  };
-  const missingRequirements = Object.entries(errors).map(([field, message]) => ({
-    field, message: messages[field] ?? message, href: correction(field),
+  const editable = new Set(["title", "brand", "model", "description", "fulfillment", "behavior", "behavior-note", "included", "included-note"]);
+  const missingRequirements = evaluation.checks.filter((check) => check.status === "missing").map(({ field, message }) => ({
+    field, message, href: editable.has(field) || field in questions || field.endsWith("-note")
+      ? correction(field) : `#requirement-${field}`,
   }));
-  if (!draft.fulfillment) missingRequirements.push({ field: "fulfillment",
-    message: "Choose buyer pickup, mutually agreed meetup, or both. No exact location is needed.", href: correction("fulfillment") });
+  const unavailableRequirements = evaluation.checks.filter((check) => check.status === "unavailable").map(({ field, message }) => ({ field, message }));
 
   return {
-    listingId, revision, currentRevision, savedAt, status: "DRAFT" as const,
+    listingId, revision, currentRevision, savedAt, status: "DRAFT" as const, evaluation,
     // Explicit allowlist: never spread the private draft into proposed content.
     proposedPublicContent: {
       listingType: "Single item", category: "Laptops", title: draft.title, brand: draft.brand, model: draft.model,
@@ -46,13 +39,7 @@ export function buildLaptopDraftReview(listingId: string, revision: number, curr
     },
     ownerPrivate: { privatePriceExpectation: draft.privatePriceExpectation },
     missingRequirements,
-    unavailableRequirements: [
-      { field: "geography", message: "Barangay is missing. Controlled CDO registry selection awaits an accepted decision; fictional practice geography cannot be used." },
-      { field: "photos", message: "At least two clear actual-item photos are required. Private synthetic uploads can be managed in the editor, but synthetic and practice images never qualify as actual-item evidence. Pending, failed and rejected files cannot count. Actual-item identity, clarity, defect coverage and publication evidence checks remain unavailable. Unknown brand/model also requires the applicable markings or multiple-angle evidence." },
-      { field: "ownership", message: "An ownership or owner-authorization declaration is required before submission. This increment does not collect it or establish proof of ownership." },
-      { field: "publication-checks", message: "Publication eligibility, taxonomy, evidence, sensitive-content, risk and moderation checks have not run. Private draft access does not establish adult/email eligibility, account clearance or operational readiness for publication." },
-      { field: "language", message: "Accepted English laptop prototype only. Usability validation, human-reviewed paired Cebuano/Bisaya and launch readiness remain required." },
-    ],
+    unavailableRequirements,
   };
 }
 

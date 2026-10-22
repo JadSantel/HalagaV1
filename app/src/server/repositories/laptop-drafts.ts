@@ -7,6 +7,8 @@ import { laptopDraftSchema, validatedDraftCondition, type LaptopDraftSnapshot } 
 import { getPrisma } from "../prisma.ts";
 import { createAccountAuth } from "./auth.ts";
 import { draftCutoff, type DraftPhoto } from "../../domain/draft-photo-policy.ts";
+import { hasAdultEligibility } from "../account-access.ts";
+import { evaluateLaptopPublication } from "../laptop-publication-evaluation.ts";
 
 const createSchema = z.strictObject({ requestId: z.uuid(), draft: laptopDraftSchema });
 const saveSchema = createSchema.extend({ expectedRevision: z.number().int().positive().max(2147483646) });
@@ -26,7 +28,8 @@ export class LaptopDraftRejected extends Error {
 const revisionSelect = {
   id: true, listingId: true, version: true, createdAt: true, title: true, description: true,
   listingType: true, category: true, diagnosticSchemaVersion: true, conditionSummary: true,
-  priceExpectation: true, fulfillment: true, photoCommand: true,
+  priceExpectation: true, fulfillment: true, photoCommand: true, barangayCode: true,
+  ownershipDeclaration: { select: { revisionId: true } },
   draftPhotos: { orderBy: { sortOrder: "asc" as const }, select: { photoId: true, sortOrder: true,
     photo: { select: { status: true, approvedAttemptId: true, deletedAt: true } } } },
   itemGroups: { select: { quantity: true, brand: true, model: true, approximateAge: true,
@@ -188,7 +191,24 @@ export function createLaptopDraftOperations(
           listing: { sellerId, status: "DRAFT", publicationCycles: { none: {} } },
         }, select: revisionSelect });
         if (!saved) throw new LaptopDraftRejected("NOT_FOUND");
-        return { ...buildLaptopDraftReview(listing.id, saved.version, listing.currentRevisionNumber!, saved.createdAt, snapshot(saved)),
+        const account = await transaction.userAccount.findUniqueOrThrow({ where: { id: sellerId }, select: {
+          adultEligibilityCheckedAt: true, adultAttestedAt: true, emailVerifiedAt: true,
+          authUser: { select: { emailVerified: true } },
+        } });
+        const now = clock();
+        const restriction = await transaction.accountMarketplaceRestriction.findFirst({ where: {
+          accountId: sellerId, scope: { in: ["PUBLISH_LISTING", "SUSPENSION"] }, startsAt: { lte: now }, revokedAt: null,
+        }, select: { id: true } });
+        const draft = snapshot(saved);
+        const evaluation = evaluateLaptopPublication({ listingId: listing.id, revisionId: saved.id, revision: saved.version,
+          listingType: saved.listingType, category: saved.category, quantity: saved.itemGroups[0].quantity,
+          draft, barangayCode: saved.barangayCode, photoIds: saved.draftPhotos.map((photo) => photo.photoId),
+          ownershipDeclarationPresent: saved.ownershipDeclaration !== null,
+          account: { adultEligible: hasAdultEligibility(account.adultEligibilityCheckedAt, account.adultAttestedAt, now),
+            emailVerified: account.authUser.emailVerified && account.emailVerifiedAt !== null && account.emailVerifiedAt <= now,
+            publicationRestricted: restriction !== null } });
+        if (listing.updatedAt <= draftCutoff(clock())) throw new LaptopDraftRejected("NOT_FOUND");
+        return { ...buildLaptopDraftReview(listing.id, saved.version, listing.currentRevisionNumber!, saved.createdAt, draft, evaluation),
           photos: projectDraftPhotos(listing.id, saved) };
       }, applySessionHeaders);
     },

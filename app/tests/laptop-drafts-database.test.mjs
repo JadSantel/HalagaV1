@@ -9,11 +9,136 @@ import { createLaptopDraftHandler } from "../src/server/repositories/laptop-draf
 import { createAccountSignInOperation } from "../src/server/repositories/sign-in.ts";
 import { createPasswordChangeOperation } from "../src/server/repositories/password-change.ts";
 import { openSignupSandbox } from "./helpers/signup-sandbox.mjs";
+import { evaluateLaptopPublication, reviewChecks } from "../src/server/laptop-publication-evaluation.ts";
 
 const origin = "http://127.0.0.1:3000";
 const input = (draft = {}) => ({ requestId: randomUUID(), draft });
 const rejects = (code) => (error) => error instanceof LaptopDraftRejected && error.code === code &&
   error.message === code && error.cause === undefined;
+
+// Fictional assessment records only, not real photos or a runtime assessment provider.
+function publicationFixture() {
+  const saved = { listingId: randomUUID(), revisionId: randomUUID(), revision: 3,
+    listingType: "SINGLE_ITEM", category: "LAPTOPS", quantity: 1, barangayCode: "fictional-test-code",
+    photoIds: ["fictional-photo-a", "fictional-photo-b"], ownershipDeclarationPresent: true,
+    account: { adultEligible: true, emailVerified: true, publicationRestricted: false },
+    draft: laptopDraftSchema.parse({ ...copyDraft(samples[0].draft), fulfillment: "both", privatePriceExpectation: "8123456.78" }) };
+  const assessments = { revisionId: saved.revisionId, geography: "pass", ownership: "pass", defectCoverage: "pass",
+    photos: saved.photoIds.map((id) => ({ id, approved: true, derivativeAvailable: true, kind: "actual-item", clear: "pass" })),
+    risk: Object.fromEntries(reviewChecks.map((key) => [key, "pass"])), readiness: "pass" };
+  return { saved, assessments };
+}
+
+test("publication rules distinguish eligibility, incompleteness, unavailable checks and unsupported schemas", () => {
+  const { saved, assessments } = publicationFixture();
+  const original = structuredClone({ saved, assessments });
+  const result = evaluateLaptopPublication(saved, assessments);
+  assert.equal(result.status, "eligible");
+  assert.equal(result.eligible, true);
+  assert.equal(result.revision, 3);
+  assert.equal(JSON.stringify(result).includes("8123456.78"), false);
+  assert.equal(JSON.stringify(result).includes(saved.revisionId), false);
+  const missing = evaluateLaptopPublication({ ...saved, draft: laptopDraftSchema.parse({}) }, assessments);
+  assert.equal(missing.status, "incomplete");
+  for (const field of ["title", "brand", "model", "description", "safety", "fulfillment"]) {
+    assert.ok(missing.checks.some((check) => check.field === field && check.status === "missing"));
+  }
+  for (const input of [undefined, { ...assessments, revisionId: randomUUID() }]) {
+    const unavailable = evaluateLaptopPublication(saved, input);
+    assert.equal(unavailable.eligible, false);
+    assert.ok(unavailable.checks.some((check) => check.status === "unavailable"));
+  }
+  for (const field of ["geography", "ownership", "defectCoverage", "readiness"]) {
+    const result = evaluateLaptopPublication(saved, { ...assessments, [field]: undefined });
+    assert.equal(result.eligible, false, field);
+    assert.equal(result.status, "unavailable", field);
+  }
+  for (const key of reviewChecks) {
+    for (const value of [undefined, "unsupported-outcome", "unavailable"]) {
+      assert.equal(evaluateLaptopPublication(saved, { ...assessments, risk: { ...assessments.risk, [key]: value } }).eligible, false, key);
+    }
+  }
+  assert.equal(evaluateLaptopPublication({ ...saved, barangayCode: null }, assessments).eligible, false);
+  for (const fulfillment of ["", "shipping"]) assert.equal(evaluateLaptopPublication({ ...saved, draft: { ...saved.draft, fulfillment } }, assessments).eligible, false);
+  assert.equal(evaluateLaptopPublication({ ...saved, category: "DESKTOP_COMPUTERS" }, assessments).status, "unavailable");
+  assert.equal(evaluateLaptopPublication({ ...saved, draft: { ...saved.draft, diagnosticVersion: "unsupported" } }, assessments).status, "unavailable");
+  assert.deepEqual({ saved, assessments }, original);
+});
+
+test("publication requires two distinct qualifying revision-member photos, beyond technical processing approval", () => {
+  const { saved, assessments } = publicationFixture();
+  for (const changes of [{ kind: "synthetic" }, { kind: "stock" }, { kind: "catalog" }, { kind: "screenshot" },
+    { approved: false }, { derivativeAvailable: false }, { clear: "missing" }, { clear: "unavailable" }]) {
+    const result = evaluateLaptopPublication(saved, { ...assessments, photos: assessments.photos.map((photo) => ({ ...photo, ...changes })) });
+    assert.equal(result.eligible, false, JSON.stringify(changes));
+    assert.ok(result.checks.some((check) => check.field === "photos" && check.status === "missing"));
+  }
+  for (const photos of [[], [assessments.photos[0]], [assessments.photos[0], assessments.photos[0]],
+    [...assessments.photos.slice(0, 1), { ...assessments.photos[1], id: "another-revision-photo" }]]) {
+    assert.equal(evaluateLaptopPublication(saved, { ...assessments, photos }).status, "incomplete");
+  }
+  for (const changes of [{ kind: "unknown" }, { clear: "review" }]) {
+    assert.equal(evaluateLaptopPublication(saved, { ...assessments, photos: assessments.photos.map((photo) => ({ ...photo, ...changes })) }).status, "review-required");
+  }
+  assert.equal(evaluateLaptopPublication(saved, { ...assessments, defectCoverage: "review" }).status, "review-required");
+  const third = "fictional-photo-c";
+  const threePhotos = { ...saved, photoIds: [...saved.photoIds, third] };
+  for (const extra of [{}, { kind: "unsupported-kind" }, { clear: "unsupported-outcome" }, { clear: "unavailable" }]) {
+    const photos = [...assessments.photos, { ...assessments.photos[0], id: third, clear: "unavailable", ...extra }];
+    assert.equal(evaluateLaptopPublication(threePhotos, { ...assessments, photos }).eligible, false);
+  }
+  assert.equal(evaluateLaptopPublication(threePhotos, assessments).eligible, false);
+});
+
+test("unknown brand/model requires the applicable markings or different-angle evidence and descriptive facts", () => {
+  for (const identity of [{ brand: " Unknown " }, { model: "unknown" }, { brand: "Unknown", model: "Unknown" }]) {
+    const { saved, assessments } = publicationFixture();
+    saved.draft = { ...saved.draft, ...identity };
+    assert.equal(evaluateLaptopPublication(saved, assessments).eligible, false);
+    for (const [markings, property, ids] of [["present", "markingPhotoIds", [saved.photoIds[0]]],
+      ["absent", "differentAnglePhotoIds", saved.photoIds]]) {
+      const complete = { ...assessments, markings, [property]: ids, descriptiveFacts: "pass" };
+      assert.equal(evaluateLaptopPublication(saved, complete).status, "eligible");
+      assert.equal(evaluateLaptopPublication(saved, { ...complete, [property]: [] }).status, "incomplete");
+      assert.equal(evaluateLaptopPublication(saved, { ...complete, [property]: ["foreign-photo"] }).status, "incomplete");
+      assert.equal(evaluateLaptopPublication(saved, { ...complete, descriptiveFacts: "review" }).status, "review-required");
+    }
+    assert.equal(evaluateLaptopPublication(saved, { ...assessments, markings: "unknown" }).status, "review-required");
+  }
+});
+
+test("publication distinguishes hazardous batteries from ambiguous safety and preserves accepted laptop/lock semantics", () => {
+  const { saved, assessments } = publicationFixture();
+  for (const sample of samples) {
+    const result = evaluateLaptopPublication({ ...saved, draft: laptopDraftSchema.parse({ ...sample.draft, fulfillment: "both" }) }, assessments);
+    assert.equal(result.status, sample.safety === "blocked" ? "ineligible" : sample.safety === "hold" ? "review-required" : "eligible", sample.name);
+    if (["blocked", "hold"].includes(sample.safety)) assert.equal(result.checks.some((check) => check.field === "safety" && check.status === "missing"), false);
+  }
+  for (const lock of ["activation", "firmware", "managed", "other"]) {
+    const locked = { ...saved, draft: { ...saved.draft, answers: { ...saved.draft.answers, lock }, notes: { lock: "Fictional known lock; removal capability unknown" } } };
+    assert.equal(evaluateLaptopPublication(locked, assessments).status, "eligible");
+    assert.equal(evaluateLaptopPublication({ ...locked, draft: { ...locked.draft, notes: {} } }, assessments).status, "incomplete");
+  }
+});
+
+test("sensitive text and all accepted risk signals require review without returning private findings or treating ambiguity as guilt", () => {
+  const { saved, assessments } = publicationFixture();
+  for (const field of reviewChecks) {
+    const privateAssessments = { ...assessments, risk: { ...assessments.risk, [field]: "review" },
+      privateFinding: "PRIVATE_FINDING_SENTINEL", matchedText: "PRIVATE_MATCH_SENTINEL", deviceIdentifier: "PRIVATE_IDENTIFIER_SENTINEL" };
+    const result = evaluateLaptopPublication(saved, privateAssessments);
+    assert.equal(result.status, "review-required", field);
+    assert.equal(result.eligible, false);
+    assert.equal(result.checks.some((check) => check.status === "ineligible"), false);
+    assert.equal(result.checks.some((check) => check.field === field), false);
+    assert.ok(result.checks.some((check) => check.field === "publication-review"));
+    for (const sentinel of ["PRIVATE_FINDING_SENTINEL", "PRIVATE_MATCH_SENTINEL", "PRIVATE_IDENTIFIER_SENTINEL"]) assert.equal(JSON.stringify(result).includes(sentinel), false);
+  }
+  for (const property of ["adultEligible", "emailVerified"]) {
+    assert.equal(evaluateLaptopPublication({ ...saved, account: { ...saved.account, [property]: false } }, assessments).status, "incomplete");
+  }
+  assert.equal(evaluateLaptopPublication({ ...saved, account: { ...saved.account, publicationRestricted: true } }, assessments).status, "review-required");
+});
 
 test("draft validation reuses accepted rules, permits incompleteness and never accepts owner/lifecycle overrides", () => {
   const blank = laptopDraftSchema.parse({});
@@ -111,6 +236,10 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
           headers: { cookie: actor?.headers.get("cookie") ?? "", ...extra },
         }), created.id, true);
       const before = await history(created.id);
+      const sideEffects = async () => ({ listing: await database.listing.findUnique({ where: { id: created.id } }),
+        cycles: await database.publicationCycle.count(), outbox: await database.outboxEvent.count(),
+        notices: await database.passwordChangeNotice.count(), photos: await database.draftPhotoEvent.count() });
+      const unchanged = await sideEffects();
       const review = await read(await reviewRequest(account), 200);
       assert.equal(review.listingId, created.id);
       assert.equal(review.revision, 1);
@@ -120,10 +249,14 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
       assert.equal(JSON.stringify(review.proposedPublicContent).includes("8123456.78"), false);
       assert.equal(Object.hasOwn(review.proposedPublicContent, "privatePriceExpectation"), false);
       assert.equal(review.proposedPublicContent.condition, null);
+      assert.equal(review.evaluation.status, "incomplete");
+      assert.equal(review.evaluation.eligible, false);
+      assert.equal(review.evaluation.revision, 1);
+      assert.equal(review.evaluation.checks.find((check) => check.field === "email-verification").status, "missing");
       for (const field of ["title", "brand", "model", "description", "safety", "fulfillment"]) {
         assert.ok(review.missingRequirements.some((item) => item.field === field && item.href === `/drafts/${created.id}#${field}`));
       }
-      for (const field of ["geography", "photos", "ownership", "publication-checks", "language"]) {
+      for (const field of ["geography", "photo-assessment", "ownership", "publication-checks", "readiness"]) {
         assert.ok(review.unavailableRequirements.some((item) => item.field === field && item.message.length));
       }
       assert.equal(JSON.stringify(review).includes("sample-a"), false);
@@ -138,6 +271,7 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
       await read(await reviewRequest(account, "1", { origin: "https://foreign.invalid" }), 401, { code: "UNAUTHORIZED" });
       await read(await handler(new Request(`${origin}/review`, { method: "POST" }), created.id, true), 404, { code: "NOT_FOUND" });
       assert.deepEqual(await history(created.id), before);
+      assert.deepEqual(await sideEffects(), unchanged);
 
       let version = 1;
       for (const sample of samples) {
@@ -145,6 +279,9 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
         const result = await read(await reviewRequest(account, String(version)), 200);
         assert.equal(result.proposedPublicContent.condition, sample.expected);
         assert.equal(result.proposedPublicContent.safety, sample.safety);
+        assert.equal(result.evaluation.status, sample.safety === "blocked" ? "ineligible" : sample.safety === "hold" ? "review-required" : "incomplete");
+        assert.equal(result.evaluation.eligible, false);
+        assert.equal(result.status, "DRAFT");
         assert.ok(result.proposedPublicContent.reasons.length);
         for (const reason of result.proposedPublicContent.reasons) assert.ok(reason.href.startsWith(`/drafts/${created.id}#`));
         for (const key of ["battery", "lock", "coverage", "safety"]) assert.ok(result.proposedPublicContent.disclosures.some((row) => row.field === key));
@@ -158,7 +295,11 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
       assert.deepEqual(historical.ownerPrivate, review.ownerPrivate);
       assert.deepEqual(historical.proposedPublicContent, review.proposedPublicContent);
       await restrict(account, "SUSPENSION");
-      await read(await reviewRequest(account), 200); // Reads remain available.
+      const restricted = await read(await reviewRequest(account), 200); // Reads remain available.
+      assert.equal(restricted.evaluation.status, "review-required");
+      for (const secret of ["Synthetic private review reason", "synthetic-authorized-operator", "synthetic-private-appeal"]) {
+        assert.equal(JSON.stringify(restricted).includes(secret), false);
+      }
       await database.userAccount.update({ where: { id: account.accountId }, data: { deletedAt: new Date() } });
       await read(await reviewRequest(account), 401, { code: "UNAUTHORIZED" });
       await database.userAccount.update({ where: { id: account.accountId }, data: { deletedAt: null } });
@@ -221,6 +362,8 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
         const firstSave = { ...input({ title: "Synthetic saved revision", fulfillment: "both" }), expectedRevision: 1 };
         await operations.save(account.headers, created.id, firstSave);
         const decision = await restrict(account, scope);
+        const reviewed = await operations.review(account.headers, created.id, "1");
+        assert.equal(reviewed.evaluation.status, ["PUBLISH_LISTING", "SUSPENSION"].includes(scope) ? "review-required" : "incomplete");
         const detail = await read(await send(account, "GET", undefined, created.id), 200);
         assert.equal((await read(await send(account, "GET"), 200)).drafts.length, 1);
         const create = input({ fulfillment: "meetup" }), save = { ...input({ title: "Synthetic attempted edit", fulfillment: "meetup" }), expectedRevision: 2 };
@@ -250,6 +393,24 @@ test("owner-private laptop drafts in disposable synthetic PostgreSQL", async (t)
         if (["CREATE_LAPTOP_DRAFT", "SUSPENSION"].includes(scope)) await read(await send(account, "POST", create), 200);
         if (["EDIT_LAPTOP_DRAFT", "SUSPENSION"].includes(scope)) await read(await send(account, "PUT", save, created.id), 200);
       }
+    });
+
+    await t.test("publication review rereads live account prerequisites without granting eligibility or changing the draft", async () => {
+      const account = await fixture();
+      const created = await operations.create(account.headers, input({ ...samples[0].draft, fulfillment: "pickup" }));
+      const before = await history(created.id);
+      const check = async (field) => (await operations.review(account.headers, created.id, "1")).evaluation.checks.find((item) => item.field === field).status;
+      assert.equal(await check("adult-eligibility"), "pass");
+      assert.equal(await check("email-verification"), "missing");
+      await database.userAccount.update({ where: { id: account.accountId }, data: { emailVerifiedAt: new Date() } });
+      assert.equal(await check("email-verification"), "missing"); // Domain alone cannot override auth.
+      await database.user.update({ where: { id: account.userId }, data: { emailVerified: true } });
+      assert.equal(await check("email-verification"), "pass");
+      await database.userAccount.update({ where: { id: account.accountId }, data: { adultEligibilityCheckedAt: null } });
+      assert.equal(await check("adult-eligibility"), "missing");
+      assert.equal((await operations.review(account.headers, created.id, "1")).evaluation.eligible, false);
+      assert.deepEqual(await history(created.id), before);
+      assert.equal((await database.listing.findUnique({ where: { id: created.id } })).status, "DRAFT");
     });
 
     await t.test("rejected writes do not renew an otherwise rolling session or change draft history", async () => {

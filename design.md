@@ -161,6 +161,14 @@ heading receives focus after loading. Nothing is published or submitted; no owne
 checkbox or publication button is present. This extends the existing English-only
 local prototype, not acceptance of proposed visual tokens or language/launch readiness.
 
+Read-only evaluation supplement (2026-10-22 PHT): this review displays text-labeled
+evaluation outcomes separately from the unchanged Draft state. Deterministic
+exclusions, review requirements without an established violation, missing fields
+and unavailable checks remain separate. Existing correction links and focusable
+explanations remain; no publication or operator-request control is added. Private
+findings are never displayed. See
+[scope and remaining decisions](docs/LAPTOP_PUBLICATION_EVALUATION.md).
+
 - **Goal:** manage availability, correct facts, respond to reports/moderation, and explicitly renew an active listing.
 - **Hierarchy:** current lifecycle state, publication/expiry context, listing facts and current revision, inquiries/proposals activity available only to seller, edit/renew/remove controls, any buyer reconfirmation requirement.
 - **Actions:** edit, explicitly confirm still available/accurate for renewal, remove/close as permitted, answer inquiries, handle paused offer reactivation context. After offers exist, material edit requires affected buyers to reactivate/revise/withdraw; after reservation it suspends prior appointment/terms and gives buyer 24 hours to reconfirm/revise/withdraw.

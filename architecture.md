@@ -180,6 +180,17 @@ open the current editor and append a new revision on save. Unavailable checks ar
 reported as unavailable; safety block/hold semantics never imply an actual workflow
 transition or operator request. ADR-094 and operational/language gates remain open.
 
+Read-only evaluation supplement (2026-10-22 PHT): that review now includes the
+versioned accepted-rule evaluation described in
+[LAPTOP_PUBLICATION_EVALUATION.md](docs/LAPTOP_PUBLICATION_EVALUATION.md). It uses
+N's content, declaration presence and ordered photo membership, with live adult/email
+prerequisites and explicit publication restrictions under the existing owner locks.
+Safe results distinguish missing, ineligible, review-required and unavailable checks;
+only all-pass can be eligible. No runtime risk/evidence assessment provider is wired,
+so missing detector policies cannot silently clear a revision. Private triggers are
+collapsed to generic review guidance. No listing/revision, moderation, outbox, notice,
+retention or asynchronous-effect write is added. Publication commands remain absent.
+
 ADR-090 draft enforcement now reads matching active restriction/suspension
 decisions after the account lock and before writes or retry recognition. SQL
 restriction changes acquire that same account lock; a waiting draft command

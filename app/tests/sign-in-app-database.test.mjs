@@ -295,6 +295,9 @@ test("actual Next account routes use only a disposable synthetic schema", { time
       assert.equal(review.revision, 1);
       assert.equal(review.currentRevision, 2);
       assert.equal(review.proposedPublicContent.title, create.draft.title);
+      assert.equal(review.evaluation.revision, 1);
+      assert.equal(review.evaluation.eligible, false);
+      assert.ok(review.evaluation.checks.some((check) => check.field === "publication-checks" && check.status === "unavailable"));
       assert.equal(review.ownerPrivate.privatePriceExpectation, create.draft.privatePriceExpectation);
       assert.equal(JSON.stringify(review.proposedPublicContent).includes(create.draft.privatePriceExpectation), false);
       await read(await fetch(`${origin}${reviewPath}`), 401, { code: "UNAUTHORIZED" });

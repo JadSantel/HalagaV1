@@ -1,5 +1,13 @@
 # Local synthetic laptop draft workspace: bounded Slice 3
 
+Later evaluation supplement (2026-10-22 PHT): saved owner review now runs the
+read-only accepted-rule evaluator. Missing, deterministically ineligible,
+review-required and unavailable checks remain separate; current runtime gaps
+prevent eligibility. No lifecycle or notification effect occurs. See
+[scope, pending risk decisions and verification](LAPTOP_PUBLICATION_EVALUATION.md).
+This supersedes historical statements below that all publication checks are absent;
+detector rules, qualifying evidence and publication commands remain unavailable.
+
 Later photo supplement (2026-10-21 PHT): accepted ADR-095 and
 [DRAFT_PHOTO_LOCAL_TESTING.md](DRAFT_PHOTO_LOCAL_TESTING.md) supersede older
 media-unimplemented statements here. Owner-private synthetic upload, derivatives,

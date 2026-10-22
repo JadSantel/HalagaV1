@@ -41,6 +41,28 @@ A deterministically ineligible item or listing is rejected from normal publicati
 - Sellers need a correction and resubmission path when the issue can be remedied without support appeal.
 - Formal appeal rules for disputed review decisions remain unresolved.
 
+## Read-only evaluation implementation record (2026-10-22 PHT)
+
+Owner-private saved laptop review now returns a versioned, read-only evaluation of
+an exact revision. Implemented accepted checks cover saved fields, laptop diagnostics,
+fulfillment, structured safety/lock disclosures, declaration presence and current
+account prerequisites/publication restrictions. The evidence-rule evaluator requires
+two distinct qualifying actual-item photos and applicable Unknown identity evidence.
+Current synthetic uploads cannot meet those rules. Unavailable checks never pass.
+
+There is no runtime risk/evidence assessment provider: this ADR's trigger categories
+do not specify executable sensitive-text, fraud, image or support-history detectors.
+Their rules, authorized assessment and provenance remain pending, documented in
+[evaluation scope and decisions](../LAPTOP_PUBLICATION_EVALUATION.md). Synthetic
+assessment fixtures exercise all-pass and held-review routing without asserting
+real evidence or accepting detector thresholds. Private review details are omitted.
+
+This implements existing accepted semantics, not a new policy decision. It makes
+no lifecycle transition, public reader, hold queue, audit/outbox/notification write
+or launch grant. A future publication command must recheck state and fulfill its
+own atomic authorization, evidence, audit and notification contract. ADR-078 already
+supersedes the historical unresolved appeal statement above; no appeal flow changes.
+
 ## Source
 
 - ADR-017: Exclude Standalone and Hazardous Battery Items

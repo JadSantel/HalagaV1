@@ -2,6 +2,14 @@
 
 The files in this directory preserve decisions in chronological order.
 
+Latest laptop evaluation (2026-10-22 PHT): ADR-058's implementation record adds a
+versioned read-only evaluation to exact saved-revision owner review. It distinguishes
+missing requirements, deterministic exclusions, human-review requirements and
+unavailable checks; only all-pass can be eligible. Current runtime checks cannot
+clear geography, real evidence or undocumented detectors. No publication, hold,
+operator request or notification is created. See
+[scope, risk decisions and verification](../LAPTOP_PUBLICATION_EVALUATION.md).
+
 Latest photo decision (2026-10-21 PHT): the owner explicitly accepted groups A/B/C
 in [ADR-095](ADR-095-private-synthetic-draft-photo-processing.md). Private synthetic
 photo paths, immutable ordered references, safe derivatives and a local run-once

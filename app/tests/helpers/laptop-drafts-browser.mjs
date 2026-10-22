@@ -216,6 +216,10 @@ export async function checkLaptopDraftBrowser(origin, database, auth) {
       await wait(`Boolean(document.querySelector('#owner-private'))`);
       const expected = sample.expected ?? "No ordinary condition";
       assert.equal(await evaluate(`document.querySelector('#proposed-public').textContent.includes(${JSON.stringify(expected)})`), true);
+      const evaluationStatus = sample.safety === "blocked" ? "Ineligible for normal publication"
+        : sample.safety === "hold" ? "Human review required before publication" : "Missing requirements";
+      assert.equal(await evaluate(`document.querySelector('[aria-labelledby="requirements-title"]').textContent.includes(${JSON.stringify(evaluationStatus)})`), true);
+      assert.equal((await database.listing.findUnique({ where: { id: created.id } })).status, "DRAFT");
       assert.equal(await evaluate("document.querySelector('#proposed-public').textContent.includes('1,357,913.57')"), false);
       assert.equal(await evaluate("document.querySelector('#owner-private').textContent.includes('1,357,913.57')"), true);
       if (index === 0) {

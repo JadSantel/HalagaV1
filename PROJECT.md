@@ -442,6 +442,18 @@ IMEI entry is optional but strongly encouraged for smartphones and cellular-capa
 
 ### 11.4 Local synthetic draft implementation boundary (2026-10-19 PHT)
 
+Read-only evaluation supplement (2026-10-22 PHT): owner review now evaluates an
+exact saved laptop revision against implemented accepted requirements, with
+separate missing, deterministic-ineligibility, review-required and unavailable
+results. Unavailable checks cannot yield eligibility. Current account prerequisites
+and explicit publication restrictions are checked without exposing private findings.
+Actual-item evidence, controlled geography, ownership capture, sensitive-text and
+other risk-detection rules remain gated; no detector policy is invented. Draft state,
+revision history and notification/outbox records are unchanged by review. See
+[evaluation scope and decisions](docs/LAPTOP_PUBLICATION_EVALUATION.md). This later
+supplement supersedes older statements below that no publication checks run; it
+does not authorize publication or turn an evaluation into a moderation action.
+
 ADR-095's later photo implementation supersedes media-unavailable statements in
 this historical boundary: owner-private synthetic photo handling now exists.
 Actual-item evidence assessment/publication remains unavailable. See

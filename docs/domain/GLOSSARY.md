@@ -253,6 +253,15 @@ disclosure has no stored derived condition. Private draft access is limited to t
 authenticated owner, including an unverified owner, and does not satisfy later
 publication gates (architecture §4.1; ADR-084 implementation record).
 
+## Publication Evaluation
+
+A read-only assessment of an exact saved revision against accepted publication
+requirements. Missing requirements, deterministic ineligibility, required human
+review and unavailable checks remain distinct; unavailable checks cannot yield
+eligibility. It neither changes the listing lifecycle nor creates an operator
+request, moderation finding or notification. Current synthetic laptop review
+cannot establish actual-item evidence or clear unimplemented risk detectors.
+
 ## Listing Renewal
 
 An explicit seller action confirming that an item remains available and its listing facts remain accurate for a new 30-day active lifetime. Renewal does not erase prior history.
